@@ -1,0 +1,83 @@
+
+move_review_to_resolved:
+  stage: move_review_to_resolved
+  image: forasoft/dind
+  tags:
+    - hpi-deploy
+  before_script:
+    - apk update
+    - apk add --no-cache curl
+  script:
+    - export JIRA_ISSUE_KEY=$(echo $CI_COMMIT_MESSAGE | sed -n "s/^.*\(HPI-[0-9]*\).*$/\1/p")
+    - echo Moving to resolve - $JIRA_ISSUE_KEY
+    - >
+     if [[ $JIRA_ISSUE_KEY ]]
+      then
+        curl -X POST \
+          https://jira-issue-updater.staging.forasoft.com/update \
+          -H 'Content-Type: application/json' \
+          -H 'cache-control: no-cache' \
+          -d '{
+            "project": "HPI",
+            "from": "Review",
+            "to": "Resolved",
+            "keys": "'"${JIRA_ISSUE_KEY}"'",
+            "comment": "'"Build from ${CI_COMMIT_SHA}"'",
+            "token": "'"${JIRA_ISSUE_UPDATER_TOKEN}"'"
+          }'
+      fi
+  rules:
+    - if: '$CI_COMMIT_REF_NAME =~ /^(develop)$/ && $CI_PIPELINE_SOURCE == "push"'
+      when: always
+
+move_resolved_to_rft:
+  stage: move_resolved_to_rft
+  image: forasoft/dind
+  tags:
+    - hpi-deploy
+  before_script:
+    - apk update
+    - apk add --no-cache curl
+  script:
+    - |
+      curl -X POST \
+        https://jira-issue-updater.staging.forasoft.com/update \
+        -H 'Content-Type: application/json' \
+        -H 'cache-control: no-cache' \
+        -d '{
+        "project": "HPI",
+        "from": "Resolved",
+        "to": "Ready for testing",
+        "component": "Web",
+        "comment": "'"Build from ${CI_COMMIT_SHA}"'",
+        "token": "'"${JIRA_ISSUE_UPDATER_TOKEN}"'"
+        }'
+    - |
+      curl -X POST \
+        https://jira-issue-updater.staging.forasoft.com/update \
+        -H 'Content-Type: application/json' \
+        -H 'cache-control: no-cache' \
+        -d '{
+        "project": "HPI",
+        "from": "Resolved",
+        "to": "Ready for testing",
+        "component": "API",
+        "comment": "'"Build from ${CI_COMMIT_SHA}"'",
+        "token": "'"${JIRA_ISSUE_UPDATER_TOKEN}"'"
+        }'
+    - |
+      curl -X POST \
+        https://jira-issue-updater.staging.forasoft.com/update \
+        -H 'Content-Type: application/json' \
+        -H 'cache-control: no-cache' \
+        -d '{
+        "project": "HPI",
+        "from": "Resolved",
+        "to": "Ready for testing",
+        "component": "Backend",
+        "comment": "'"Build from ${CI_COMMIT_SHA}"'",
+        "token": "'"${JIRA_ISSUE_UPDATER_TOKEN}"'"
+        }'
+  rules:
+    - if: '$CI_COMMIT_REF_NAME =~ /^(testing)$/'
+      when: always

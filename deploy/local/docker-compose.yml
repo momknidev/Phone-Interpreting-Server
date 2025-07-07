@@ -1,0 +1,33 @@
+# version: '3'
+services:
+  # postgres:
+  #   container_name: hospital_phone_interpreter_postgres
+  #   restart: unless-stopped
+  #   image: postgres
+  #   ports:
+  #     - '5432:5432'
+  #   environment:
+  #     POSTGRES_DB: hospital_phone_interpreter
+  #     POSTGRES_USER: postgres
+  #     POSTGRES_PASSWORD: postgres
+
+  # redis:
+  #   image: redis
+  #   restart: unless-stopped
+  #   ports:
+  #     - 6379:6379
+
+  core:
+    container_name: hospital_phone_interpreter_core
+    restart: unless-stopped
+    # depends_on:
+    # - postgres
+    # - redis
+    build:
+      context: ../../services/core
+      dockerfile: Dockerfile
+    ports:
+      - '8000:8000'
+    volumes:
+      - ../../services/core:/app
+      - /app/node_modules

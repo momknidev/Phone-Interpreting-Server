@@ -1,0 +1,31 @@
+version: "3.8"
+
+networks:
+  traefik:
+    name: traefik
+
+services:
+  traefik:
+    build: ${CI_PROJECT_DIR}/services/proxy/staging
+    container_name: traefik
+    restart: always
+    networks:
+      - traefik
+    ports:
+      - "80:80"
+      - "443:443"
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  whoami:
+    image: "traefik/whoami"
+    restart: always
+    networks:
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.whoami.rule=Host(`${CI_ENVIRONMENT_NAME}-${DOMAIN}`) && PathPrefix(`/whoami`)"
+      - "traefik.http.routers.whoami.entrypoints=http"
+      - "traefik.http.services.whoami.loadbalancer.server.port=80"

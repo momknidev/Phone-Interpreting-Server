@@ -1,0 +1,24 @@
+.proxy-base:
+  stage: update_proxy
+  image: forasoft/dind
+  environment: ${CI_COMMIT_REF_NAME}
+  script:
+    - cd ./deploy/staging
+    - docker-compose --compatibility -p hpi -f docker-compose.proxy.yml up -d --build --force-recreate
+                     
+
+Update Proxy Staging:
+  extends: .proxy-base
+  tags: 
+   - hpi-deploy
+  rules:
+    - if: '$UPDATE_PROXY_STAGING == "TRUE"'
+      when: always  
+
+Update Proxy live:
+  extends: .proxy-base
+  tags: 
+   - project-live-deploy
+  rules:
+    - if: '$UPDATE_PROXY_LIVE == "TRUE"'
+      when: always  

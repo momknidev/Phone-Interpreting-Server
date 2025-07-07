@@ -1,0 +1,31 @@
+version: '3'
+
+services:
+  redis:
+    image: redis
+    restart: unless-stopped
+    ports:
+      - 6379:6379
+
+  core:
+    container_name: hospital_phone_interpreter_core
+    restart: unless-stopped
+    depends_on:
+      # - postgres
+      - redis
+    build:
+      context: ../../services/core
+      dockerfile: Dockerfile
+    ports:
+      - '8000:8000'
+    environment:
+      - DOMAIN
+      - NODE_ENV=production
+      - FALLBACK_PHONE_NUMBER
+      - TWILIO_ACCOUNT_SID
+      - TWILIO_AUTH_TOKEN
+      - DATABASE_URL
+      - REDIS_URL
+      - PORT
+      - IS_LOCAL
+      - CI_ENVIRONMENT_NAME

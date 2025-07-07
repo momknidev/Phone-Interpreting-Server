@@ -1,0 +1,13 @@
+stages:
+ - update_proxy
+ - analysis
+ - move_review_to_resolved # jira.yml
+ - update_staging # staging.yml
+ - move_resolved_to_rft # jira.yml
+
+include:
+  - 'pipelines/staging.yml'
+  - 'pipelines/jira.yml'
+  - 'pipelines/proxy.yml'
+  - 'pipelines/analysis.yml'
+
