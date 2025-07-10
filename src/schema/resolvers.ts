@@ -1,6 +1,6 @@
-import merge from "lodash/merge.js";
+import merge from "lodash.merge";
 // INTRANET
-import user from "./user/resolvers.js";
+import user from "./user/resolvers";
 
 
 const resolvers = merge(

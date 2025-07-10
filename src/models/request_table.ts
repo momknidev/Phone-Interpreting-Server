@@ -1,13 +1,11 @@
-/* eslint-disable indent */
-/* eslint-disable @typescript-eslint/indent */
+
 import {
   pgTable, uuid, varchar, timestamp, decimal, text,
 } from 'drizzle-orm/pg-core';
 import { mediator } from './mediator';
-import { RequestTable } from './request_table';
 import { Users } from './user_table';
 
-export const Requests = pgTable('request', {
+export const RequestTable = pgTable('request', {
   id: uuid('id').primaryKey(),
   mediatorId: uuid('mediatorId').references(() => mediator.id,),
   userID: uuid('userID').references(() => Users.id),

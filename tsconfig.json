@@ -1,24 +1,14 @@
 {
-  "include": [
-    "src/**/*.ts",
-    "src/**/*.js",
-    "drizzle.config.ts"
-  ],
+  "include": ["src/**/*.ts", "src/**/*.js", "drizzle.config.ts"],
   "compilerOptions": {
-    "lib": ["es2023"],
     "module": "commonjs",
-    "target": "es6",
-    "moduleResolution": "node",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
+    "target": "ES6",
     "outDir": "build/",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "typeRoots": [
-      "./node_modules/@types",
-      "./types"
-    ],
-  }
+    "rootDir": "./src"
+  },
+  "exclude": ["node_modules"]
 }

@@ -10,7 +10,7 @@ export const vars = Object.freeze({
     port: parseNumber(process.env.PORT, 8000),
     domain: parseString(process.env.DOMAIN, 'http://3.71.35.113:8000'),
     isLocal: parseBoolean(process.env.IS_LOCAL, true),
-
+    secret_key: process.env.SECRET_KEY,
     redis: {
         uri: parseString(process.env.REDIS_URI, 'redis://default:VDoJXa5maUdu8F1mDhgGW2bbEsWjCLj8@redis-10765.crce198.eu-central-1-3.ec2.redns.redis-cloud.com:10765'),
     },
