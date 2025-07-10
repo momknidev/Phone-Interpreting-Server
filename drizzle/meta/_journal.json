@@ -1,0 +1,13 @@
+{
+  "lastMigration": null,
+  "migrationsApplied": [],
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1752136958407,
+      "tag": "0000_dark_mulholland_black",
+      "breakpoints": true
+    }
+  ]
+}

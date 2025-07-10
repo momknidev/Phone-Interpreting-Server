@@ -2,9 +2,11 @@ import {
   numeric, pgTable, text, boolean, timestamp, uuid, varchar,
 } from 'drizzle-orm/pg-core';
 import { Languages } from './language_table';
+import { Users } from './user_table';
 
 export const mediator = pgTable('mediator', {
   id: uuid('id').primaryKey().notNull(),
+  userID: uuid('userID').references(() => Users.id),
   firstName: varchar('firstName').notNull(),
   lastName: varchar('lastName').notNull(),
   email: text('email'),
