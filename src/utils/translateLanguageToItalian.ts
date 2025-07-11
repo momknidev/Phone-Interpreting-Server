@@ -1,4 +1,4 @@
-const languageMappings = {
+const languageMappings: { [key: string]: string } = {
   Abkhaz: 'Abcasio',
   Afar: 'Afar',
   Afrikaans: 'Afrikaans',
@@ -185,6 +185,7 @@ const languageMappings = {
   'Zhuang, Chuang': 'Zhuang',
 };
 
-export default translateLanguageToItalian = (language) => {
+const translateLanguageToItalian = (language: string) => {
   return languageMappings[language] || language;
 };
+export default translateLanguageToItalian

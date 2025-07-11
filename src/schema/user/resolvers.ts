@@ -1,5 +1,5 @@
 // import { FileUpload } from 'graphql-upload/GraphQLUpload.mjs';
-import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, or, sql } from 'drizzle-orm';
 import { AuthenticationError, UserInputError } from 'apollo-server';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
@@ -159,17 +159,24 @@ const resolvers = {
         orderBy?: string;
         name?: string;
         type?: string;
-      }
+      }, context: any
     ) => {
+      console.log({ context })
+      // if (!context?.user) {
+      //   throw new AuthenticationError('Unauthenticated');
+      // }
       try {
         let query = db.select().from(Users);
 
-        // Apply filters
         const filters = [];
 
         if (name) {
           filters.push(
-            sql`(${Users.firstName} ILIKE ${'%' + name + '%'} OR ${Users.lastName} ILIKE ${'%' + name + '%'})`
+            or(
+              ilike(Users.firstName, '%' + name + '%'),
+              ilike(Users.lastName, '%' + name + '%'),
+
+            )
           );
         }
 
@@ -212,21 +219,17 @@ const resolvers = {
           firstName: user.firstName || '',
           lastName: user.lastName || '',
           role: user.role || '',
-          type: user.type || '',
+          // type: user.type || '',
           avatarUrl: user.avatarUrl || '',
           createdAt: user.createdAt?.toISOString() || '',
-          updatedAt: user.updatedAt?.toISOString() || '',
+          // updatedAt: user.updatedAt?.toISOString() || '',
           phone: String(user.phone) || undefined,
-          password: undefined, // Exclude password from the response
+          // password: undefined, // Exclude password from the response
         }));
 
         return {
           users: mappedUsers,
-          pagination: {
-            total: totalCount,
-            offset,
-            limit
-          }
+          filteredCount: totalCount,
         };
       } catch (error: any) {
         console.error('Error fetching users paginated list:', error.message);

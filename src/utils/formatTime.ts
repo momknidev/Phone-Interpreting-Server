@@ -1,14 +1,14 @@
 import { format, getTime, formatDistanceToNow } from 'date-fns';
 import { it } from 'date-fns/locale';
 // ----------------------------------------------------------------------
-export function fItalianDate(date) {
+export function fItalianDate(date: string) {
   if (date) {
     return format(new Date(date), 'PPP', { locale: it });
   }
 }
-export function fItalianDateTime(date) {
+export function fItalianDateTime(date: string) {
   if (date) {
-    const parsedDate = new Date(date);
+    const parsedDate: any = new Date(date);
     if (isNaN(parsedDate)) {
       console.error('Invalid date:', date);
       return null;
@@ -18,21 +18,21 @@ export function fItalianDateTime(date) {
 
   return null; // Return null if date is falsy
 }
-export function fDate(date) {
+export function fDate(date: string) {
   if (date) {
     return format(new Date(date), 'dd MMM yyyy');
   }
 }
-export function fDateString(date) {
+export function fDateString(date: string) {
   if (date) {
     return format(new Date(date), 'dd/MM/yyyy');
   }
 }
 
-export function fDateTime(date) {
+export function fDateTime(date: string) {
   if (date) {
     const dateObj = new Date(date);
-    const options = {
+    const options: Intl.DateTimeFormatOptions = {
       timeZone: 'Europe/Rome', // Set Italian timezone (CET/CEST)
       year: 'numeric',
       month: 'short',
@@ -52,17 +52,17 @@ export function fDateTime(date) {
   }
   return '';
 }
-export function fTimestamp(date) {
+export function fTimestamp(date: string) {
   return getTime(new Date(date));
 }
 
-export function fDateTimeSuffix(date) {
+export function fDateTimeSuffix(date: string) {
   return format(new Date(date), 'dd/MM/yyyy hh:mm a');
 }
-export function fDayTime(date) {
+export function fDayTime(date: string) {
   return format(new Date(date), 'HH:mm');
 }
-export function fToNow(date) {
+export function fToNow(date: string) {
   return formatDistanceToNow(new Date(date), {
     addSuffix: true,
   });
