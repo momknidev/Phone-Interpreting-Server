@@ -60,21 +60,19 @@ const startServer = async () => {
 
                             if (decoded) {
                                 user = decoded as { id: string; email: string; role: string };
-                                console.log('Decoded user:', user);
-                                return { token, user: decoded };
+                                return { user: decoded };
                             }
                         }
                     )
                 }
 
 
-                return { token, user };
+                return { user };
             },
         }),
     );
 };
 
-// Call the async function
 startServer().catch(err => console.error('Failed to start server:', err));
 
 

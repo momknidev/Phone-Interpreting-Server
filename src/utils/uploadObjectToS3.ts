@@ -1,22 +1,26 @@
-import AWS from 'aws-sdk';
-
-AWS.config.update({
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID, // Access key ID
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY, // Secret access key
-  region: 'us-east-1', // Region
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+const s3Client = new S3Client({
+  region: 'us-east-1',
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+  },
 });
-const s3 = new AWS.S3();
 
-export function uploadObjectToS3(params: AWS.S3.PutObjectRequest) {
-  return new Promise((resolve, reject) => {
-    s3.upload(params, function (err: any, data: any) {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(data);
-      }
-    });
-  });
+export async function uploadObjectToS3(params: {
+  Bucket: string;
+  Key: string;
+  Body: any;
+  ContentType?: string;
+  [key: string]: any;
+}) {
+  try {
+    const command = new PutObjectCommand(params);
+    const response = await s3Client.send(command);
+    return response;
+  } catch (err) {
+    throw err;
+  }
 }
 
 // Usage of function

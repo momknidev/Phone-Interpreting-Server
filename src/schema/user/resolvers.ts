@@ -161,10 +161,9 @@ const resolvers = {
         type?: string;
       }, context: any
     ) => {
-      console.log({ context })
-      // if (!context?.user) {
-      //   throw new AuthenticationError('Unauthenticated');
-      // }
+      if (!context?.user) {
+        throw new AuthenticationError('Unauthenticated');
+      }
       try {
         let query = db.select().from(Users);
 
@@ -239,11 +238,10 @@ const resolvers = {
   },
   Mutation: {
     addUser: async (_: any, { userDetails, file }: { userDetails: UserDetails, file?: any }, context: any) => {
-      console.log({ context })
-      // if (!context?.user) { 
+      if (!context?.user) {
 
-      //   throw new UserInputError('Unauthenticated');
-      // }
+        throw new UserInputError('Unauthenticated');
+      }
       try {
         const password = await bcrypt.hash(userDetails.password, 10);
         let s3URL = '';
@@ -286,10 +284,9 @@ const resolvers = {
     },
 
     editUser: async (_: any, { id, userDetails, file }: { id: string, userDetails: UserDetails, file?: any }, context: any) => {
-      // if (!context?.user) {
-      //   throw new AuthenticationError('Unauthenticated');
-      // }
-
+      if (!context?.user) {
+        throw new AuthenticationError('Unauthenticated');
+      }
       try {
         let s3URL = '';
 
@@ -332,7 +329,6 @@ const resolvers = {
           type: userDetails.type || existingUser.type,
           avatarUrl: s3URL || existingUser.avatarUrl,
         };
-
         // Update user details in the database
         await db.update(Users).set(updatedData).where(eq(Users.id, id));
 
