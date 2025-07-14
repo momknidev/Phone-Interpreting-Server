@@ -10,6 +10,7 @@ export const Users = pgTable('users', {
   role: varchar('role'),
   phone: varchar('phone'),
   type: text('type'),
+  status: varchar('status').default('active'),
   avatarUrl: varchar('avatarUrl'),
   createdAt: timestamp('createdAt').notNull().defaultNow(),
   updatedAt: timestamp('updatedAt')

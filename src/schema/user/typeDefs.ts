@@ -18,6 +18,7 @@ export const typeDefs = gql`
     token: String
     createdAt: String
     updatedAt: String
+    status: String
   }
   # Inputs
   input userDetails {
@@ -25,6 +26,7 @@ export const typeDefs = gql`
     email: String!
     role: String!
     firstName: String!
+    status: String
     lastName: String!
     phone: String
     type: String
@@ -57,6 +59,7 @@ export const typeDefs = gql`
       newPassword: String
       oldPassword: String
     ): User
+    changeStatus(id:ID!, status: String):User
   }
 `;
 

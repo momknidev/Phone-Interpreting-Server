@@ -19,6 +19,7 @@ interface UserDetails {
   lastName?: string;
   phone?: string;
   department?: string;
+  status?: string,
   type?: string;
 }
 
@@ -73,7 +74,7 @@ const resolvers = {
         const users = await db
           .select()
           .from(Users)
-          .where(eq(Users.email, email));
+          .where(and(eq(Users.email, email), eq(Users.status, 'active')));
 
         const user = users[0];
 
@@ -407,7 +408,52 @@ const resolvers = {
         console.error('Error updating password(s):', error.message);
         throw new Error('Error: ' + error.message);
       }
-    }
+    },
+    changeStatus: async (_: any, { id, status }: { id: string, status: string }, context: any) => {
+      // if (!context?.user) {
+      //   throw new AuthenticationError('Unauthenticated');
+      // }
+
+      try {
+        // Fetch the existing user details
+        const users = await db.select().from(Users).where(eq(Users.id, id));
+        const existingUser = users[0];
+
+        if (!existingUser) {
+          throw new UserInputError('User not found');
+        }
+
+        // Update the user's status
+        await db.update(Users).set({ status }).where(eq(Users.id, id));
+
+        // Fetch the updated user details
+        const updatedUsers = await db.select().from(Users).where(eq(Users.id, id));
+        const updatedUser = updatedUsers[0];
+
+        if (updatedUser) {
+          console.log('User status updated successfully:', updatedUser);
+
+          return {
+            ...updatedUser,
+            firstName: updatedUser.firstName || '',
+            lastName: updatedUser.lastName || '',
+            role: updatedUser.role || '',
+            type: updatedUser.type || '',
+            avatarUrl: updatedUser.avatarUrl || '',
+            createdAt: updatedUser.createdAt?.toISOString() || '',
+            updatedAt: updatedUser.updatedAt?.toISOString() || '',
+            phone: String(updatedUser.phone) || undefined,
+            password: undefined, // Exclude password from the response
+            status: updatedUser.status || '',
+          };
+        } else {
+          throw new Error('User status update failed. No updated user returned.');
+        }
+      } catch (error: any) {
+        console.error('Error updating user status:', error.message);
+        throw new Error('Error: ' + error.message);
+      }
+    },
 
 
   },
