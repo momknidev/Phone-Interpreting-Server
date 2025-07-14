@@ -175,6 +175,8 @@ const resolvers = {
             or(
               ilike(Users.firstName, '%' + name + '%'),
               ilike(Users.lastName, '%' + name + '%'),
+              ilike(Users.phone, '%' + name + '%'),
+              ilike(Users.email, '%' + name + '%'),
 
             )
           );
