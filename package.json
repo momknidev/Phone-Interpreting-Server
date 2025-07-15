@@ -1,5 +1,5 @@
 {
-  "name": "core",
+  "name": "phone_interpreting_server",
   "version": "1.0.0",
   "license": "UNLICENSED",
   "engines": {
@@ -11,6 +11,7 @@
     "start": "node build/index.js",
     "dev": "nodemon src/index.ts",
     "generate": "drizzle-kit generate",
+    "push": "drizzle-kit push",
     "migrate": "drizzle-kit migrate"
   },
   "dependencies": {
