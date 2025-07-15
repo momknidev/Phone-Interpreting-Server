@@ -27,7 +27,7 @@ const resolvers = {
         let query = db.select().from(Languages);
 
         const filters = [];
-
+        filters.push(eq(Languages.userID, context?.user?.id));
         if (search) {
           filters.push(ilike(Languages.language_name, '%' + search + '%'));
         }
