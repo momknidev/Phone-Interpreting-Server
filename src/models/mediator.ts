@@ -23,7 +23,7 @@ export const mediator = pgTable('mediator', {
   mediationCard: varchar('mediationCard'),
   createdAt: timestamp('createdAt').defaultNow().notNull(),
   updatedAt: timestamp('updatedAt').defaultNow().notNull(),
-  status: varchar('status').default('status'),
+  status: varchar('status'),
   monday_time_slots: text('monday_time_slots'),
   tuesday_time_slots: text('tuesday_time_slots'),
   wednesday_time_slots: text('wednesday_time_slots'),

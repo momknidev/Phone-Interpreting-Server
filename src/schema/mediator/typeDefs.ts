@@ -22,7 +22,7 @@ export const typeDefs = gql`
     targetLanguage4: String
     createdAt: String
     updatedAt: String
-    isActive: Boolean
+    status: String
     monday_time_slots: String
     tuesday_time_slots: String
     wednesday_time_slots: String

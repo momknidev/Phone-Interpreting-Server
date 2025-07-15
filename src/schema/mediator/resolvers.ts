@@ -3,7 +3,8 @@ import { and, asc, desc, eq, ilike, or, sql } from 'drizzle-orm';
 import { AuthenticationError, UserInputError } from 'apollo-server';
 import { db } from '../../config/postgres';
 import uuidv4 from '../../utils/uuidv4';
-import { mediator } from '../../models'; // Ensure this exists in your models folder
+import { Languages, mediator } from '../../models'; // Ensure this exists in your models folder
+import { alias } from 'drizzle-orm/pg-core';
 
 const resolvers = {
   Query: {
@@ -26,14 +27,50 @@ const resolvers = {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
-
+      const lang1 = alias(Languages, 'lang1');
+      const lang2 = alias(Languages, 'lang2');
+      const lang3 = alias(Languages, 'lang3');
+      const lang4 = alias(Languages, 'lang4');
       try {
-        const mediators = await db
-          .select()
+        const result = await db
+          .select({
+            id: mediator.id,
+            userID: mediator.userID,
+            firstName: mediator.firstName,
+            lastName: mediator.lastName,
+            email: mediator.email,
+            phone: mediator.phone,
+            IBAN: mediator.IBAN,
+            sourceLanguage1: mediator.sourceLanguage1,
+            sourceLanguage2: mediator.sourceLanguage2,
+            sourceLanguage3: mediator.sourceLanguage3,
+            sourceLanguage4: mediator.sourceLanguage4,
+            targetLanguage1: lang1.language_name,
+            targetLanguage2: lang2.language_name,
+            targetLanguage3: lang3.language_name,
+            targetLanguage4: lang4.language_name,
+            status: mediator.status,
+            monday_time_slots: mediator.monday_time_slots,
+            tuesday_time_slots: mediator.tuesday_time_slots,
+            wednesday_time_slots: mediator.wednesday_time_slots,
+            thursday_time_slots: mediator.thursday_time_slots,
+            friday_time_slots: mediator.friday_time_slots,
+            saturday_time_slots: mediator.saturday_time_slots,
+            sunday_time_slots: mediator.sunday_time_slots,
+            availableForEmergencies: mediator.availableForEmergencies,
+            availableOnHolidays: mediator.availableOnHolidays,
+            priority: mediator.priority,
+            createdAt: mediator.createdAt,
+            updatedAt: mediator.updatedAt,
+          })
           .from(mediator)
+          .leftJoin(lang1, eq(lang1.id, mediator.targetLanguage1))
+          .leftJoin(lang2, eq(lang2.id, mediator.targetLanguage2))
+          .leftJoin(lang3, eq(lang3.id, mediator.targetLanguage3))
+          .leftJoin(lang4, eq(lang4.id, mediator.targetLanguage4))
           .where(and(eq(mediator.id, id), eq(mediator.userID, context.user.id)));
 
-        const mediatorFound = mediators[0];
+        const mediatorFound = result[0];
 
         if (!mediatorFound) {
           throw new UserInputError('Mediator not found!');
@@ -71,12 +108,51 @@ const resolvers = {
       },
       context: any
     ) => {
+
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
 
       try {
-        let query = db.select().from(mediator);
+        const lang1 = alias(Languages, 'lang1');
+        const lang2 = alias(Languages, 'lang2');
+        const lang3 = alias(Languages, 'lang3');
+        const lang4 = alias(Languages, 'lang4');
+
+        let query = db.select({
+          id: mediator.id,
+          userID: mediator.userID,
+          firstName: mediator.firstName,
+          lastName: mediator.lastName,
+          email: mediator.email,
+          phone: mediator.phone,
+          IBAN: mediator.IBAN,
+          sourceLanguage1: mediator.sourceLanguage1,
+          sourceLanguage2: mediator.sourceLanguage2,
+          sourceLanguage3: mediator.sourceLanguage3,
+          sourceLanguage4: mediator.sourceLanguage4,
+          status: mediator.status,
+          monday_time_slots: mediator.monday_time_slots,
+          tuesday_time_slots: mediator.tuesday_time_slots,
+          wednesday_time_slots: mediator.wednesday_time_slots,
+          thursday_time_slots: mediator.thursday_time_slots,
+          friday_time_slots: mediator.friday_time_slots,
+          saturday_time_slots: mediator.saturday_time_slots,
+          sunday_time_slots: mediator.sunday_time_slots,
+          availableForEmergencies: mediator.availableForEmergencies,
+          availableOnHolidays: mediator.availableOnHolidays,
+          priority: mediator.priority,
+          createdAt: mediator.createdAt,
+          updatedAt: mediator.updatedAt,
+          targetLanguage1: lang1.language_name,
+          targetLanguage2: lang2.language_name,
+          targetLanguage3: lang3.language_name,
+          targetLanguage4: lang4.language_name,
+        }).from(mediator)
+          .leftJoin(lang1, eq(lang1.id, mediator.targetLanguage1))
+          .leftJoin(lang2, eq(lang2.id, mediator.targetLanguage2))
+          .leftJoin(lang3, eq(lang3.id, mediator.targetLanguage3))
+          .leftJoin(lang4, eq(lang4.id, mediator.targetLanguage4));;
 
         const filters = [];
         filters.push(eq(mediator.userID, context.user.id));

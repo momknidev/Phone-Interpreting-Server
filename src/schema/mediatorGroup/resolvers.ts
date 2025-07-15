@@ -203,6 +203,29 @@ const resolvers = {
         throw new Error('Error: ' + error.message);
       }
     },
+    deleteGroup: async (_: any, { id }: { id: string }, context: any) => {
+      if (!context?.user) {
+        throw new AuthenticationError('Unauthenticated');
+      }
+
+      try {
+        // Check if the group exists first
+        const groups = await db.select().from(mediatorGroup).where(eq(mediatorGroup.id, id));
+        const existingGroup = groups[0];
+
+        if (!existingGroup) {
+          throw new UserInputError('Group not found');
+        }
+
+        // Delete the group
+        await db.delete(mediatorGroup).where(eq(mediatorGroup.id, id));
+
+        return "Group deleted successfully";
+      } catch (error: any) {
+        console.error('Error deleting group:', error.message);
+        throw new Error('Error: ' + error.message);
+      }
+    },
   },
 };
 
