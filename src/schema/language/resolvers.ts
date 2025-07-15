@@ -147,7 +147,7 @@ const resolvers = {
 
       try {
         // Fetch the existing Languages details
-        const languages = await db.select().from(Languages).where(eq(Languages.id, id));
+        const languages = await db.select().from(Languages).where(and(eq(Languages.id, id), eq(Languages.userID, context.user.id)));
         const existingLanguage = languages[0];
 
         if (!existingLanguage) {
