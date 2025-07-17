@@ -1,5 +1,5 @@
 // Update imports
-import { and, asc, desc, eq, ilike, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import { AuthenticationError, UserInputError } from 'apollo-server';
 import { db } from '../../config/postgres';
 import uuidv4 from '../../utils/uuidv4';
@@ -120,7 +120,6 @@ const resolvers = {
       },
       context: any
     ) => {
-
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
@@ -164,7 +163,7 @@ const resolvers = {
           .leftJoin(lang1, eq(lang1.id, mediator.targetLanguage1))
           .leftJoin(lang2, eq(lang2.id, mediator.targetLanguage2))
           .leftJoin(lang3, eq(lang3.id, mediator.targetLanguage3))
-          .leftJoin(lang4, eq(lang4.id, mediator.targetLanguage4));;
+          .leftJoin(lang4, eq(lang4.id, mediator.targetLanguage4));
 
         const filters = [];
         filters.push(eq(mediator.userID, context.user.id));
@@ -219,9 +218,29 @@ const resolvers = {
 
         // Apply pagination
         const mediators = await query.limit(limit).offset(offset);
+        const mediatorIds = mediators.map((mediator) => mediator.id);
+        const groupNamesResult = await db
+          .select({
+            mediatorId: mediatorGroupRelation.mediatorId,
+            groupNames: mediatorGroup.groupName,
+          })
+          .from(mediatorGroupRelation)
+          .leftJoin(mediatorGroup, eq(mediatorGroup.id, mediatorGroupRelation.mediatorGroupId))
+          .where(inArray(mediatorGroupRelation.mediatorId, mediatorIds));
+
+        // Map group names to each mediator
+        const mediatorsWithGroupNames = mediators.map((mediator) => {
+          const groupNames = groupNamesResult
+            .filter((item) => item.mediatorId === mediator.id)
+            .map((item) => item.groupNames);
+          return {
+            ...mediator,
+            groupIDs: groupNames,
+          };
+        });
 
         return {
-          mediators,
+          mediators: mediatorsWithGroupNames,
           filteredCount: totalCount,
         };
       } catch (error: any) {
@@ -229,6 +248,7 @@ const resolvers = {
         throw new Error(error.message || 'Internal server error.');
       }
     },
+
   },
 
   Mutation: {
