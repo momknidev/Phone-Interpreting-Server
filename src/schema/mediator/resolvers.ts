@@ -3,7 +3,7 @@ import { and, asc, desc, eq, ilike, or, sql } from 'drizzle-orm';
 import { AuthenticationError, UserInputError } from 'apollo-server';
 import { db } from '../../config/postgres';
 import uuidv4 from '../../utils/uuidv4';
-import { Languages, mediator } from '../../models'; // Ensure this exists in your models folder
+import { Languages, mediator, mediatorGroup, mediatorGroupRelation } from '../../models'; // Ensure this exists in your models folder
 import { alias } from 'drizzle-orm/pg-core';
 
 const resolvers = {
@@ -27,11 +27,16 @@ const resolvers = {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
+
       const lang1 = alias(Languages, 'lang1');
       const lang2 = alias(Languages, 'lang2');
       const lang3 = alias(Languages, 'lang3');
       const lang4 = alias(Languages, 'lang4');
+
+      const groups = alias(mediatorGroupRelation, 'groups'); // Assuming 'Groups' is the related table
+
       try {
+        // Fetch mediator details along with languages
         const result = await db
           .select({
             id: mediator.id,
@@ -72,12 +77,19 @@ const resolvers = {
 
         const mediatorFound = result[0];
 
+        console.log({ mediatorFound })
         if (!mediatorFound) {
           throw new UserInputError('Mediator not found!');
         }
-
+        const groups = await db
+          .select({ groupID: mediatorGroup.id })
+          .from(mediatorGroup)
+          .leftJoin(mediatorGroupRelation, eq(mediatorGroupRelation.mediatorGroupId, mediatorGroup.id))
+          .where(eq(mediatorGroupRelation.mediatorId, mediatorFound.id));
+        console.log({ groups })
         return {
           ...mediatorFound,
+          groupIDs: groups?.map(item => item?.groupID), // If there are no groups, return an empty array
           createdAt: mediatorFound.createdAt?.toISOString() || '',
           updatedAt: mediatorFound.updatedAt?.toISOString() || '',
         };
@@ -86,6 +98,7 @@ const resolvers = {
         throw new Error(error.message || 'Internal server error.');
       }
     },
+
 
     mediatorsPaginatedList: async (
       _: any,
@@ -259,6 +272,30 @@ const resolvers = {
 
         console.log('Creating mediator with data:', mediatorEntry);
         const result = await db.insert(mediator).values(mediatorEntry).returning();
+        const mediatorObj = result[0]
+        // Find groups by name
+        console.log('Mediator created:', mediatorObj);
+        console.log('Mediator data to associate with groups:', mediatorData.groupIDs);
+        try {
+          // If we need to associate the mediator with groups
+          if (mediatorData.groupIDs && mediatorData.groupIDs.length > 0) {
+            const groupIds = mediatorData.groupIDs;
+            console.log("Associating mediator with groups:", groupIds);
+
+            let data = await db.insert(mediatorGroupRelation).values(
+              groupIds.map((groupId: string) => ({
+                mediatorId: mediatorObj.id,
+                mediatorGroupId: groupId,
+                id: uuidv4(),
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              }))
+            ).returning();
+            console.log('Mediator associated with groups:', data);
+          }
+        } catch (groupError) {
+          console.error('Error associating mediator with groups:', groupError);
+        }
 
         if (result && result[0]) {
           return result[0];
@@ -320,7 +357,27 @@ const resolvers = {
         // Fetch the updated mediator details
         const updatedMediators = await db.select().from(mediator).where(eq(mediator.id, id));
         const updatedMediator = updatedMediators[0];
-
+        try {
+          // If we need to associate the mediator with groups
+          if (mediatorData.groupIDs && mediatorData.groupIDs.length > 0) {
+            const groupIds = mediatorData.groupIDs;
+            console.log("Associating mediator with groups:", groupIds);
+            await db.delete(mediatorGroupRelation).where(eq(mediatorGroupRelation.mediatorId, updatedMediator.id));
+            console.log('Deleting existing group associations for mediator:', updatedMediator.id);
+            let data = await db.insert(mediatorGroupRelation).values(
+              groupIds.map((groupId: string) => ({
+                mediatorId: updatedMediator.id,
+                mediatorGroupId: groupId,
+                id: uuidv4(),
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              }))
+            ).returning();
+            console.log('Mediator associated with groups:', data);
+          }
+        } catch (groupError) {
+          console.error('Error associating mediator with groups:', groupError);
+        }
         if (updatedMediator) {
           return updatedMediator;
         } else {

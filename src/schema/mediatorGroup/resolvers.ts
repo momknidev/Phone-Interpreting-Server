@@ -103,6 +103,28 @@ const resolvers = {
         throw new Error(error.message || 'Internal server error.');
       }
     },
+    allGroups: async (_: any, __: any, context: any) => {
+      if (!context?.user) {
+        throw new AuthenticationError('Unauthenticated');
+      }
+
+      try {
+        const groups = await db
+          .select()
+          .from(mediatorGroup)
+          .where(and(eq(mediatorGroup.userID, context.user.id), eq(mediatorGroup.status, 'active')))
+          .orderBy(desc(mediatorGroup.createdAt));
+
+        return groups.map(group => ({
+          ...group,
+          createdAt: group.createdAt?.toISOString() || '',
+          updatedAt: group.updatedAt?.toISOString() || '',
+        }));
+      } catch (error: any) {
+        console.error('Error fetching all groups:', error.message);
+        throw new Error(error.message || 'Internal server error.');
+      }
+    },
   },
 
   Mutation: {
@@ -116,7 +138,7 @@ const resolvers = {
       try {
         const groupData = {
           id: uuidv4(),
-          groupName: groupInput.groupName,
+          groupName: String(groupInput.groupName).toLocaleLowerCase(),
           status: groupInput.status,
           userID: context.user.id,
           createdAt: new Date(),
@@ -150,7 +172,7 @@ const resolvers = {
 
         // Prepare the updated group data
         const updatedData = {
-          groupName: groupInput.groupName || existingGroup.groupName,
+          groupName: String(groupInput.groupName).toLocaleLowerCase() || existingGroup.groupName,
           status: groupInput.status || existingGroup.status,
         };
 

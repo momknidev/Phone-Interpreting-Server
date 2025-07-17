@@ -12,6 +12,9 @@ export const mediatorGroupRelation = pgTable(
         mediatorGroupId: uuid("mediator_group_id")
             .notNull()
             .references(() => mediatorGroup.id, { onDelete: "cascade" }),
+        createdAt: text("created_at"),
+        updatedAt: text("updated_at")
+
     },
     // (table) => [
     //     unique("mediatorGroupRelationUnique").on(

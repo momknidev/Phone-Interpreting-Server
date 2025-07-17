@@ -33,6 +33,7 @@ export const typeDefs = gql`
     availableForEmergencies: Boolean
     availableOnHolidays: Boolean
     priority: Int
+    groupIDs:[String]
   }
 
   # Inputs
@@ -61,6 +62,7 @@ export const typeDefs = gql`
     availableForEmergencies: Boolean
     availableOnHolidays: Boolean
     priority: Int
+    groupIDs:[String]
   }
 
   type MediatorPaginatedList {

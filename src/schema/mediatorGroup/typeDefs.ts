@@ -28,6 +28,7 @@ export const typeDefs = gql`
   # ==============> QUERIES <================
   type Query {
     groupByID(id: String): Group
+    allGroups:[Group]
     groupsPaginatedList(
       offset: Int
       limit: Int

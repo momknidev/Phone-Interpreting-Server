@@ -1,0 +1,2 @@
+ALTER TABLE "mediator_group_relation" DROP CONSTRAINT "mediator_group_relation_mediator_id_mediator_group_id_unique";--> statement-breakpoint
+ALTER TABLE "mediator_group_relation" ADD CONSTRAINT "mediatorGroupRelationUnique" UNIQUE("mediator_id","mediator_group_id");
