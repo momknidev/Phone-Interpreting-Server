@@ -20,7 +20,6 @@ export const mediator = pgTable('mediator', {
   targetLanguage3: uuid('targetLanguage3').references(() => Languages.id),
   sourceLanguage4: varchar('sourceLanguage4'),
   targetLanguage4: uuid('targetLanguage4').references(() => Languages.id),
-  mediationCard: varchar('mediationCard'),
   createdAt: timestamp('createdAt').defaultNow().notNull(),
   updatedAt: timestamp('updatedAt').defaultNow().notNull(),
   status: varchar('status'),
