@@ -23,6 +23,7 @@ const resolvers = {
       }
     },
 
+
     mediatorById: async (_: any, { id }: { id: string }, context: any): Promise<any> => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
@@ -33,10 +34,10 @@ const resolvers = {
       const lang3 = alias(Languages, 'lang3');
       const lang4 = alias(Languages, 'lang4');
 
-      const groups = alias(mediatorGroupRelation, 'groups'); // Assuming 'Groups' is the related table
+      const groups = alias(mediatorGroupRelation, 'groups'); // Alias for the group relation table
 
       try {
-        // Fetch mediator details along with languages
+        // Fetch mediator details along with languages and groups
         const result = await db
           .select({
             id: mediator.id,
@@ -67,6 +68,8 @@ const resolvers = {
             priority: mediator.priority,
             createdAt: mediator.createdAt,
             updatedAt: mediator.updatedAt,
+            groupIDs: sql<string[]>`
+          ARRAY(SELECT mediator_group_id FROM ${mediatorGroupRelation} WHERE ${mediatorGroupRelation}.mediator_id = ${mediator.id})`,
           })
           .from(mediator)
           .leftJoin(lang1, eq(lang1.id, mediator.targetLanguage1))
@@ -77,19 +80,14 @@ const resolvers = {
 
         const mediatorFound = result[0];
 
-        console.log({ mediatorFound })
         if (!mediatorFound) {
           throw new UserInputError('Mediator not found!');
         }
-        const groups = await db
-          .select({ groupID: mediatorGroup.id })
-          .from(mediatorGroup)
-          .leftJoin(mediatorGroupRelation, eq(mediatorGroupRelation.mediatorGroupId, mediatorGroup.id))
-          .where(eq(mediatorGroupRelation.mediatorId, mediatorFound.id));
-        console.log({ groups })
+        console.log({ mediatorFound })
+        // Return the mediator along with their associated group IDs
         return {
           ...mediatorFound,
-          groupIDs: groups?.map(item => item?.groupID), // If there are no groups, return an empty array
+          groupIDs: mediatorFound.groupIDs || [], // Ensure groupIDs is always an array
           createdAt: mediatorFound.createdAt?.toISOString() || '',
           updatedAt: mediatorFound.updatedAt?.toISOString() || '',
         };
@@ -98,6 +96,7 @@ const resolvers = {
         throw new Error(error.message || 'Internal server error.');
       }
     },
+
 
 
     mediatorsPaginatedList: async (
