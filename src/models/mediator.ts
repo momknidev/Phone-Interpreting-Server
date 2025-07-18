@@ -9,7 +9,7 @@ export const mediator = pgTable('mediator', {
   userID: uuid('userID').references(() => Users.id),
   firstName: varchar('firstName').notNull(),
   lastName: varchar('lastName').notNull(),
-  email: text('email'),
+  email: text('email').unique(),
   phone: varchar('phone').notNull(),
   IBAN: text('IBAN'),
   sourceLanguage1: varchar('sourceLanguage1').default('Italian'),

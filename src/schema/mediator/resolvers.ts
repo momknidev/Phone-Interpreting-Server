@@ -5,8 +5,24 @@ import { db } from '../../config/postgres';
 import uuidv4 from '../../utils/uuidv4';
 import { Languages, mediator, mediatorGroup, mediatorGroupRelation } from '../../models'; // Ensure this exists in your models folder
 import { alias } from 'drizzle-orm/pg-core';
+import { ReadStream } from 'node:fs';
+import * as xlsx from 'xlsx'; // For Excel file parsing
+import csvParser from 'csv-parser';
+const streamToBuffer = (stream: ReadStream) =>
+  new Promise<Buffer>((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    stream.on('data', (chunk) => {
+      // Ensure the chunk is always a Buffer
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    });
+    stream.on('end', () => resolve(Buffer.concat(chunks)));
+    stream.on('error', (err) => reject(err));
+  });
+// Function to check if a time slot format is valid (HH:MM-HH:MM)
+
 
 const resolvers = {
+  Upload: require('graphql-upload-ts').GraphQLUpload,
   Query: {
     mediatorList: async (_: any, __: any, context: any): Promise<any> => {
       if (!context?.user) {
@@ -462,7 +478,373 @@ const resolvers = {
         throw new Error('Error: ' + error.message);
       }
     },
-  },
+    //     uploadMediatorFile(file: Upload!): JSON
+    // this mutation will recieve mediators list file and verify all comlumns need for mediator object first declare columns and check for these columns if any column missing return error otherwise create rows in database
+
+
+    uploadMediatorFile: async (_: any, { file }: { file: any }, context: any) => {
+      if (!context?.user) {
+        throw new AuthenticationError('Unauthenticated');
+      }
+      const languages = await db.select().from(Languages).where(
+        eq(Languages.userID, context.user.id)
+      );
+      const groups = await db.select().from(mediatorGroup).where(
+        eq(mediatorGroup.userID, context.user.id)
+      );
+      if (!languages.length) {
+        throw new UserInputError('No languages found for the user.');
+      }
+      // Function to convert time string (HH:MM) to Date object for easy comparison
+      const convertToDate = (timeString: string) => {
+        const [hours, minutes] = timeString.split(':');
+        const date = new Date();
+        date.setHours(Number(hours));
+        date.setMinutes(Number(minutes));
+        date.setSeconds(0);
+        date.setMilliseconds(0);
+        return date;
+      };
+
+      // Function to check if time slots overlap
+      const checkOverlap = (timeSlots: any) => {
+        // Parse time slots into Date objects
+        const parsedSlots = timeSlots.map((slot: string) => {
+          const [start, end] = slot.split('-');
+          return { start: convertToDate(start), end: convertToDate(end) };
+        });
+
+        // Sort the time slots by start time
+        parsedSlots.sort((a: { start: number; }, b: { start: number; }) => a.start - b.start);
+
+        // eslint-disable-next-line no-plusplus
+        for (let i = 0; i < parsedSlots.length - 1; i++) {
+          if (parsedSlots[i].end > parsedSlots[i + 1].start) {
+            return true; // Found overlap
+          }
+        }
+
+        return false; // No overlap
+      };
+      const validateTimeSlot = (timeSlot: string) => {
+        const timeSlotRegex = /^\d{2}:\d{2}-\d{2}:\d{2}$/;
+        if (!timeSlotRegex.test(timeSlot)) {
+          return false; // Invalid format
+        }
+
+        const [start, end] = timeSlot.split('-');
+        const startTime = convertToDate(start);
+        const endTime = convertToDate(end);
+        // Check if start time is later than end time
+        if (startTime >= endTime) {
+          return false; // Invalid time range
+        }
+
+        return true; // Valid time slot
+      };
+
+      function validateAndTransformData(data: any) {
+        const transformedData: any = [];
+
+        data.forEach((row: any, index: number) => {
+          // Validate required fields (firstName, lastName, phone)
+          if (!row.firstName || !row.lastName || !row.phone) {
+            throw new Error(`Row ${index + 1}: Missing required fields (firstName, lastName, phone)`);
+          }
+
+          // Validate and check for overlapping time slots
+          const timeSlots = [
+            'monday_time_slots',
+            'tuesday_time_slots',
+            'wednesday_time_slots',
+            'thursday_time_slots',
+            'friday_time_slots',
+            'saturday_time_slots',
+            'sunday_time_slots',
+          ];
+
+          timeSlots.forEach((slot) => {
+            if (row[slot]) {
+              // eslint-disable-next-line no-shadow
+              const timeSlotArray = row[slot].split(',').map((slot: string) => slot.trim()); // Split and trim commas
+              // eslint-disable-next-line no-shadow
+              timeSlotArray.forEach((slot: string) => {
+                if (!validateTimeSlot(slot)) {
+                  throw new Error(
+                    `Row ${index + 1
+                    }: Invalid time slot format for ${slot}. Must be in HH:MM-HH:MM format.`
+                  );
+                }
+              });
+              if (checkOverlap(timeSlotArray)) {
+                throw new Error(`Row ${index + 1}: Overlapping time slots found for ${slot}.`);
+              }
+            }
+          });
+          row.sourceLanguage1 = row.targetLanguage1 ? 'Italian' : '';
+          row.sourceLanguage2 = row.targetLanguage2 ? 'Italian' : '';
+          row.sourceLanguage3 = row.targetLanguage3 ? 'Italian' : '';
+          row.sourceLanguage4 = row.targetLanguage4 ? 'Italian' : '';
+          row.status = row.status || 'active';
+          row.availableForEmergencies = String(row.availableForEmergencies).toLowerCase() === 'true'
+          row.availableOnHolidays = String(row.availableOnHolidays).toLowerCase() === 'true'
+          row.priority = row.priority || 1;
+          const setLanguageId = (languageField: string) => {
+            const language = row[languageField];
+            if (language) {
+              const matchedLanguage = languages.find((lang: { language_name: any; }) => String(lang.language_name).toLocaleLowerCase() === String(language).toLocaleLowerCase());
+              if (matchedLanguage) {
+                row[languageField] = matchedLanguage.id;
+              } else {
+                throw new Error(
+                  `Row ${index + 1
+                  }: Invalid language value for ${languageField}. No matching language found.`
+                );
+              }
+            }
+          };
+          setLanguageId('targetLanguage1');
+          setLanguageId('targetLanguage2');
+          setLanguageId('targetLanguage3');
+          setLanguageId('targetLanguage4');
+
+          transformedData.push(row);
+        });
+
+        return transformedData;
+      }
+      try {
+
+        // Extract the file stream from the uploaded file
+        const { createReadStream, mimetype } = await file;
+        const stream = createReadStream();
+
+        let mediatorData: any[] = [];
+
+        if (mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || mimetype === 'application/vnd.ms-excel') {
+          // Parse Excel file
+          const workbook = xlsx.read(await streamToBuffer(stream), { type: 'buffer' });
+          const sheetNames = workbook.SheetNames;
+
+          if (sheetNames.length === 0) {
+            throw new UserInputError('No sheets found in the Excel file.');
+          }
+
+          // Assuming data is in the first sheet
+          const sheet = workbook.Sheets[sheetNames[0]];
+          const rows = xlsx.utils.sheet_to_json(sheet);
+          console.log({ rows })
+          // Validate columns in Excel file
+          // parser.on('end', async () => {
+          if (rows.length === 0) {
+            throw new UserInputError('No valid mediator data found in the CSV file.');
+          }
+          const result = validateAndTransformData(rows);
+
+          const saveMediatorsToDatabase = async (mediatorData: any[], userId: string) => {
+            const mediatorEntries = mediatorData.map((data) => ({
+              id: uuidv4(),
+              userID: userId,
+              firstName: data.firstName,
+              lastName: data.lastName,
+              email: data.email,
+              phone: data.phone,
+              IBAN: data.IBAN || null,
+              sourceLanguage1: data.sourceLanguage1 || null,
+              targetLanguage1: data.targetLanguage1 || null,
+              sourceLanguage2: data.sourceLanguage2 || null,
+              targetLanguage2: data.targetLanguage2 || null,
+              sourceLanguage3: data.sourceLanguage3 || null,
+              targetLanguage3: data.targetLanguage3 || null,
+              sourceLanguage4: data.sourceLanguage4 || null,
+              targetLanguage4: data.targetLanguage4 || null,
+              status: data.status || 'active',
+              monday_time_slots: data.monday_time_slots || null,
+              tuesday_time_slots: data.tuesday_time_slots || null,
+              wednesday_time_slots: data.wednesday_time_slots || null,
+              thursday_time_slots: data.thursday_time_slots || null,
+              friday_time_slots: data.friday_time_slots || null,
+              saturday_time_slots: data.saturday_time_slots || null,
+              sunday_time_slots: data.sunday_time_slots || null,
+              availableForEmergencies: data.availableForEmergencies || false,
+              availableOnHolidays: data.availableOnHolidays || false,
+              priority: data.priority || 1,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            }));
+            // Insert all mediators in a single transaction
+            const data = await db.insert(mediator).values(mediatorEntries).returning();
+            // in data i have list of inserted mediators i have list of all groups and i also has group for each mediator in groups key of rows.
+            // now write a function which map on saved medaitors and take groups from rows array by matching firstName and lastName
+            // then create a record based on groups for each group in groups key find key from groups array and and create objects in following format
+            // {id:"", mediator_id:"",mediator_group_id:""} and then save it in database  
+            console.log({ data })
+            // console.log({ data })
+            const groupRelationEntries = rows
+              .map((row: any) => {
+                const groupsForMediator = String(row.groups).split(',') || [];
+                return groupsForMediator.map((groupName: string) => {
+                  // Find the mediator by firstName and lastName
+                  const mediator = mediatorEntries.find((mediator: any) =>
+                    mediator.firstName === row.firstName && mediator.lastName === row.lastName && mediator.phone === row.phone
+                  );
+
+                  // Check if mediator is found
+                  if (!mediator) {
+                    throw new Error(`Mediator with name ${row.firstName} ${row.lastName} not found.`);
+                  }
+
+                  // Find the group by groupName
+                  let group: any = groups.find((group: any) => String(group.groupName).toLocaleLowerCase() === String(groupName).toLocaleLowerCase());
+
+                  // Check if group is found
+                  if (!group) {
+                    const newAddedGroup = {
+                      id: uuidv4(),
+                      userID: context.user.id,
+                      groupName: groupName,
+                      createdAt: new Date(),
+                      updatedAt: new Date(),
+                      status: 'active',
+                    };
+                    // Insert the new group if not found
+                    group = db.insert(mediatorGroup).values(newAddedGroup).returning();
+                    throw new Error(`Group ${groupName} not found.`);
+                  }
+                  // id: string; mediatorId: string; mediatorGroupId: any; createdAt: Date; updatedAt: Date;
+
+                  // Return the group relation entry if both mediator and group are found
+                  return {
+                    id: uuidv4(),
+                    mediatorId: mediator.id, // Access mediator id safely
+                    mediatorGroupId: group.id, // Access group id safely
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                  };
+                });
+              })
+              .flat();
+            console.log({ groupRelationEntries })
+            if (groupRelationEntries.length > 0) {
+              const groupData = await db.insert(mediatorGroupRelation).values(groupRelationEntries).returning();
+              console.log({ groupData })
+            }
+            return data;
+          }
+
+
+          await saveMediatorsToDatabase(result, context.user.id);
+          // console.log({ mediatorData })
+          return 'Mediators uploaded successfully using excel file.';
+          // });
+
+        } else if (mimetype === 'text/csv') {
+          // Parse CSV file
+          const parser = csvParser();
+          stream.pipe(parser);
+
+          parser.on('data', (row: any) => {
+            // Validate the row against the expected columns
+            if (!row.firstName || !row.lastName || !row.phone) {
+              throw new UserInputError('Missing required columns in the CSV file.');
+            }
+            // Add the row to the mediatorData array
+            mediatorData.push({
+              firstName: row.firstName,
+              lastName: row.lastName,
+              email: row.email || null,
+              phone: row.phone,
+              IBAN: row.IBAN || null,
+              sourceLanguage1: row.sourceLanguage1 || null,
+              targetLanguage1: row.targetLanguage1 || null,
+              sourceLanguage2: row.sourceLanguage2 || null,
+              targetLanguage2: row.targetLanguage2 || null,
+              sourceLanguage3: row.sourceLanguage3 || null,
+              targetLanguage3: row.targetLanguage3 || null,
+              sourceLanguage4: row.sourceLanguage4 || null,
+              targetLanguage4: row.targetLanguage4 || null,
+              status: row.status || 'active',
+              monday_time_slots: row.monday_time_slots || null,
+              tuesday_time_slots: row.tuesday_time_slots || null,
+              wednesday_time_slots: row.wednesday_time_slots || null,
+              thursday_time_slots: row.thursday_time_slots || null,
+              friday_time_slots: row.friday_time_slots || null,
+              saturday_time_slots: row.saturday_time_slots || null,
+              sunday_time_slots: row.sunday_time_slots || null,
+              availableForEmergencies: row.availableForEmergencies === 'true',
+              availableOnHolidays: row.availableOnHolidays === 'true',
+              priority: parseInt(row.priority, 10) || 1,
+            });
+          });
+
+
+          const result = validateAndTransformData(mediatorData);
+
+          const saveMediatorsToDatabase = async (mediatorData: any[], userId: string) => {
+            const mediatorEntries = mediatorData.map((data) => ({
+              id: uuidv4(),
+              userID: userId,
+              firstName: data.firstName,
+              lastName: data.lastName,
+              email: data.email,
+              phone: data.phone,
+              IBAN: data.IBAN || null,
+              sourceLanguage1: data.sourceLanguage1 || null,
+              targetLanguage1: data.targetLanguage1 || null,
+              sourceLanguage2: data.sourceLanguage2 || null,
+              targetLanguage2: data.targetLanguage2 || null,
+              sourceLanguage3: data.sourceLanguage3 || null,
+              targetLanguage3: data.targetLanguage3 || null,
+              sourceLanguage4: data.sourceLanguage4 || null,
+              targetLanguage4: data.targetLanguage4 || null,
+              status: data.status || 'active',
+              monday_time_slots: data.monday_time_slots || null,
+              tuesday_time_slots: data.tuesday_time_slots || null,
+              wednesday_time_slots: data.wednesday_time_slots || null,
+              thursday_time_slots: data.thursday_time_slots || null,
+              friday_time_slots: data.friday_time_slots || null,
+              saturday_time_slots: data.saturday_time_slots || null,
+              sunday_time_slots: data.sunday_time_slots || null,
+              availableForEmergencies: data.availableForEmergencies || false,
+              availableOnHolidays: data.availableOnHolidays || false,
+              priority: data.priority || 1,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            }));
+            console.log({ mediatorEntries })
+            // Insert all mediators in a single transaction
+            const data = await db.insert(mediator).values(mediatorEntries).returning();
+            console.log({ data })
+            return data;
+          }
+          // Handle errors in CSV parsing
+          parser.on('error', (error) => {
+            console.error('CSV Parsing Error:', error);
+            throw new UserInputError('Error parsing the CSV file.');
+          });
+          // parser.on('end', async () => {
+          if (mediatorData.length === 0) {
+            throw new UserInputError('No valid mediator data found in the CSV file.');
+          }
+
+          await saveMediatorsToDatabase(result, context.user.id);
+          console.log({ mediatorData })
+          return 'Mediators uploaded successfully.';
+          // });
+
+        } else {
+          throw new UserInputError('Invalid file type. Only CSV and Excel files are allowed.');
+        }
+
+      } catch (error: any) {
+        console.error('Error uploading mediator file:', error.message);
+        throw new Error('Error: ' + error.message);
+      }
+    }
+
+
+  }
 };
 
 export default resolvers;
+

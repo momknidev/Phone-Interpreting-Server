@@ -3,6 +3,7 @@ import { gql } from "apollo-server";
 
 export const typeDefs = gql`
   scalar JSON
+  scalar Upload
   # types =======================>
   type Mediator {
     id: ID
@@ -91,6 +92,7 @@ export const typeDefs = gql`
     updateMediator(id: String!,mediatorData: MediatorInput): Mediator
     deleteMediator(id: String!): Boolean
     updateMediatorStatus(id: String!, status: String!): Mediator
+    uploadMediatorFile(file: Upload!): String
   }
 `;
 

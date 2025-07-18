@@ -8,6 +8,10 @@ import { expressMiddleware } from '@as-integrations/express5';
 import { ApolloServerPluginLandingPageLocalDefault, ApolloServerPluginLandingPageProductionDefault }
     from '@apollo/server/plugin/landingPage/default';
 import jwt from 'jsonwebtoken';
+import { graphqlUploadExpress } from 'graphql-upload-ts'; // Default import (updated method)
+import { SubscriptionServer } from 'subscriptions-transport-ws';
+import { execute, subscribe } from 'graphql';
+import { makeExecutableSchema } from '@graphql-tools/schema';
 import resolvers from '../schema/resolvers';
 import typeDefs from '../schema/typeDefs';
 import { apiRoutes } from '../rest';
@@ -35,9 +39,13 @@ const server = new ApolloServer<MyContext>({
     csrfPrevention: false,
 });
 
-// Initialize server in an async function
+const schema = makeExecutableSchema({
+    typeDefs,
+    resolvers,
+});
 const startServer = async () => {
     await server.start();
+    app.use(graphqlUploadExpress()); // Use default import middleware
     app.use('/graphql',
         cors<cors.CorsRequest>(),
         express.json(),
@@ -54,7 +62,7 @@ const startServer = async () => {
                         secret_key as string,
                         async (err, decoded) => {
                             if (err) {
-                                // console.error('Error verifying token:', err);
+
                                 return;
                             }
 
@@ -70,6 +78,11 @@ const startServer = async () => {
                 return { user };
             },
         }),
+    );
+
+    SubscriptionServer.create(
+        { schema, execute, subscribe },
+        { server: httpServer, path: server }
     );
 };
 
