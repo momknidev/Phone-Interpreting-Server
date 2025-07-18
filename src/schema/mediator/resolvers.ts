@@ -695,7 +695,7 @@ const resolvers = {
                   }
 
                   // Find the group by groupName
-                  let group: any = groups.find((group: any) => String(group.groupName).toLocaleLowerCase() === String(groupName).toLocaleLowerCase());
+                  let group: any = groups.find((group: any) => String(group.groupName).trim().toLocaleLowerCase() === String(groupName).trim().toLocaleLowerCase());
 
                   // Check if group is found
                   if (!group) {
