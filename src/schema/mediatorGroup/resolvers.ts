@@ -3,7 +3,7 @@ import { and, asc, desc, eq, ilike, or, sql } from 'drizzle-orm';
 import { AuthenticationError, UserInputError } from 'apollo-server';
 import { db } from '../../config/postgres';
 import uuidv4 from '../../utils/uuidv4';
-import { mediatorGroup } from '../../models'; // Make sure this exists in your models folder
+import { mediatorGroup, mediatorGroupRelation } from '../../models'; // Make sure this exists in your models folder
 
 // Add to existing resolvers
 const resolvers = {
@@ -57,7 +57,21 @@ const resolvers = {
         throw new AuthenticationError('Unauthenticated');
       }
       try {
-        let query = db.select().from(mediatorGroup);
+        let query = db
+          .select({
+            id: mediatorGroup.id,
+            groupName: mediatorGroup.groupName,
+            createdAt: mediatorGroup.createdAt,
+            updatedAt: mediatorGroup.updatedAt,
+            status: mediatorGroup.status,
+            mediatorCount: sql<number>`
+          COUNT(${mediatorGroupRelation.mediatorId})
+        `,
+          })
+          .from(mediatorGroup)
+          .leftJoin(mediatorGroupRelation, eq(mediatorGroup.id, mediatorGroupRelation.mediatorGroupId))
+          .groupBy(mediatorGroup.id); // Group by the group ID to count mediators for each group
+
 
         const filters = [];
 

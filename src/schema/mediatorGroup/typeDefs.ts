@@ -14,6 +14,7 @@ export const typeDefs = gql`
     userID:String
     createdAt: String
     updatedAt: String
+    mediatorCount: Int
   }
   # Inputs
   input groupInput {
