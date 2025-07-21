@@ -10,7 +10,7 @@ import uuidv4 from '../../utils/uuidv4';
  * @param values - An object containing key-value pairs to populate the table.
  * @returns The created entry.
  */
-const calculatePrice = (minutes: number, additionalTime: number = 0) => {
+const calculatePrice = (minutes: number, ) => {
     const hourlyRate = 15;
     let totalPrice = 0;
 
@@ -24,8 +24,6 @@ const calculatePrice = (minutes: number, additionalTime: number = 0) => {
         const perMinuteRate = hourlyRate / 60;
         totalPrice = minutes * perMinuteRate;
     }
-    const additionalTimePrice = additionalTime > 0 ? (additionalTime / 60) * hourlyRate : 0;
-    totalPrice += additionalTimePrice;
     return parseFloat(totalPrice.toFixed(2));
 };
 
@@ -41,7 +39,6 @@ export async function createRequest(values: any) {
         const departmentCode = values.departmentCode
         const languageCode = values?.languageCode
         const callDetails = await twilioClient.calls(callSID).fetch();
-        // const callFrom = await twilioClient.calls(FriendlyName).fetch();
         const languageRecord = await db.select({
             languageCode: Languages.language_code,
             languageName: Languages.language_name,
@@ -73,15 +70,12 @@ export async function createRequest(values: any) {
         const newBooking = {
             id: uuidv4(),
             mediatorId: mediatorResult[0].id,
-            mediationType: 'Urgente',
-            status: "Completato",
-            deliveryDate: new Date(callDetails?.startTime),
+            status: "Completed",
+            mediationDate: new Date(callDetails?.startTime),
             minutes: String(obj?.expectedDuration ?? 0),
             amount: String(obj?.amount ?? 0),
             additionalMinutes: String(0),
-            notes: '',
             language: obj?.targetLanguage,
-            "dateOfRequestCompletion": new Date(),
         };
 
         let result = await db.insert(RequestTable).values(newBooking).returning();
