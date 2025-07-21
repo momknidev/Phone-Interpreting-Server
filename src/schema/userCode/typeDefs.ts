@@ -6,12 +6,15 @@ export const typeDefs = gql`
     user_code: Int!
     userID: String
     user_name: String!
+    status: String!  # e.g., 'active', 'inactive'
+    # Timestamps
     created_at: String
     updated_at: String
   }
 
   input UserCodeInput {
     user_code: Int!
+    status: String!  # e.g., 'active', 'inactive'
     user_name: String!
   }
   type UserCodesResponse {
@@ -34,6 +37,7 @@ export const typeDefs = gql`
     createUserCode(input: UserCodeInput!): UserCode!
     updateUserCode(id: ID!, input: UserCodeInput!): UserCode!
     deleteUserCode(id: ID!): Boolean!
+    changeUserCodeStatus(id: ID!, status: String!): UserCode!
   }
 `;
 

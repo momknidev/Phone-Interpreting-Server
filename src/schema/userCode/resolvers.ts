@@ -114,7 +114,7 @@ const resolvers = {
   Mutation: {
     createUserCode: async (
       _: any,
-      { input }: { input: { user_code: number; user_name: string } },
+      { input }: { input: { user_code: number; user_name: string , status:string } },
       context: any
     ) => {
       if (!context?.user) {
@@ -127,9 +127,9 @@ const resolvers = {
           user_code: Number(input.user_code),
           user_name: input.user_name,
           userID: context.user.id,
+          status: input.status || 'active', // Default status to 'active'
           created_at: new Date(),
           updated_at: new Date(),
-          status: 'active',
         };
 
         const result = await db.insert(UserCode).values(userCodeData).returning();
@@ -147,7 +147,7 @@ const resolvers = {
 
     updateUserCode: async (
       _: any,
-      { id, input }: { id: string; input: { user_code: number; user_name: string } },
+      { id, input }: { id: string; input: {status:string, user_code: number; user_name: string } },
       context: any
     ) => {
       if (!context?.user) {
@@ -162,8 +162,9 @@ const resolvers = {
         }
 
         const updatedData = {
-          user_code: input.user_code,
-          user_name: input.user_name,
+          user_code: input.user_code ? Number(input.user_code) : userCode[0].user_code,
+          user_name: input.user_name ? input.user_name : userCode[0].user_name,
+          status: input.status || userCode[0].status, // Keep existing status if not provided
           updated_at: new Date(),
         };
 
@@ -197,6 +198,32 @@ const resolvers = {
         throw new Error(error.message || 'Internal server error.');
       }
     },
+    changeUserCodeStatus: async (
+      _: any,
+      { id, status }: { id: string; status: string },
+      context: any
+    ) => {
+      if (!context?.user) {
+        throw new AuthenticationError('Unauthenticated');
+      }
+
+      try {
+        const userCode = await db.select().from(UserCode).where(and(eq(UserCode.id, id), eq(UserCode.userID, context.user.id)));
+
+        if (!userCode.length) {
+          throw new UserInputError('UserCode not found');
+        }
+
+        await db.update(UserCode).set({ status, updated_at: new Date() }).where(eq(UserCode.id, id));
+
+        const updatedUserCode = await db.select().from(UserCode).where(eq(UserCode.id, id));
+
+        return updatedUserCode[0];
+      } catch (error: any) {
+        console.error('Error changing UserCode status:', error.message);
+        throw new Error(error.message || 'Internal server error.');
+      }
+    }
   },
 };
 
