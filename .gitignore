@@ -27,4 +27,4 @@ nsc
 
 deploy/local/docker-compose.local.yml
 
-services/core/drizzle
+drizzle
