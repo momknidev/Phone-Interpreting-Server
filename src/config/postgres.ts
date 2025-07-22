@@ -1,7 +1,20 @@
-/* eslint-disable @typescript-eslint/quotes */
 import { drizzle } from 'drizzle-orm/node-postgres';
-import "dotenv/config";
+import { Client } from 'pg';
+import { vars } from './vars';
+import * as schema from '../models';
+import 'dotenv/config';
+const { postgres: postgresVars, env } = vars;
 
-const db = drizzle(process.env.DATABASE_URL ||'');
+export const postgresClient = new Client({
+  host: postgresVars.host,
+  port: postgresVars.port,
+  user: postgresVars.user,
+  password: postgresVars.password,
+  database: postgresVars.db,
+});
 
-export { db };
+export const db =
+  env === 'develop'
+    ? drizzle(postgresClient, { schema })
+    : drizzle(process.env.DATABASE_URL || '');
+
