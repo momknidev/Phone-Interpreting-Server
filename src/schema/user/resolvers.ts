@@ -9,6 +9,7 @@ import { db } from '../../config/postgres';
 import { User } from '../../../types/user'
 import { uploadObjectToS3 } from '../../utils/uploadObjectToS3';
 import uuidv4 from '../../utils/uuidv4';
+import { logger } from '../../config/logger';
 
 interface UserDetails {
   email: string;

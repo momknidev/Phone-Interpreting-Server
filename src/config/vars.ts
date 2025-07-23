@@ -12,7 +12,7 @@ export const vars = Object.freeze({
   isLocal: parseBoolean(process.env.IS_LOCAL, true),
   secret_key: process.env.SECRET_KEY,
   postgres: {
-    host: parseString(process.env.POSTGRES_HOST, 'phone_interpreting_postgres'),
+    host: parseString(process.env.POSTGRES_HOST, 'localhost'),
     port: parseNumber(process.env.POSTGRES_PORT, 5432),
     db: parseString(process.env.POSTGRES_DB, 'phone_interpreter_db'),
     user: parseString(process.env.POSTGRES_USER, 'postgres'),
