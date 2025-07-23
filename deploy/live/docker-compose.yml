@@ -1,16 +1,16 @@
 version: '3'
 
 services:
-  postgres:
-    container_name: phone_interpreting_postgres
-    restart: unless-stopped
-    image: postgres
-    ports:
-      - '5432:5432'
-    environment:
-      POSTGRES_DB: phone_interpreter_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+  # postgres:
+  #   container_name: phone_interpreting_postgres
+  #   restart: unless-stopped
+  #   image: postgres
+  #   ports:
+  #     - '5432:5432'
+  #   environment:
+  #     POSTGRES_DB: phone_interpreter_db
+  #     POSTGRES_USER: postgres
+  #     POSTGRES_PASSWORD: postgres
   redis:
     image: redis
     restart: unless-stopped
@@ -21,7 +21,7 @@ services:
     container_name: phone_interpreting_core
     restart: unless-stopped
     depends_on:
-      - postgres
+      # - postgres
       - redis
     build:
       context: ../../
