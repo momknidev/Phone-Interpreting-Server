@@ -15,6 +15,7 @@ export const typeDefs = gql`
     createdAt: String
     updatedAt: String
     mediatorCount: Int
+    mediators: JSON
   }
   # Inputs
   input groupInput {
@@ -45,6 +46,8 @@ export const typeDefs = gql`
     editGroup(id: String, groupInput: groupInput): Group!
     changeGroupStatus(id:ID!, status: String): Group
     deleteGroup(id: ID!): String
+    addMediatorToGroup(groupID: ID!, mediatorID: ID!): Group
+    removeMediatorFromGroup(groupID: ID!, mediatorID: ID!): Group
   }
 `;
 

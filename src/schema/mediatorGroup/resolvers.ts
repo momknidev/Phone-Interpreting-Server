@@ -3,19 +3,24 @@ import { and, asc, desc, eq, ilike, or, sql } from 'drizzle-orm';
 import { AuthenticationError, UserInputError } from 'apollo-server';
 import { db } from '../../config/postgres';
 import uuidv4 from '../../utils/uuidv4';
-import { mediatorGroup, mediatorGroupRelation } from '../../models'; // Make sure this exists in your models folder
+import { mediator, mediatorGroup, mediatorGroupRelation } from '../../models'; // Make sure this exists in your models folder
+import { logger } from '../../config/logger';
 
 // Add to existing resolvers
 const resolvers = {
-  // Keep existing resolvers
   Query: {
-    // Keep existing query resolvers
-
-    // Add new query resolvers for Group
     groupByID: async (_: any, { id }: { id: string }): Promise<any> => {
       try {
+        // Step 1: Fetch group info
         const groups = await db
-          .select()
+          .select({
+            id: mediatorGroup.id,
+            groupName: mediatorGroup.groupName,
+            status: mediatorGroup.status,
+            userID: mediatorGroup.userID,
+            createdAt: mediatorGroup.createdAt,
+            updatedAt: mediatorGroup.updatedAt,
+          })
           .from(mediatorGroup)
           .where(eq(mediatorGroup.id, id));
 
@@ -25,16 +30,37 @@ const resolvers = {
           throw new UserInputError('Group not found!');
         }
 
+        // Step 2: Fetch related mediators
+        const mediators = await db
+          .select({
+            id: mediator.id,
+            firstName: mediator.firstName,
+            lastName: mediator.lastName,
+            email: mediator.email,
+            // Add more fields as needed
+          })
+          .from(mediator)
+          .innerJoin(
+            mediatorGroupRelation,
+            eq(mediator.id, mediatorGroupRelation.mediatorId)
+          )
+          .where(eq(mediatorGroupRelation.mediatorGroupId, id));
+
+        logger.info(`Fetched group by ID: ${id}`, { group, mediatorCount: mediators.length });
+
+        // Step 3: Return combined result
         return {
           ...group,
           createdAt: group.createdAt?.toISOString() || '',
           updatedAt: group.updatedAt?.toISOString() || '',
+          mediators, // full list of related mediators
         };
       } catch (error: any) {
         console.error('Error fetching group by ID:', error.message);
         throw new Error(error.message || 'Internal server error.');
       }
-    },
+    }
+    ,
 
     groupsPaginatedList: async (
       _: any,
@@ -142,9 +168,7 @@ const resolvers = {
   },
 
   Mutation: {
-    // Keep existing mutation resolvers
 
-    // Add new mutation resolvers for Group
     addGroup: async (_: any, { groupInput }: { groupInput: any }, context: any) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
@@ -170,7 +194,6 @@ const resolvers = {
         throw new Error('Error: ' + error.message);
       }
     },
-
     editGroup: async (_: any, { id, groupInput }: { id: string, groupInput: any }, context: any) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
@@ -207,7 +230,6 @@ const resolvers = {
         throw new Error('Error: ' + error.message);
       }
     },
-
     changeGroupStatus: async (_: any, { id, status }: { id: string, status: string }, context: any) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
@@ -259,6 +281,70 @@ const resolvers = {
         return "Group deleted successfully";
       } catch (error: any) {
         console.error('Error deleting group:', error.message);
+        throw new Error('Error: ' + error.message);
+      }
+    },
+    addMediatorToGroup: async (_: any, { groupID, mediatorID }: { groupID: string, mediatorID: string }, context: any) => {
+      if (!context?.user) {
+        throw new AuthenticationError('Unauthenticated');
+      }
+      try {
+        // Check group exists
+        const group = await db.select().from(mediatorGroup).where(eq(mediatorGroup.id, groupID));
+        if (!group[0]) {
+          throw new UserInputError('Group not found');
+        }
+        // Check mediator exists
+        const mediatorExists = await db.select().from(mediator).where(eq(mediator.id, mediatorID));
+        if (!mediatorExists[0]) {
+          throw new UserInputError('Mediator not found');
+        }
+        // Check if already in group
+        const relation = await db.select().from(mediatorGroupRelation)
+          .where(and(eq(mediatorGroupRelation.mediatorGroupId, groupID), eq(mediatorGroupRelation.mediatorId, mediatorID)));
+        if (relation.length > 0) {
+          throw new UserInputError('Mediator already in group');
+        }
+        // Add relation
+        await db.insert(mediatorGroupRelation).values({
+          id: uuidv4(),
+          mediatorGroupId: groupID,
+          mediatorId: mediatorID,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+        // Return updated group
+        const updatedGroup = await db.select().from(mediatorGroup).where(eq(mediatorGroup.id, groupID));
+        return updatedGroup[0];
+      } catch (error: any) {
+        console.error('Error adding mediator to group:', error.message);
+        throw new Error('Error: ' + error.message);
+      }
+    },
+
+    removeMediatorFromGroup: async (_: any, { groupID, mediatorID }: { groupID: string, mediatorID: string }, context: any) => {
+      if (!context?.user) {
+        throw new AuthenticationError('Unauthenticated');
+      }
+      try {
+        // Check group exists
+        const group = await db.select().from(mediatorGroup).where(eq(mediatorGroup.id, groupID));
+        if (!group[0]) {
+          throw new UserInputError('Group not found');
+        }
+        // Check mediator exists
+        const mediatorExists = await db.select().from(mediator).where(eq(mediator.id, mediatorID));
+        if (!mediatorExists[0]) {
+          throw new UserInputError('Mediator not found');
+        }
+        // Remove relation
+        await db.delete(mediatorGroupRelation)
+          .where(and(eq(mediatorGroupRelation.mediatorGroupId, groupID), eq(mediatorGroupRelation.mediatorId, mediatorID)));
+        // Return updated group
+        const updatedGroup = await db.select().from(mediatorGroup).where(eq(mediatorGroup.id, groupID));
+        return updatedGroup[0];
+      } catch (error: any) {
+        console.error('Error removing mediator from group:', error.message);
         throw new Error('Error: ' + error.message);
       }
     },
