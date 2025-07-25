@@ -563,6 +563,7 @@ const resolvers = {
             throw new Error(`Row ${index + 1}: Missing required fields (firstName, lastName, phone)`);
           }
 
+
           // Validate and check for overlapping time slots
           const timeSlots = [
             'monday_time_slots',
@@ -592,10 +593,7 @@ const resolvers = {
               }
             }
           });
-          row.sourceLanguage1 = row.targetLanguage1 ? 'Italian' : '';
-          row.sourceLanguage2 = row.targetLanguage2 ? 'Italian' : '';
-          row.sourceLanguage3 = row.targetLanguage3 ? 'Italian' : '';
-          row.sourceLanguage4 = row.targetLanguage4 ? 'Italian' : '';
+
           row.status = row.status || 'active';
           row.availableForEmergencies = String(row.availableForEmergencies).toLowerCase() === 'true'
           row.availableOnHolidays = String(row.availableOnHolidays).toLowerCase() === 'true'
@@ -629,6 +627,136 @@ const resolvers = {
         // Extract the file stream from the uploaded file
         const { createReadStream, mimetype } = await file;
         const stream = createReadStream();
+        const saveMediatorsToDatabase = async (mediatorData: any[], userId: string) => {
+          const mediatorEntries = mediatorData.map((data) => ({
+            id: uuidv4(),
+            userID: userId,
+            firstName: data.firstName,
+            lastName: data.lastName,
+            email: data.email,
+            phone: data.phone,
+            IBAN: data.IBAN || null,
+            status: data.status || 'active',
+            monday_time_slots: data.monday_time_slots || null,
+            tuesday_time_slots: data.tuesday_time_slots || null,
+            wednesday_time_slots: data.wednesday_time_slots || null,
+            thursday_time_slots: data.thursday_time_slots || null,
+            friday_time_slots: data.friday_time_slots || null,
+            saturday_time_slots: data.saturday_time_slots || null,
+            sunday_time_slots: data.sunday_time_slots || null,
+            availableForEmergencies: data.availableForEmergencies || false,
+            availableOnHolidays: data.availableOnHolidays || false,
+            priority: data.priority || 1,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }));
+          // Insert all mediators in a single transaction
+
+          const groupRelationEntries = mediatorData
+            .map((row: any) => {
+              const groupsForMediator = String(row.groups).split(',') || [];
+              return groupsForMediator.map((groupName: string) => {
+                // Find the mediator by firstName and lastName
+                const mediator = mediatorEntries.find((mediator: any) =>
+                  mediator.firstName === row.firstName && mediator.lastName === row.lastName && mediator.phone === row.phone
+                );
+
+                // Check if mediator is found
+                if (!mediator) {
+                  throw new Error(`Mediator with name ${row.firstName} ${row.lastName} not found.`);
+                }
+
+                // Find the group by groupName
+                let group: any = groups.find((group: any) => String(group.groupName).trim().toLocaleLowerCase() === String(groupName).trim().toLocaleLowerCase());
+
+                // Check if group is found
+                if (!group) {
+                  const newAddedGroup = {
+                    id: uuidv4(),
+                    userID: context.user.id,
+                    groupName: groupName,
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                    status: 'active',
+                  };
+                  // Insert the new group if not found
+                  group = db.insert(mediatorGroup).values(newAddedGroup).returning();
+                  throw new Error(`Group ${groupName} not found.`);
+                }
+                // id: string; mediatorId: string; mediatorGroupId: any; createdAt: Date; updatedAt: Date;
+
+                // Return the group relation entry if both mediator and group are found
+                return {
+                  id: uuidv4(),
+                  mediatorId: mediator.id, // Access mediator id safely
+                  mediatorGroupId: group.id, // Access group id safely
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
+                };
+              });
+            })
+            .flat();
+          console.log({ groupRelationEntries })
+
+          const languageRelationEntries = mediatorData
+            .map((row: any, idx: number) => {
+              const sourceLanguages = String(row.sourceLanguages || '').split(',').map((s: string) => s.trim());
+              const targetLanguages = String(row.targetLanguages || '').split(',').map((s: string) => s.trim());
+
+              if (sourceLanguages.length !== targetLanguages.length) {
+                throw new Error(`Row ${idx + 1}: Source and target languages must have the same number of entries.`);
+              }
+
+              // Find the mediator by firstName, lastName, and phone
+              const mediatorObj = mediatorEntries.find((m: any) =>
+                m.firstName === row.firstName && m.lastName === row.lastName && m.phone === row.phone
+              );
+              if (!mediatorObj) {
+                throw new Error(`Mediator with name ${row.firstName} ${row.lastName} not found.`);
+              }
+
+              return sourceLanguages.map((sourceLang: string, i: number) => {
+                const targetLang = targetLanguages[i];
+                if (!sourceLang || !targetLang) {
+                  throw new Error(`Row ${idx + 1}: Invalid language pair at position ${i + 1}.`);
+                }
+                return {
+                  id: uuidv4(),
+                  mediatorId: mediatorObj.id,
+                  sourceLanguageId: (() => {
+                    const foundLang = languages.find((lang: any) => String(lang.language_name).toLocaleLowerCase() === String(sourceLang).toLocaleLowerCase());
+                    if (!foundLang) {
+                      throw new Error(`Source language "${sourceLang}" not found in row ${idx + 1}.`);
+                    }
+                    return foundLang.id;
+                  })(),
+                  targetLanguageId: (() => {
+                    const foundLang = languages.find((lang: any) => String(lang.language_name).toLocaleLowerCase() === String(targetLang).toLocaleLowerCase());
+                    if (!foundLang) {
+                      throw new Error(`Target language "${targetLang}" not found in row ${idx + 1}.`);
+                    }
+                    return foundLang.id;
+                  })(),
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
+                };
+              });
+            })
+            .flat();
+          const data = await db.insert(mediator).values(mediatorEntries).returning();
+
+          console.log({ data })
+          if (groupRelationEntries.length > 0) {
+            const groupData = await db.insert(mediatorGroupRelation).values(groupRelationEntries).returning();
+            console.log({ groupData })
+          }
+          console.log({ languageRelationEntries })
+          if (languageRelationEntries.length > 0) {
+            await db.insert(mediatorLanguageRelation).values(languageRelationEntries).returning();
+          }
+
+          return data;
+        }
 
         let mediatorData: any[] = [];
 
@@ -652,96 +780,6 @@ const resolvers = {
           }
           const result = validateAndTransformData(rows);
 
-          const saveMediatorsToDatabase = async (mediatorData: any[], userId: string) => {
-            const mediatorEntries = mediatorData.map((data) => ({
-              id: uuidv4(),
-              userID: userId,
-              firstName: data.firstName,
-              lastName: data.lastName,
-              email: data.email,
-              phone: data.phone,
-              IBAN: data.IBAN || null,
-              sourceLanguage1: data.sourceLanguage1 || null,
-              targetLanguage1: data.targetLanguage1 || null,
-              sourceLanguage2: data.sourceLanguage2 || null,
-              targetLanguage2: data.targetLanguage2 || null,
-              sourceLanguage3: data.sourceLanguage3 || null,
-              targetLanguage3: data.targetLanguage3 || null,
-              sourceLanguage4: data.sourceLanguage4 || null,
-              targetLanguage4: data.targetLanguage4 || null,
-              status: data.status || 'active',
-              monday_time_slots: data.monday_time_slots || null,
-              tuesday_time_slots: data.tuesday_time_slots || null,
-              wednesday_time_slots: data.wednesday_time_slots || null,
-              thursday_time_slots: data.thursday_time_slots || null,
-              friday_time_slots: data.friday_time_slots || null,
-              saturday_time_slots: data.saturday_time_slots || null,
-              sunday_time_slots: data.sunday_time_slots || null,
-              availableForEmergencies: data.availableForEmergencies || false,
-              availableOnHolidays: data.availableOnHolidays || false,
-              priority: data.priority || 1,
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            }));
-            // Insert all mediators in a single transaction
-            const data = await db.insert(mediator).values(mediatorEntries).returning();
-            // in data i have list of inserted mediators i have list of all groups and i also has group for each mediator in groups key of rows.
-            // now write a function which map on saved medaitors and take groups from rows array by matching firstName and lastName
-            // then create a record based on groups for each group in groups key find key from groups array and and create objects in following format
-            // {id:"", mediator_id:"",mediator_group_id:""} and then save it in database  
-            console.log({ data })
-            // console.log({ data })
-            const groupRelationEntries = rows
-              .map((row: any) => {
-                const groupsForMediator = String(row.groups).split(',') || [];
-                return groupsForMediator.map((groupName: string) => {
-                  // Find the mediator by firstName and lastName
-                  const mediator = mediatorEntries.find((mediator: any) =>
-                    mediator.firstName === row.firstName && mediator.lastName === row.lastName && mediator.phone === row.phone
-                  );
-
-                  // Check if mediator is found
-                  if (!mediator) {
-                    throw new Error(`Mediator with name ${row.firstName} ${row.lastName} not found.`);
-                  }
-
-                  // Find the group by groupName
-                  let group: any = groups.find((group: any) => String(group.groupName).trim().toLocaleLowerCase() === String(groupName).trim().toLocaleLowerCase());
-
-                  // Check if group is found
-                  if (!group) {
-                    const newAddedGroup = {
-                      id: uuidv4(),
-                      userID: context.user.id,
-                      groupName: groupName,
-                      createdAt: new Date(),
-                      updatedAt: new Date(),
-                      status: 'active',
-                    };
-                    // Insert the new group if not found
-                    group = db.insert(mediatorGroup).values(newAddedGroup).returning();
-                    throw new Error(`Group ${groupName} not found.`);
-                  }
-                  // id: string; mediatorId: string; mediatorGroupId: any; createdAt: Date; updatedAt: Date;
-
-                  // Return the group relation entry if both mediator and group are found
-                  return {
-                    id: uuidv4(),
-                    mediatorId: mediator.id, // Access mediator id safely
-                    mediatorGroupId: group.id, // Access group id safely
-                    createdAt: new Date(),
-                    updatedAt: new Date(),
-                  };
-                });
-              })
-              .flat();
-            console.log({ groupRelationEntries })
-            if (groupRelationEntries.length > 0) {
-              const groupData = await db.insert(mediatorGroupRelation).values(groupRelationEntries).returning();
-              console.log({ groupData })
-            }
-            return data;
-          }
 
 
           await saveMediatorsToDatabase(result, context.user.id);
@@ -766,14 +804,7 @@ const resolvers = {
               email: row.email || null,
               phone: row.phone,
               IBAN: row.IBAN || null,
-              sourceLanguage1: row.sourceLanguage1 || null,
-              targetLanguage1: row.targetLanguage1 || null,
-              sourceLanguage2: row.sourceLanguage2 || null,
-              targetLanguage2: row.targetLanguage2 || null,
-              sourceLanguage3: row.sourceLanguage3 || null,
-              targetLanguage3: row.targetLanguage3 || null,
-              sourceLanguage4: row.sourceLanguage4 || null,
-              targetLanguage4: row.targetLanguage4 || null,
+
               status: row.status || 'active',
               monday_time_slots: row.monday_time_slots || null,
               tuesday_time_slots: row.tuesday_time_slots || null,
@@ -791,43 +822,7 @@ const resolvers = {
 
           const result = validateAndTransformData(mediatorData);
 
-          const saveMediatorsToDatabase = async (mediatorData: any[], userId: string) => {
-            const mediatorEntries = mediatorData.map((data) => ({
-              id: uuidv4(),
-              userID: userId,
-              firstName: data.firstName,
-              lastName: data.lastName,
-              email: data.email,
-              phone: data.phone,
-              IBAN: data.IBAN || null,
-              sourceLanguage1: data.sourceLanguage1 || null,
-              targetLanguage1: data.targetLanguage1 || null,
-              sourceLanguage2: data.sourceLanguage2 || null,
-              targetLanguage2: data.targetLanguage2 || null,
-              sourceLanguage3: data.sourceLanguage3 || null,
-              targetLanguage3: data.targetLanguage3 || null,
-              sourceLanguage4: data.sourceLanguage4 || null,
-              targetLanguage4: data.targetLanguage4 || null,
-              status: data.status || 'active',
-              monday_time_slots: data.monday_time_slots || null,
-              tuesday_time_slots: data.tuesday_time_slots || null,
-              wednesday_time_slots: data.wednesday_time_slots || null,
-              thursday_time_slots: data.thursday_time_slots || null,
-              friday_time_slots: data.friday_time_slots || null,
-              saturday_time_slots: data.saturday_time_slots || null,
-              sunday_time_slots: data.sunday_time_slots || null,
-              availableForEmergencies: data.availableForEmergencies || false,
-              availableOnHolidays: data.availableOnHolidays || false,
-              priority: data.priority || 1,
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            }));
-            console.log({ mediatorEntries })
-            // Insert all mediators in a single transaction
-            const data = await db.insert(mediator).values(mediatorEntries).returning();
-            console.log({ data })
-            return data;
-          }
+
           // Handle errors in CSV parsing
           parser.on('error', (error) => {
             console.error('CSV Parsing Error:', error);
