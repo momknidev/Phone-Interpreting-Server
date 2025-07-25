@@ -12,7 +12,7 @@ export const typeDefs = gql`
   targetLanguageName: String!
   }
   type Group{
-    id: ID!
+    id: ID
     groupName: String!
     }
   

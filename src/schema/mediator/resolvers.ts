@@ -8,6 +8,7 @@ import { alias } from 'drizzle-orm/pg-core';
 import { ReadStream } from 'node:fs';
 import * as xlsx from 'xlsx'; // For Excel file parsing
 import csvParser from 'csv-parser';
+import { logger } from '../../config/logger';
 const streamToBuffer = (stream: ReadStream) =>
   new Promise<Buffer>((resolve, reject) => {
     const chunks: Buffer[] = [];
@@ -85,11 +86,10 @@ const resolvers = {
       LEFT JOIN ${Languages} sl ON sl.id = mlr."sourceLanguageId"
       LEFT JOIN ${Languages} tl ON tl.id = mlr."targetLanguageId"
       WHERE m.id = ${id} AND m."userID" = ${context.user.id}
-      GROUP BY m.id;
-    `);
+      GROUP BY m.id;`);
 
         const mediatorFound = result.rows?.[0];
-        console.log('Mediator found:', JSON.stringify(mediatorFound, null, 1));
+        // console.log('Mediator found:', JSON.stringify(mediatorFound, null, 1));
         if (!mediatorFound) {
           throw new UserInputError('Mediator not found!');
         }
@@ -115,8 +115,6 @@ const resolvers = {
         throw new Error(error.message || 'Internal server error.');
       }
     },
-
-
 
     mediatorsPaginatedList: async (
       _: any,
@@ -144,11 +142,7 @@ const resolvers = {
       }
 
       try {
-        const lang1 = alias(Languages, 'lang1');
-        const lang2 = alias(Languages, 'lang2');
-        const lang3 = alias(Languages, 'lang3');
-        const lang4 = alias(Languages, 'lang4');
-
+        // Base query
         let query = db.select({
           id: mediator.id,
           userID: mediator.userID,
@@ -170,28 +164,29 @@ const resolvers = {
           priority: mediator.priority,
           createdAt: mediator.createdAt,
           updatedAt: mediator.updatedAt,
-        }).from(mediator)
+        }).from(mediator);
 
         const filters = [];
-        filters.push(eq(mediator.userID, context.user.id));
+
         if (name) {
           filters.push(
             or(
-              ilike(mediator.firstName, '%' + name + '%'),
-              ilike(mediator.lastName, '%' + name + '%')
+              ilike(mediator.firstName, `%${name}%`),
+              ilike(mediator.lastName, `%${name}%`)
             )
           );
         }
-
+        filters.push(eq(mediator.userID, context.user.id))
 
         if (status) {
-          filters.push(ilike(mediator.status, status));
+          filters.push(ilike(mediator.status, `%${status}%`));
         }
 
         if (filters.length > 0) {
           query.where(and(...filters));
         }
 
+        // Sorting
         // Apply sorting
         if (orderBy && order) {
           const isValidColumn = orderBy in mediator && typeof mediator[orderBy as keyof typeof mediator] === 'object';
@@ -204,8 +199,7 @@ const resolvers = {
             query.orderBy(order.toUpperCase() === 'ASC' ? asc(mediator.createdAt) : desc(mediator.createdAt));
           }
         }
-
-        // Get total count for pagination
+        // Count for pagination
         const countResult = await db
           .select({ count: sql<number>`count(*)` })
           .from(mediator)
@@ -215,36 +209,66 @@ const resolvers = {
 
         // Apply pagination
         const mediators = await query.limit(limit).offset(offset);
-        const mediatorIds = mediators.map((mediator) => mediator.id);
+        const mediatorIds = mediators.map((m) => m.id);
+
         const groupNamesResult = await db
           .select({
             mediatorId: mediatorGroupRelation.mediatorId,
-            groupNames: mediatorGroup.groupName,
+            groupName: mediatorGroup.groupName,
           })
           .from(mediatorGroupRelation)
-          .leftJoin(mediatorGroup, eq(mediatorGroup.id, mediatorGroupRelation.mediatorGroupId))
+          .leftJoin(
+            mediatorGroup,
+            eq(mediatorGroup.id, mediatorGroupRelation.mediatorGroupId)
+          )
           .where(inArray(mediatorGroupRelation.mediatorId, mediatorIds));
+        logger.info('Group names result:', groupNamesResult);
+        // --- Fetch languages ---
+        const languageResult = await db
+          .select({
+            mediatorId: mediatorLanguageRelation.mediatorId,
+            sourceLanguageId: Languages.id,
+            sourceLanguageName: Languages.language_name,
+            targetLanguageId: alias(Languages, 'target').id,
+            targetLanguageName: alias(Languages, 'target').language_name,
+          })
+          .from(mediatorLanguageRelation)
+          .leftJoin(Languages, eq(Languages.id, mediatorLanguageRelation.sourceLanguageId))
+          .leftJoin(alias(Languages, 'target'), eq(alias(Languages, 'target').id, mediatorLanguageRelation.targetLanguageId))
+          .where(inArray(mediatorLanguageRelation.mediatorId, mediatorIds));
 
-        // Map group names to each mediator
-        const mediatorsWithGroupNames = mediators.map((mediator) => {
-          const groupNames = groupNamesResult
-            .filter((item) => item.mediatorId === mediator.id)
-            .map((item) => item.groupNames);
+        // --- Map group names and languages into mediators ---
+        const mediatorsWithExtras = mediators.map((mediator) => {
+          const groups = groupNamesResult
+            .filter((g) => g.mediatorId === mediator.id)
+            .map((g) => ({ groupName: g.groupName }));
+
+          const languages = languageResult
+            .filter((l) => l.mediatorId === mediator.id)
+            .map((l) => ({
+              sourceLanguageId: l.sourceLanguageId,
+              sourceLanguageName: l.sourceLanguageName,
+              targetLanguageId: l.targetLanguageId,
+              targetLanguageName: l.targetLanguageName,
+            }));
+
           return {
             ...mediator,
-            groupIDs: groupNames,
+            groups: groups,
+            languages,
           };
         });
 
         return {
-          mediators: mediatorsWithGroupNames,
+          mediators: mediatorsWithExtras,
           filteredCount: totalCount,
         };
       } catch (error: any) {
         console.error('Error fetching mediators paginated list:', error.message);
         throw new Error(error.message || 'Internal server error.');
       }
-    },
+    }
+
 
   },
 
