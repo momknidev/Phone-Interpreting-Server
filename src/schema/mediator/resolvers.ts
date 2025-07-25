@@ -3,7 +3,7 @@ import { and, asc, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import { AuthenticationError, UserInputError } from 'apollo-server';
 import { db } from '../../config/postgres';
 import uuidv4 from '../../utils/uuidv4';
-import { Languages, mediator, mediatorGroup, mediatorGroupRelation } from '../../models'; // Ensure this exists in your models folder
+import { Languages, mediator, mediatorGroup, mediatorGroupRelation, mediatorLanguageRelation } from '../../models'; // Ensure this exists in your models folder
 import { alias } from 'drizzle-orm/pg-core';
 import { ReadStream } from 'node:fs';
 import * as xlsx from 'xlsx'; // For Excel file parsing
@@ -45,67 +45,70 @@ const resolvers = {
         throw new AuthenticationError('Unauthenticated');
       }
 
-      const lang1 = alias(Languages, 'lang1');
-      const lang2 = alias(Languages, 'lang2');
-      const lang3 = alias(Languages, 'lang3');
-      const lang4 = alias(Languages, 'lang4');
-
-      const groups = alias(mediatorGroupRelation, 'groups'); // Alias for the group relation table
-
       try {
-        // Fetch mediator details along with languages and groups
-        const result = await db
-          .select({
-            id: mediator.id,
-            userID: mediator.userID,
-            firstName: mediator.firstName,
-            lastName: mediator.lastName,
-            email: mediator.email,
-            phone: mediator.phone,
-            IBAN: mediator.IBAN,
-            sourceLanguage1: mediator.sourceLanguage1,
-            sourceLanguage2: mediator.sourceLanguage2,
-            sourceLanguage3: mediator.sourceLanguage3,
-            sourceLanguage4: mediator.sourceLanguage4,
-            targetLanguage1: lang1.language_name,
-            targetLanguage2: lang2.language_name,
-            targetLanguage3: lang3.language_name,
-            targetLanguage4: lang4.language_name,
-            status: mediator.status,
-            monday_time_slots: mediator.monday_time_slots,
-            tuesday_time_slots: mediator.tuesday_time_slots,
-            wednesday_time_slots: mediator.wednesday_time_slots,
-            thursday_time_slots: mediator.thursday_time_slots,
-            friday_time_slots: mediator.friday_time_slots,
-            saturday_time_slots: mediator.saturday_time_slots,
-            sunday_time_slots: mediator.sunday_time_slots,
-            availableForEmergencies: mediator.availableForEmergencies,
-            availableOnHolidays: mediator.availableOnHolidays,
-            priority: mediator.priority,
-            createdAt: mediator.createdAt,
-            updatedAt: mediator.updatedAt,
-            groupIDs: sql<string[]>`
-          ARRAY(SELECT mediator_group_id FROM ${mediatorGroupRelation} WHERE ${mediatorGroupRelation}.mediator_id = ${mediator.id})`,
-          })
-          .from(mediator)
-          .leftJoin(lang1, eq(lang1.id, mediator.targetLanguage1))
-          .leftJoin(lang2, eq(lang2.id, mediator.targetLanguage2))
-          .leftJoin(lang3, eq(lang3.id, mediator.targetLanguage3))
-          .leftJoin(lang4, eq(lang4.id, mediator.targetLanguage4))
-          .where(and(eq(mediator.id, id), eq(mediator.userID, context.user.id)));
+        const result = await db.execute(sql`
+      SELECT
+        m.id,
+        m."userID",
+        m."firstName",
+        m."lastName",
+        m.email,
+        m.phone,
+        m."IBAN",
+        m.status,
+        m."monday_time_slots",
+        m."tuesday_time_slots",
+        m."wednesday_time_slots",
+        m."thursday_time_slots",
+        m."friday_time_slots",
+        m."saturday_time_slots",
+        m."sunday_time_slots",
+        m."availableForEmergencies",
+        m."availableOnHolidays",
+        m."priority",
+        m."createdAt",
+        m."updatedAt",
+        COALESCE(
+          JSON_AGG(DISTINCT jsonb_build_object('id', g.id, 'groupName', g."groupName")) 
+          FILTER (WHERE g.id IS NOT NULL), '[]'
+        ) AS groups,
+        COALESCE(
+          JSON_AGG(DISTINCT jsonb_build_object(
+            'sourceLanguage', jsonb_build_object('id', sl.id, 'name', sl."language_name"),
+            'targetLanguage', jsonb_build_object('id', tl.id, 'name', tl."language_name")
+          )) FILTER (WHERE sl.id IS NOT NULL AND tl.id IS NOT NULL), '[]'
+        ) AS languages
+      FROM ${mediator} m
+      LEFT JOIN ${mediatorGroupRelation} mgr ON mgr."mediator_id" = m.id
+      LEFT JOIN ${mediatorGroup} g ON g.id = mgr."mediator_group_id"
+      LEFT JOIN ${mediatorLanguageRelation} mlr ON mlr."mediatorId" = m.id
+      LEFT JOIN ${Languages} sl ON sl.id = mlr."sourceLanguageId"
+      LEFT JOIN ${Languages} tl ON tl.id = mlr."targetLanguageId"
+      WHERE m.id = ${id} AND m."userID" = ${context.user.id}
+      GROUP BY m.id;
+    `);
 
-        const mediatorFound = result[0];
-
+        const mediatorFound = result.rows?.[0];
+        console.log('Mediator found:', JSON.stringify(mediatorFound, null, 1));
         if (!mediatorFound) {
           throw new UserInputError('Mediator not found!');
         }
-        console.log({ mediatorFound })
-        // Return the mediator along with their associated group IDs
+
         return {
           ...mediatorFound,
-          groupIDs: mediatorFound.groupIDs || [], // Ensure groupIDs is always an array
-          createdAt: mediatorFound.createdAt?.toISOString() || '',
-          updatedAt: mediatorFound.updatedAt?.toISOString() || '',
+          createdAt: mediatorFound.createdAt || '',
+          updatedAt: mediatorFound.updatedAt || '',
+          groups: mediatorFound.groups || [],
+          languages: Array.isArray(mediatorFound.languages)
+            ? mediatorFound.languages.map((item: { sourceLanguage: { id: any; name: any; }; targetLanguage: { id: any; name: any; }; }) => {
+              return {
+                sourceLanguageId: item.sourceLanguage.id,
+                sourceLanguageName: item.sourceLanguage.name,
+                targetLanguageId: item.targetLanguage.id,
+                targetLanguageName: item.targetLanguage.name,
+              };
+            })
+            : [],
         };
       } catch (error: any) {
         console.error('Error fetching mediator by ID:', error.message);
@@ -154,10 +157,6 @@ const resolvers = {
           email: mediator.email,
           phone: mediator.phone,
           IBAN: mediator.IBAN,
-          sourceLanguage1: mediator.sourceLanguage1,
-          sourceLanguage2: mediator.sourceLanguage2,
-          sourceLanguage3: mediator.sourceLanguage3,
-          sourceLanguage4: mediator.sourceLanguage4,
           status: mediator.status,
           monday_time_slots: mediator.monday_time_slots,
           tuesday_time_slots: mediator.tuesday_time_slots,
@@ -171,15 +170,7 @@ const resolvers = {
           priority: mediator.priority,
           createdAt: mediator.createdAt,
           updatedAt: mediator.updatedAt,
-          targetLanguage1: lang1.language_name,
-          targetLanguage2: lang2.language_name,
-          targetLanguage3: lang3.language_name,
-          targetLanguage4: lang4.language_name,
         }).from(mediator)
-          .leftJoin(lang1, eq(lang1.id, mediator.targetLanguage1))
-          .leftJoin(lang2, eq(lang2.id, mediator.targetLanguage2))
-          .leftJoin(lang3, eq(lang3.id, mediator.targetLanguage3))
-          .leftJoin(lang4, eq(lang4.id, mediator.targetLanguage4));
 
         const filters = [];
         filters.push(eq(mediator.userID, context.user.id));
@@ -192,16 +183,6 @@ const resolvers = {
           );
         }
 
-        if (targetLanguage) {
-          filters.push(
-            or(
-              ilike(mediator.targetLanguage1, '%' + targetLanguage + '%'),
-              ilike(mediator.targetLanguage2, '%' + targetLanguage + '%'),
-              ilike(mediator.targetLanguage3, '%' + targetLanguage + '%'),
-              ilike(mediator.targetLanguage4, '%' + targetLanguage + '%')
-            )
-          );
-        }
 
         if (status) {
           filters.push(ilike(mediator.status, status));
@@ -282,15 +263,7 @@ const resolvers = {
           email: mediatorData.email,
           phone: mediatorData.phone,
           IBAN: mediatorData.IBAN || null,
-          sourceLanguage1: mediatorData.sourceLanguage1 || null,
-          targetLanguage1: mediatorData.targetLanguage1 || null,
-          sourceLanguage2: mediatorData.sourceLanguage2 || null,
-          targetLanguage2: mediatorData.targetLanguage2 || null,
-          sourceLanguage3: mediatorData.sourceLanguage3 || null,
-          targetLanguage3: mediatorData.targetLanguage3 || null,
-          sourceLanguage4: mediatorData.sourceLanguage4 || null,
-          targetLanguage4: mediatorData.targetLanguage4 || null,
-          status: mediatorData.status || true,
+          status: mediatorData.status || 'active',
           monday_time_slots: mediatorData.monday_time_slots || null,
           tuesday_time_slots: mediatorData.tuesday_time_slots || null,
           wednesday_time_slots: mediatorData.wednesday_time_slots || null,
@@ -305,7 +278,6 @@ const resolvers = {
           updatedAt: new Date(),
         };
 
-        console.log('Creating mediator with data:', mediatorEntry);
         const result = await db.insert(mediator).values(mediatorEntry).returning();
         const mediatorObj = result[0]
         // Find groups by name
@@ -330,6 +302,20 @@ const resolvers = {
           }
         } catch (groupError) {
           console.error('Error associating mediator with groups:', groupError);
+        }
+        if (mediatorData.languages && mediatorData.languages.length > 0) {
+          const languagesData = mediatorData?.languages || [];
+          const languagePairs = languagesData.map((pair: any) => ({
+            sourceLanguageId: pair.sourceLanguageId,
+            targetLanguageId: pair.targetLanguageId,
+            id: uuidv4(),
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            mediatorId: mediatorObj.id,
+          }));
+          // Insert language pairs into the database
+          await db.insert(mediatorLanguageRelation).values(languagePairs).returning();
+
         }
 
         if (result && result[0]) {
@@ -364,14 +350,6 @@ const resolvers = {
           email: mediatorData.email || existingMediator.email,
           phone: mediatorData.phone || existingMediator.phone,
           IBAN: mediatorData.IBAN !== undefined ? mediatorData.IBAN : existingMediator.IBAN,
-          sourceLanguage1: mediatorData.sourceLanguage1 !== undefined ? mediatorData.sourceLanguage1 : existingMediator.sourceLanguage1,
-          targetLanguage1: mediatorData.targetLanguage1 !== undefined ? mediatorData.targetLanguage1 : existingMediator.targetLanguage1,
-          sourceLanguage2: mediatorData.sourceLanguage2 !== undefined ? mediatorData.sourceLanguage2 : existingMediator.sourceLanguage2,
-          targetLanguage2: mediatorData.targetLanguage2 !== undefined ? mediatorData.targetLanguage2 : existingMediator.targetLanguage2,
-          sourceLanguage3: mediatorData.sourceLanguage3 !== undefined ? mediatorData.sourceLanguage3 : existingMediator.sourceLanguage3,
-          targetLanguage3: mediatorData.targetLanguage3 !== undefined ? mediatorData.targetLanguage3 : existingMediator.targetLanguage3,
-          sourceLanguage4: mediatorData.sourceLanguage4 !== undefined ? mediatorData.sourceLanguage4 : existingMediator.sourceLanguage4,
-          targetLanguage4: mediatorData.targetLanguage4 !== undefined ? mediatorData.targetLanguage4 : existingMediator.targetLanguage4,
           status: mediatorData.status !== undefined ? mediatorData.status : existingMediator.status,
           monday_time_slots: mediatorData.monday_time_slots !== undefined ? mediatorData.monday_time_slots : existingMediator.monday_time_slots,
           tuesday_time_slots: mediatorData.tuesday_time_slots !== undefined ? mediatorData.tuesday_time_slots : existingMediator.tuesday_time_slots,
@@ -392,27 +370,36 @@ const resolvers = {
         // Fetch the updated mediator details
         const updatedMediators = await db.select().from(mediator).where(eq(mediator.id, id));
         const updatedMediator = updatedMediators[0];
-        try {
-          // If we need to associate the mediator with groups
-          if (mediatorData.groupIDs && mediatorData.groupIDs.length > 0) {
-            const groupIds = mediatorData.groupIDs;
-            console.log("Associating mediator with groups:", groupIds);
-            await db.delete(mediatorGroupRelation).where(eq(mediatorGroupRelation.mediatorId, updatedMediator.id));
-            console.log('Deleting existing group associations for mediator:', updatedMediator.id);
-            let data = await db.insert(mediatorGroupRelation).values(
-              groupIds.map((groupId: string) => ({
-                mediatorId: updatedMediator.id,
-                mediatorGroupId: groupId,
-                id: uuidv4(),
-                createdAt: new Date(),
-                updatedAt: new Date(),
-              }))
-            ).returning();
-            console.log('Mediator associated with groups:', data);
-          }
-        } catch (groupError) {
-          console.error('Error associating mediator with groups:', groupError);
+
+        if (mediatorData.groupIDs && mediatorData.groupIDs.length > 0) {
+          const groupIds = mediatorData.groupIDs;
+          await db.delete(mediatorGroupRelation).where(eq(mediatorGroupRelation.mediatorId, updatedMediator.id));
+          let data = await db.insert(mediatorGroupRelation).values(
+            groupIds.map((groupId: string) => ({
+              mediatorId: updatedMediator.id,
+              mediatorGroupId: groupId,
+              id: uuidv4(),
+              updatedAt: new Date(),
+            }))
+          ).returning();
+          console.log('Mediator associated with groups:', data);
         }
+        if (mediatorData.languages && mediatorData.languages.length > 0) {
+          const languagesData = mediatorData?.languages || [];
+          await db.delete(mediatorLanguageRelation).where(eq(mediatorLanguageRelation.mediatorId, updatedMediator.id));
+
+          const languagePairs = languagesData.map((pair: any) => ({
+            sourceLanguageId: pair.sourceLanguageId,
+            targetLanguageId: pair.targetLanguageId,
+            id: uuidv4(),
+            updatedAt: new Date(),
+            mediatorId: updatedMediator.id,
+          }));
+          // Insert language pairs into the database
+          await db.insert(mediatorLanguageRelation).values(languagePairs).returning();
+
+        }
+
         if (updatedMediator) {
           return updatedMediator;
         } else {

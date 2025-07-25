@@ -1,7 +1,4 @@
-import {
-  numeric, pgTable, text, boolean, timestamp, uuid, varchar,
-} from 'drizzle-orm/pg-core';
-import { Languages } from './language_table';
+import { numeric, pgTable, text, boolean, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
 import { Users } from './user_table';
 
 export const mediator = pgTable('mediator', {
@@ -9,17 +6,9 @@ export const mediator = pgTable('mediator', {
   userID: uuid('userID').references(() => Users.id),
   firstName: varchar('firstName').notNull(),
   lastName: varchar('lastName').notNull(),
-  email: text('email').unique(),
+  email: text('email'),
   phone: varchar('phone').notNull(),
   IBAN: text('IBAN'),
-  sourceLanguage1: varchar('sourceLanguage1').default('Italian'),
-  targetLanguage1: uuid('targetLanguage1').references(() => Languages.id),
-  sourceLanguage2: varchar('sourceLanguage2'),
-  targetLanguage2: uuid('targetLanguage2').references(() => Languages.id),
-  sourceLanguage3: varchar('sourceLanguage3'),
-  targetLanguage3: uuid('targetLanguage3').references(() => Languages.id),
-  sourceLanguage4: varchar('sourceLanguage4'),
-  targetLanguage4: uuid('targetLanguage4').references(() => Languages.id),
   createdAt: timestamp('createdAt').defaultNow().notNull(),
   updatedAt: timestamp('updatedAt').defaultNow().notNull(),
   status: varchar('status'),

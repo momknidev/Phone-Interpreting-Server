@@ -25,10 +25,10 @@ export const getInterpreters = async ({
     }
     const languageToUse = languageRecord[0].languageName;
     const languageSelection = [
-        eq(mediator.targetLanguage1, languageToUse),
-        eq(mediator.targetLanguage2, languageToUse),
-        eq(mediator.targetLanguage3, languageToUse),
-        eq(mediator.targetLanguage4, languageToUse),
+        // eq(mediator.targetLanguage1, languageToUse),
+        // eq(mediator.targetLanguage2, languageToUse),
+        // eq(mediator.targetLanguage3, languageToUse),
+        // eq(mediator.targetLanguage4, languageToUse),
     ]
     const dateNow = toZonedTime(new Date(), 'Europe/Rome');
     const currentWeekDay = dateNow.getDay();
@@ -45,7 +45,7 @@ export const getInterpreters = async ({
     }).from(mediator).where(
         and(
             eq(mediator.priority, String(priority)),
-            or(...languageSelection),
+            // or(...languageSelection),
         ),
     );
     const filteredInterpreters = interpreters.filter((interpreter) => {

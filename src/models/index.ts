@@ -5,3 +5,4 @@ export * from './language_table'
 export * from './mediator_group_table';
 export * from './mediator_group_relation';
 export * from './user_codes_table';
+export * from './mediator_language_relation';
