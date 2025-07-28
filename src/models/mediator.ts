@@ -3,9 +3,9 @@ import { Users } from './user_table';
 
 export const mediator = pgTable('mediator', {
   id: uuid('id').primaryKey().notNull(),
-  userID: uuid('userID').references(() => Users.id),
-  firstName: varchar('firstName').notNull(),
-  lastName: varchar('lastName').notNull(),
+  userID: uuid('user_id').references(() => Users.id),
+  firstName: varchar('first_name').notNull(),
+  lastName: varchar('last_name').notNull(),
   email: text('email'),
   phone: varchar('phone').notNull(),
   IBAN: text('IBAN'),

@@ -28,3 +28,4 @@ nsc
 deploy/local/docker-compose.local.yml
 
 drizzle
+drizzle/*

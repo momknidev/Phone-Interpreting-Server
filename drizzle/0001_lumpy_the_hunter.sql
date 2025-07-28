@@ -1,1 +1,0 @@
-ALTER TABLE "languages" DROP CONSTRAINT "languages_language_code_unique";
