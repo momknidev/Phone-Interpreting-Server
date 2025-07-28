@@ -4,7 +4,7 @@ export const typeDefs = gql`
   type Language {
     id: ID!
     language_code: Int!
-    userID: String
+    client_id: String
     language_name: String!
     created_at: String
     updated_at: String

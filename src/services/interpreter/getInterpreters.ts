@@ -6,24 +6,24 @@ import { weekDayTimeSlot } from '../../const/interpreter/weekDayTimeSlot';
 
 interface IArgs {
     priority: number,
-    languageCode: number,
+    language_code: number,
 }
 
 export const getInterpreters = async ({
     priority,
-    languageCode,
+    language_code,
 }: IArgs) => {
     // Fetch the language from the database
     const languageRecord = await db.select({
-        languageName: Languages.id,
+        language_name: Languages.id,
         language: Languages.language_code,
-        languageCode: Languages.language_name,
+        language_code: Languages.language_name,
 
-    }).from(Languages).where(eq(Languages.language_code, languageCode)).limit(1);
+    }).from(Languages).where(eq(Languages.language_code, language_code)).limit(1);
     if (languageRecord.length === 0) {
         throw new Error('Language not found');
     }
-    const languageToUse = languageRecord[0].languageName;
+    const languageToUse = languageRecord[0].language_name;
     const languageSelection = [
         // eq(mediator.targetLanguage1, languageToUse),
         // eq(mediator.targetLanguage2, languageToUse),
@@ -37,8 +37,8 @@ export const getInterpreters = async ({
     const interpreters = await db.select({
         id: mediator.id,
         email: mediator.email,
-        firstName: mediator.firstName,
-        lastName: mediator.lastName,
+        first_name: mediator.first_name,
+        last_name: mediator.last_name,
         phone: mediator.phone,
         priority: mediator.priority,
         timeSlot: mediator[timeSlotToUse],

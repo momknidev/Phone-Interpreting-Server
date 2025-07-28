@@ -1,8 +1,9 @@
-import user from "./user/typeDefs";
+import user from "./client/typeDefs";
 import mediatorGroup from './mediatorGroup/typeDefs'
 import mediator from './mediator/typeDefs'
 import language from './language/typeDefs'
-import userCode from './userCode/typeDefs'
+import ClientCode from './clientCode/typeDefs'
+import PhoneMediation from './phoneMediation/typeDefs'
 
 
 const typeDefs = [
@@ -10,6 +11,7 @@ const typeDefs = [
   mediatorGroup,
   mediator,
   language,
-  userCode
+  ClientCode,
+  PhoneMediation
 ];
 export default typeDefs;

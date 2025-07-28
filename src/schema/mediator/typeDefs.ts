@@ -6,27 +6,27 @@ export const typeDefs = gql`
   scalar Upload
   # types =======================>
   type LanguagePair {
-  sourceLanguageId:ID!
+  source_language_id:ID!
   sourceLanguageName: String!
-  targetLanguageId:ID!
+  target_language_id:ID!
   targetLanguageName: String!
   }
   type Group{
     id: ID
-    groupName: String!
+    group_name: String!
     }
   
   type Mediator {
     id: ID
-    userID: String
-    IBAN: String
-    firstName: String!
-    lastName: String!
+    client_id: String
+    iban: String
+    first_name: String
+    last_name: String
     email: String
     phone: String!
     languages: [LanguagePair]
-    createdAt: String
-    updatedAt: String
+    created_at: String
+    updated_at: String
     status: String
     monday_time_slots: String
     tuesday_time_slots: String
@@ -43,15 +43,15 @@ export const typeDefs = gql`
 
   # Inputs
   input LanguagePairInput {
-    sourceLanguageId: ID!
-    targetLanguageId: ID!
+    source_language_id: ID!
+    target_language_id: ID!
   }
   input MediatorInput {
-    firstName: String!
-    lastName: String!
+    first_name: String!
+    last_name: String!
     email: String
     phone: String!
-    IBAN: String
+    iban: String
     languages: [LanguagePairInput]
     status: String
     monday_time_slots: String

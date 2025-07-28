@@ -27,7 +27,7 @@ const resolvers = {
         let query = db.select().from(Languages);
 
         const filters = [];
-        filters.push(eq(Languages.userID, context?.user?.id));
+        filters.push(eq(Languages.client_id, context?.user?.id));
         if (search) {
           filters.push(ilike(Languages.language_name, '%' + search + '%'));
         }
@@ -117,7 +117,7 @@ const resolvers = {
           id: uuidv4(),
           language_code: input.language_code,
           language_name: input.language_name,
-          userID: context.user.id,
+          client_id: context.user.id,
           created_at: new Date(),
           updated_at: new Date(),
         };
@@ -147,7 +147,7 @@ const resolvers = {
 
       try {
         // Fetch the existing Languages details
-        const languages = await db.select().from(Languages).where(and(eq(Languages.id, id), eq(Languages.userID, context.user.id)));
+        const languages = await db.select().from(Languages).where(and(eq(Languages.id, id), eq(Languages.client_id, context.user.id)));
         const existingLanguage = languages[0];
 
         if (!existingLanguage) {
@@ -188,7 +188,7 @@ const resolvers = {
         // Fetch the existing Languages to verify it exists
         const languages = await db.select().from(Languages).where(
           and(eq(Languages.id, id),
-            eq(Languages.userID, context.user.id)));
+            eq(Languages.client_id, context.user.id)));
 
         if (!languages[0]) {
           throw new UserInputError('Language not found');

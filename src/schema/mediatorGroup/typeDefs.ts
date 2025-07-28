@@ -8,19 +8,19 @@ export const typeDefs = gql`
   
   type Group {
     id: ID
-    groupName: String     
+    group_name: String     
     status: String   
     user: JSON
-    userID:String
-    createdAt: String
-    updatedAt: String
+    client_id:String
+    created_at: String
+    updated_at: String
     mediatorCount: Int
     mediators: JSON
   }
   # Inputs
   input groupInput {
-    groupName: String!
-    status: String!
+    group_name: String
+    status: String
   }
 
   type GroupPaginatedList {

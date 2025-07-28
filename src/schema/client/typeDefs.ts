@@ -6,60 +6,60 @@ export const typeDefs = gql`
 
   # types =======================>
 
-  type User {
+  type Client {
     id: ID
-    firstName: String     
-    lastName: String   
+    first_name: String     
+    last_name: String   
     email: String
-    avatarUrl: String    
+    avatar_url: String    
     phone: String
     role: String
     type: String
     token: String
-    createdAt: String
-    updatedAt: String
+    created_at: String
+    updated_at: String
     status: String
   }
   # Inputs
-  input userDetails {
+  input clientDetails {
     password: String
     email: String!
     role: String!
-    firstName: String!
+    first_name: String!
     status: String
-    lastName: String!
+    last_name: String!
     phone: String
     type: String
   }
 
-  type UserPaginatedList {
+  type ClientPaginatedList {
     filteredCount: Int
-    users: [User]
+    clients: [Client]
   }
   # ==============> QUERIES <================
   type Query {
-    login(email: String, password: String, recaptcha: String): User
-    clientByID(id: String): User
-    usersPaginatedList(
+    login(email: String, password: String, recaptcha: String): Client
+    clientByID(id: String): Client
+    clientPaginatedList(
       offset: Int
       limit: Int
       order: String
       orderBy: String
       name: String
       type: String
-    ): UserPaginatedList
+    ): ClientPaginatedList
   }
 
   # ==============> MUTATIONS <================
   type Mutation {
-    addUser(userDetails: userDetails, file: Upload): User
-    editUser(id: String, userDetails: userDetails, file: Upload): User!
-    updateUserPassword(
+    addClient(clientDetails: clientDetails, file: Upload): Client
+    editClient(id: String, clientDetails: clientDetails, file: Upload): Client!
+    updateClientPassword(
       id: String
       newPassword: String
       oldPassword: String
-    ): User
-    changeStatus(id:ID!, status: String):User
+    ): Client
+    changeStatus(id:ID!, status: String):Client
   }
 `;
 

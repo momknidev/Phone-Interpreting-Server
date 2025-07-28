@@ -1,10 +1,10 @@
 import merge from "lodash.merge";
-// INTRANET
-import user from "./user/resolvers";
+import user from "./client/resolvers";
 import mediatorGroup from "./mediatorGroup/resolvers";
 import mediator from "./mediator/resolvers";
 import language from "./language/resolvers";
-import userCode from "./userCode/resolvers";
+import ClientCode from "./clientCode/resolvers";
+import PhoneMediation from "./phoneMediation/resolvers";
 
 
 const resolvers = merge(
@@ -12,6 +12,7 @@ const resolvers = merge(
   mediatorGroup,
   mediator,
   language,
-  userCode
+  ClientCode,
+  PhoneMediation
 );
 export default resolvers;

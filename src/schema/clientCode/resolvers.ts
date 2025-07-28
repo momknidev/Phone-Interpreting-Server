@@ -2,11 +2,11 @@ import { and, asc, desc, eq, ilike, sql } from 'drizzle-orm';
 import { AuthenticationError, UserInputError } from 'apollo-server';
 import { db } from '../../config/postgres';
 import uuidv4 from '../../utils/uuidv4';
-import { UserCode } from '../../models'; // Assuming UserCode model exists
+import { ClientCode } from '../../models'; // Assuming ClientCode model exists
 
 const resolvers = {
   Query: {
-    userCodesPaginated: async (
+    clientCodesPaginated: async (
       _: any,
       {
         offset = 0,
@@ -28,13 +28,13 @@ const resolvers = {
       }
 
       try {
-        let query = db.select().from(UserCode);
+        let query = db.select().from(ClientCode);
 
         const filters = [];
-        filters.push(eq(UserCode.userID, context?.user?.id)); // Ensure only the current user's codes are fetched
+        filters.push(eq(ClientCode.client_id, context?.user?.id)); // Ensure only the current user's codes are fetched
 
         if (search) {
-          filters.push(ilike(UserCode.user_name, `%${search}%`)); // Search by user_name
+          filters.push(ilike(ClientCode.code_label, `%${search}%`)); // Search by code_label
         }
 
         if (filters.length > 0) {
@@ -43,20 +43,20 @@ const resolvers = {
 
         // Apply sorting
         if (orderBy && order) {
-          const isValidColumn = orderBy in UserCode && typeof UserCode[orderBy as keyof typeof UserCode] === 'object';
+          const isValidColumn = orderBy in ClientCode && typeof ClientCode[orderBy as keyof typeof ClientCode] === 'object';
           if (isValidColumn) {
-            const sortColumn = UserCode[orderBy as keyof typeof UserCode] as any;
+            const sortColumn = ClientCode[orderBy as keyof typeof ClientCode] as any;
             query.orderBy(order.toUpperCase() === 'ASC' ? asc(sortColumn) : desc(sortColumn));
           } else {
             // Default to created_at if invalid column provided
-            query.orderBy(order.toUpperCase() === 'ASC' ? asc(UserCode.created_at) : desc(UserCode.created_at));
+            query.orderBy(order.toUpperCase() === 'ASC' ? asc(ClientCode.created_at) : desc(ClientCode.created_at));
           }
         }
 
         // Get total count for pagination
         const countResult = await db
           .select({ count: sql<number>`count(*)` })
-          .from(UserCode)
+          .from(ClientCode)
           .where(filters.length > 0 ? and(...filters) : undefined);
 
         const totalCount = countResult[0]?.count || 0;
@@ -65,7 +65,7 @@ const resolvers = {
         const userCodes = await query.limit(limit).offset(offset);
 
         return {
-          userCodes,
+          clientCodes: userCodes,
           filteredCount: totalCount,
         };
       } catch (error: any) {
@@ -74,13 +74,13 @@ const resolvers = {
       }
     },
 
-    allUserCodes: async (_: any, __: any, context: any) => {
+    allClientCodes: async (_: any, __: any, context: any) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
 
       try {
-        const userCodes = await db.select().from(UserCode).where(eq(UserCode.userID, context.user.id));
+        const userCodes = await db.select().from(ClientCode).where(eq(ClientCode.client_id, context.user.id));
         return userCodes;
       } catch (error: any) {
         console.error('Error fetching all user codes:', error.message);
@@ -88,7 +88,7 @@ const resolvers = {
       }
     },
 
-    userCode: async (_: any, { id }: { id: string }, context: any) => {
+    clientCode: async (_: any, { id }: { id: string }, context: any) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
@@ -96,11 +96,11 @@ const resolvers = {
       try {
         const userCode = await db
           .select()
-          .from(UserCode)
-          .where(and(eq(UserCode.id, id), eq(UserCode.userID, context.user.id)));
+          .from(ClientCode)
+          .where(and(eq(ClientCode.id, id), eq(ClientCode.client_id, context.user.id)));
 
         if (!userCode.length) {
-          throw new UserInputError('UserCode not found!');
+          throw new UserInputError('ClientCode not found!');
         }
 
         return userCode[0];
@@ -112,9 +112,9 @@ const resolvers = {
   },
 
   Mutation: {
-    createUserCode: async (
+    createClientCode: async (
       _: any,
-      { input }: { input: { user_code: number; user_name: string , status:string } },
+      { input }: { input: { client_code: number; code_label: string, status: string } },
       context: any
     ) => {
       if (!context?.user) {
@@ -124,30 +124,30 @@ const resolvers = {
       try {
         const userCodeData = {
           id: uuidv4(),
-          user_code: Number(input.user_code),
-          user_name: input.user_name,
-          userID: context.user.id,
+          client_code: Number(input.client_code),
+          code_label: input.code_label,
+          client_id: context.user.id,
           status: input.status || 'active', // Default status to 'active'
           created_at: new Date(),
           updated_at: new Date(),
         };
 
-        const result = await db.insert(UserCode).values(userCodeData).returning();
+        const result = await db.insert(ClientCode).values(userCodeData).returning();
 
         if (result && result[0]) {
           return result[0];
         } else {
-          throw new Error('UserCode creation failed.');
+          throw new Error('ClientCode creation failed.');
         }
       } catch (error: any) {
-        console.error('Error creating UserCode:', error.message);
+        console.error('Error creating ClientCode:', error.message);
         throw new Error(error.message || 'Internal server error.');
       }
     },
 
-    updateUserCode: async (
+    updateClientCode: async (
       _: any,
-      { id, input }: { id: string; input: {status:string, user_code: number; user_name: string } },
+      { id, input }: { id: string; input: { status: string, client_code: number; code_label: string } },
       context: any
     ) => {
       if (!context?.user) {
@@ -155,50 +155,50 @@ const resolvers = {
       }
 
       try {
-        const userCode = await db.select().from(UserCode).where(and(eq(UserCode.id, id), eq(UserCode.userID, context.user.id)));
+        const userCode = await db.select().from(ClientCode).where(and(eq(ClientCode.id, id), eq(ClientCode.client_id, context.user.id)));
 
         if (!userCode.length) {
-          throw new UserInputError('UserCode not found');
+          throw new UserInputError('ClientCode not found');
         }
 
         const updatedData = {
-          user_code: input.user_code ? Number(input.user_code) : userCode[0].user_code,
-          user_name: input.user_name ? input.user_name : userCode[0].user_name,
+          client_code: input.client_code ? Number(input.client_code) : userCode[0].client_code,
+          code_label: input.code_label ? input.code_label : userCode[0].code_label,
           status: input.status || userCode[0].status, // Keep existing status if not provided
           updated_at: new Date(),
         };
 
-        await db.update(UserCode).set(updatedData).where(eq(UserCode.id, id));
+        await db.update(ClientCode).set(updatedData).where(eq(ClientCode.id, id));
 
-        const updatedUserCode = await db.select().from(UserCode).where(eq(UserCode.id, id));
+        const updatedUserCode = await db.select().from(ClientCode).where(eq(ClientCode.id, id));
 
         return updatedUserCode[0];
       } catch (error: any) {
-        console.error('Error updating UserCode:', error.message);
+        console.error('Error updating ClientCode:', error.message);
         throw new Error(error.message || 'Internal server error.');
       }
     },
 
-    deleteUserCode: async (_: any, { id }: { id: string }, context: any) => {
+    deleteClientCode: async (_: any, { id }: { id: string }, context: any) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
 
       try {
-        const userCode = await db.select().from(UserCode).where(and(eq(UserCode.id, id), eq(UserCode.userID, context.user.id)));
+        const userCode = await db.select().from(ClientCode).where(and(eq(ClientCode.id, id), eq(ClientCode.client_id, context.user.id)));
 
         if (!userCode.length) {
-          throw new UserInputError('UserCode not found');
+          throw new UserInputError('ClientCode not found');
         }
 
-        await db.delete(UserCode).where(eq(UserCode.id, id));
+        await db.delete(ClientCode).where(eq(ClientCode.id, id));
         return true;
       } catch (error: any) {
-        console.error('Error deleting UserCode:', error.message);
+        console.error('Error deleting ClientCode:', error.message);
         throw new Error(error.message || 'Internal server error.');
       }
     },
-    changeUserCodeStatus: async (
+    changeClientCodeStatus: async (
       _: any,
       { id, status }: { id: string; status: string },
       context: any
@@ -208,19 +208,19 @@ const resolvers = {
       }
 
       try {
-        const userCode = await db.select().from(UserCode).where(and(eq(UserCode.id, id), eq(UserCode.userID, context.user.id)));
+        const userCode = await db.select().from(ClientCode).where(and(eq(ClientCode.id, id), eq(ClientCode.client_id, context.user.id)));
 
         if (!userCode.length) {
-          throw new UserInputError('UserCode not found');
+          throw new UserInputError('ClientCode not found');
         }
 
-        await db.update(UserCode).set({ status, updated_at: new Date() }).where(eq(UserCode.id, id));
+        await db.update(ClientCode).set({ status, updated_at: new Date() }).where(eq(ClientCode.id, id));
 
-        const updatedUserCode = await db.select().from(UserCode).where(eq(UserCode.id, id));
+        const updatedUserCode = await db.select().from(ClientCode).where(eq(ClientCode.id, id));
 
         return updatedUserCode[0];
       } catch (error: any) {
-        console.error('Error changing UserCode status:', error.message);
+        console.error('Error changing ClientCode status:', error.message);
         throw new Error(error.message || 'Internal server error.');
       }
     }

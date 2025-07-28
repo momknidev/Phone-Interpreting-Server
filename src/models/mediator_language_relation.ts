@@ -4,7 +4,7 @@ import { Languages } from './language_table';
 
 export const mediatorLanguageRelation = pgTable('mediator_language_relation', {
     id: uuid('id').primaryKey().defaultRandom().notNull(),
-    mediatorId: uuid('mediator_id').references(() => mediator.id).notNull(),
-    sourceLanguageId: uuid('sourceLanguageId').references(() => Languages.id).notNull(),
-    targetLanguageId: uuid('targetLanguageId').references(() => Languages.id).notNull(),
+    mediator_id: uuid('mediator_id').references(() => mediator.id).notNull(),
+    source_language_id: uuid('source_language_id').references(() => Languages.id).notNull(),
+    target_language_id: uuid('target_language_id').references(() => Languages.id).notNull(),
 });

@@ -1,11 +1,11 @@
 import { pgTable, varchar, integer, timestamp, uuid } from 'drizzle-orm/pg-core';
-import { Users } from './user_table';
+import { Client } from './client_table';
 
-export const mediatorGroup = pgTable('mediator_group', {
+export const mediatorGroup = pgTable('mediator_groups', {
   id: uuid('id').primaryKey(),
-  userID: uuid('user_id').references(() => Users.id),
-  groupName: varchar('group_name').notNull(),
+  client_id: uuid('client_id').references(() => Client.id),
+  group_name: varchar('group_name').notNull(),
   status: varchar('status').notNull(),
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
+  created_at: timestamp('created_at').defaultNow(),
+  updated_at: timestamp('updated_at').defaultNow(),
 });

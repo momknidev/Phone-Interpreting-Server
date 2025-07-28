@@ -1,14 +1,14 @@
-export type User = {
+export type Client = {
     id: string;
     email: string;
-    firstName: string;
-    lastName: string;
+    first_name: string;
+    last_name: string;
     role?: string;
-    avatarUrl?: string;
+    avatar_url?: string;
     phone?: string;
     type?: string;
     token?: string;
-    createdAt?: string;
-    updatedAt?: string;
+    created_at?: string;
+    updated_at?: string;
     password?: string
 };

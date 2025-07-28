@@ -1,7 +1,7 @@
 import { languageCodes } from '../../const/language/languageCodes';
 
 interface IArgs {
-    languageCode: number,
+    language_code: number,
 }
 
-export const getLanguage = ({ languageCode }: IArgs) => languageCodes[languageCode];
+export const getLanguage = ({ language_code }: IArgs) => languageCodes[language_code];

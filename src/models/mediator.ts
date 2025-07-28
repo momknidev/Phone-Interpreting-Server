@@ -1,16 +1,16 @@
 import { numeric, pgTable, text, boolean, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
-import { Users } from './user_table';
+import { Client } from './client_table';
 
-export const mediator = pgTable('mediator', {
+export const mediator = pgTable('mediators', {
   id: uuid('id').primaryKey().notNull(),
-  userID: uuid('user_id').references(() => Users.id),
-  firstName: varchar('first_name').notNull(),
-  lastName: varchar('last_name').notNull(),
+  client_id: uuid('client_id').references(() => Client.id),
+  first_name: varchar('first_name').notNull(),
+  last_name: varchar('last_name').notNull(),
   email: text('email'),
   phone: varchar('phone').notNull(),
-  IBAN: text('IBAN'),
-  createdAt: timestamp('createdAt').defaultNow().notNull(),
-  updatedAt: timestamp('updatedAt').defaultNow().notNull(),
+  iban: text('iban'),
+  created_at: timestamp('created_at').defaultNow().notNull(),
+  updated_at: timestamp('updated_at').defaultNow().notNull(),
   status: varchar('status'),
   monday_time_slots: text('monday_time_slots'),
   tuesday_time_slots: text('tuesday_time_slots'),

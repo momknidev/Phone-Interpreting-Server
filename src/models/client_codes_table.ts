@@ -1,11 +1,11 @@
 import { pgTable, varchar, integer, timestamp, uuid } from 'drizzle-orm/pg-core';
-import { Users } from './user_table';
+import { Client } from './client_table';
 
-export const UserCode = pgTable('user_codes', {
+export const ClientCode = pgTable('client_codes', {
   id: uuid('id').primaryKey(),
-  userID: uuid('userID').references(() => Users.id),
-  user_code: integer('language_code').notNull().unique(),
-  user_name: varchar('language_name', { length: 100 }).notNull(),
+  client_id: uuid('client_id').references(() => Client.id),
+  client_code: integer('client_code').notNull().unique(),
+  code_label: varchar('code_label', { length: 100 }).notNull(),
   status: varchar('status', { length: 50 }).notNull(),  // e.g., 'active', 'inactive' 
   created_at: timestamp('created_at').defaultNow(),
   updated_at: timestamp('updated_at').defaultNow(),

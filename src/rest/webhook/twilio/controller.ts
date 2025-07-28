@@ -64,7 +64,7 @@ const removeAndCallNewTargets = async ({
 
     do {
         // eslint-disable-next-line no-await-in-loop
-        interpreters = await getInterpreters({ priority: currentPriority, languageCode: langaugeCode });
+        interpreters = await getInterpreters({ priority: currentPriority, language_code: langaugeCode });
         currentPriority++;
     } while (interpreters.length === 0 && currentPriority <= 5);
 
@@ -242,12 +242,12 @@ export const languageCodeValidation = convertMiddlewareToAsync(async (req, res) 
     const retriesAmount = Number(req.query.retriesAmount ?? 0);
     const errorsAmount = Number(req.query.errorsAmount ?? 0);
 
-    const languageCode = Number(req.body.Digits);
+    const language_code = Number(req.body.Digits);
     const { CallSid: originCallId } = req.body;
 
-    if (languageCode && languageExists({ languageCode })) {
-        await redisClient.set(`${originCallId}:languageCode`, languageCode);
-        twiml.redirect(`./callInterpreter?langaugeCode=${languageCode}`);
+    if (language_code && languageExists({ language_code })) {
+        await redisClient.set(`${originCallId}:language_code`, language_code);
+        twiml.redirect(`./callInterpreter?langaugeCode=${language_code}`);
     } else {
         twiml.redirect(`./languageCodeRequest?retriesAmount=${retriesAmount}`
             + `&errorsAmount=${errorsAmount + 1}&actionError=true`);
@@ -282,7 +282,7 @@ export const callInterpreter = convertMiddlewareToAsync(async (req, res) => {
 
     do {
         // eslint-disable-next-line no-await-in-loop
-        interpreters = await getInterpreters({ priority, languageCode: langaugeCode });
+        interpreters = await getInterpreters({ priority, language_code: langaugeCode });
         priority++;
     } while (interpreters.length === 0 && priority <= 5);
 
@@ -382,10 +382,10 @@ export const conferenceStatusResult = convertMiddlewareToAsync(async (req) => {
     await redisClient.del(originCallId);
     const [
         departmentCode,
-        languageCode,
+        language_code,
     ] = await Promise.all([
         redisClient.get(`${originCallId}:departmentCode`),
-        redisClient.get(`${originCallId}:languageCode`),
+        redisClient.get(`${originCallId}:language_code`),
     ]);
     try {
         await createRequest({
@@ -393,7 +393,7 @@ export const conferenceStatusResult = convertMiddlewareToAsync(async (req) => {
             EndConferenceOnExit,
             originCallId: req.body?.CallSid,
             departmentCode: Number(departmentCode),
-            languageCode: Number(languageCode),
+            language_code: Number(language_code),
             conferenceSid: req.body?.ConferenceSid,
         });
 
@@ -406,7 +406,7 @@ export const conferenceStatusResult = convertMiddlewareToAsync(async (req) => {
     await Promise.all([
         redisClient.del(originCallId),
         redisClient.del(`${originCallId}:departmentCode`),
-        redisClient.del(`${originCallId}:languageCode`),
+        redisClient.del(`${originCallId}:language_code`),
     ]);
 });
 

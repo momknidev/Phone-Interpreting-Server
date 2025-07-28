@@ -15,11 +15,11 @@ const resolvers = {
         const groups = await db
           .select({
             id: mediatorGroup.id,
-            groupName: mediatorGroup.groupName,
+            group_name: mediatorGroup.group_name,
             status: mediatorGroup.status,
-            userID: mediatorGroup.userID,
-            createdAt: mediatorGroup.createdAt,
-            updatedAt: mediatorGroup.updatedAt,
+            client_id: mediatorGroup.client_id,
+            created_at: mediatorGroup.created_at,
+            updated_at: mediatorGroup.updated_at,
           })
           .from(mediatorGroup)
           .where(eq(mediatorGroup.id, id));
@@ -34,25 +34,25 @@ const resolvers = {
         const mediators = await db
           .select({
             id: mediator.id,
-            firstName: mediator.firstName,
-            lastName: mediator.lastName,
+            first_name: mediator.first_name,
+            last_name: mediator.last_name,
             email: mediator.email,
             // Add more fields as needed
           })
           .from(mediator)
           .innerJoin(
             mediatorGroupRelation,
-            eq(mediator.id, mediatorGroupRelation.mediatorId)
+            eq(mediator.id, mediatorGroupRelation.mediator_id)
           )
-          .where(eq(mediatorGroupRelation.mediatorGroupId, id));
+          .where(eq(mediatorGroupRelation.mediator_group_id, id));
 
         logger.info(`Fetched group by ID: ${id}`, { group, mediatorCount: mediators.length });
 
         // Step 3: Return combined result
         return {
           ...group,
-          createdAt: group.createdAt?.toISOString() || '',
-          updatedAt: group.updatedAt?.toISOString() || '',
+          created_at: group.created_at?.toISOString() || '',
+          updated_at: group.updated_at?.toISOString() || '',
           mediators, // full list of related mediators
         };
       } catch (error: any) {
@@ -68,7 +68,7 @@ const resolvers = {
         offset = 0,
         limit = 10,
         order = 'DESC',
-        orderBy = 'createdAt',
+        orderBy = 'created_at',
         name = '',
       }: {
         offset?: number;
@@ -86,23 +86,23 @@ const resolvers = {
         let query = db
           .select({
             id: mediatorGroup.id,
-            groupName: mediatorGroup.groupName,
-            createdAt: mediatorGroup.createdAt,
-            updatedAt: mediatorGroup.updatedAt,
+            group_name: mediatorGroup.group_name,
+            created_at: mediatorGroup.created_at,
+            updated_at: mediatorGroup.updated_at,
             status: mediatorGroup.status,
             mediatorCount: sql<number>`
-          COUNT(${mediatorGroupRelation.mediatorId})
+          COUNT(${mediatorGroupRelation.mediator_id})
         `,
           })
           .from(mediatorGroup)
-          .leftJoin(mediatorGroupRelation, eq(mediatorGroup.id, mediatorGroupRelation.mediatorGroupId))
+          .leftJoin(mediatorGroupRelation, eq(mediatorGroup.id, mediatorGroupRelation.mediator_group_id))
           .groupBy(mediatorGroup.id); // Group by the group ID to count mediators for each group
 
 
         const filters = [];
 
         if (name) {
-          filters.push(ilike(mediatorGroup.groupName, '%' + name + '%'));
+          filters.push(ilike(mediatorGroup.group_name, '%' + name + '%'));
         }
 
         if (filters.length > 0) {
@@ -118,8 +118,8 @@ const resolvers = {
               order.toUpperCase() === 'ASC' ? asc(sortColumn) : desc(sortColumn)
             );
           } else {
-            // Default to createdAt if invalid column provided
-            query.orderBy(order.toUpperCase() === 'ASC' ? asc(mediatorGroup.createdAt) : desc(mediatorGroup.createdAt));
+            // Default to created_at if invalid column provided
+            query.orderBy(order.toUpperCase() === 'ASC' ? asc(mediatorGroup.created_at) : desc(mediatorGroup.created_at));
           }
         }
 
@@ -152,13 +152,13 @@ const resolvers = {
         const groups = await db
           .select()
           .from(mediatorGroup)
-          .where(and(eq(mediatorGroup.userID, context.user.id), eq(mediatorGroup.status, 'active')))
-          .orderBy(desc(mediatorGroup.createdAt));
+          .where(and(eq(mediatorGroup.client_id, context.user.id), eq(mediatorGroup.status, 'active')))
+          .orderBy(desc(mediatorGroup.created_at));
 
         return groups.map(group => ({
           ...group,
-          createdAt: group.createdAt?.toISOString() || '',
-          updatedAt: group.updatedAt?.toISOString() || '',
+          created_at: group.created_at?.toISOString() || '',
+          updated_at: group.updated_at?.toISOString() || '',
         }));
       } catch (error: any) {
         console.error('Error fetching all groups:', error.message);
@@ -176,11 +176,11 @@ const resolvers = {
       try {
         const groupData = {
           id: uuidv4(),
-          groupName: String(groupInput.groupName).toLocaleLowerCase(),
+          group_name: String(groupInput.group_name).toLocaleLowerCase(),
           status: groupInput.status,
-          userID: context.user.id,
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          client_id: context.user.id,
+          created_at: new Date(),
+          updated_at: new Date(),
         };
         console.log('Creating group with data:', groupData);
         const result = await db.insert(mediatorGroup).values(groupData).returning();
@@ -209,7 +209,7 @@ const resolvers = {
 
         // Prepare the updated group data
         const updatedData = {
-          groupName: String(groupInput.groupName).toLocaleLowerCase() || existingGroup.groupName,
+          group_name: String(groupInput.group_name).toLocaleLowerCase() || existingGroup.group_name,
           status: groupInput.status || existingGroup.status,
         };
 
@@ -301,17 +301,17 @@ const resolvers = {
         }
         // Check if already in group
         const relation = await db.select().from(mediatorGroupRelation)
-          .where(and(eq(mediatorGroupRelation.mediatorGroupId, groupID), eq(mediatorGroupRelation.mediatorId, mediatorID)));
+          .where(and(eq(mediatorGroupRelation.mediator_group_id, groupID), eq(mediatorGroupRelation.mediator_id, mediatorID)));
         if (relation.length > 0) {
           throw new UserInputError('Mediator already in group');
         }
         // Add relation
         await db.insert(mediatorGroupRelation).values({
           id: uuidv4(),
-          mediatorGroupId: groupID,
-          mediatorId: mediatorID,
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          mediator_group_id: groupID,
+          mediator_id: mediatorID,
+          created_at: new Date(),
+          updated_at: new Date(),
         });
         // Return updated group
         const updatedGroup = await db.select().from(mediatorGroup).where(eq(mediatorGroup.id, groupID));
@@ -339,7 +339,7 @@ const resolvers = {
         }
         // Remove relation
         await db.delete(mediatorGroupRelation)
-          .where(and(eq(mediatorGroupRelation.mediatorGroupId, groupID), eq(mediatorGroupRelation.mediatorId, mediatorID)));
+          .where(and(eq(mediatorGroupRelation.mediator_group_id, groupID), eq(mediatorGroupRelation.mediator_id, mediatorID)));
         // Return updated group
         const updatedGroup = await db.select().from(mediatorGroup).where(eq(mediatorGroup.id, groupID));
         return updatedGroup[0];

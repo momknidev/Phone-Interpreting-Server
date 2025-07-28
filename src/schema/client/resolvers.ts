@@ -4,22 +4,20 @@ import { AuthenticationError, UserInputError } from 'apollo-server';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import axios from 'axios'
-import { Users, } from '../../models';
+import { Client } from '../../models';
 import { db } from '../../config/postgres';
-import { User } from '../../../types/user'
+import { Client as ClientUser } from '../../../types/user'
 import { uploadObjectToS3 } from '../../utils/uploadObjectToS3';
 import uuidv4 from '../../utils/uuidv4';
-import { logger } from '../../config/logger';
 
-interface UserDetails {
+
+interface ClientDetails {
   email: string;
   password: string;
   role?: string;
-  customer?: string;
-  firstName?: string;
-  lastName?: string;
+  first_name?: string;
+  last_name?: string;
   phone?: string;
-  department?: string;
   status?: string,
   type?: string;
 }
@@ -28,9 +26,9 @@ interface UserDetails {
 const generateToken = (user: {
   id: string;
   email: string;
-  firstName: string | null;
-  lastName: string | null;
-  avatarUrl: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  avatar_url: string | null;
   role: string | null;
   type: string | null;
 }) => {
@@ -43,9 +41,9 @@ const generateToken = (user: {
     {
       id: user.id,
       email: user.email,
-      firstName: user.firstName || '',
-      lastName: user.lastName || '',
-      avatarUrl: user.avatarUrl || '',
+      first_name: user.first_name || '',
+      last_name: user.last_name || '',
+      avatar_url: user.avatar_url || '',
       role: user.role || '',
       type: user.type || '',
     },
@@ -60,7 +58,7 @@ const resolvers = {
     login: async (
       _: any,
       { email, password, recaptcha }: { email: string; password: string; recaptcha?: string }
-    ): Promise<User> => {
+    ): Promise<ClientUser> => {
       try {
         if (recaptcha) {
           const recaptchaResponse = await axios.post(
@@ -74,13 +72,13 @@ const resolvers = {
 
         const users = await db
           .select()
-          .from(Users)
-          .where(and(eq(Users.email, email), eq(Users.status, 'active')));
+          .from(Client)
+          .where(and(eq(Client.email, email), eq(Client.status, 'active')));
 
         const user = users[0];
 
         if (!user) {
-          throw new UserInputError('User not found!');
+          throw new UserInputError('ClientUser not found!');
         }
 
         // Check password validity
@@ -97,13 +95,13 @@ const resolvers = {
         const token = generateToken(user);
         return {
           ...user,
-          firstName: user.firstName || '',
-          lastName: user.lastName || '',
+          first_name: user.first_name || '',
+          last_name: user.last_name || '',
           role: user.role || '',
           type: user.type || '',
-          avatarUrl: user.avatarUrl || '',
-          createdAt: user.createdAt?.toISOString() || '',
-          updatedAt: user.updatedAt?.toISOString() || '',
+          avatar_url: user.avatar_url || '',
+          created_at: user.created_at?.toISOString() || '',
+          updated_at: user.updated_at?.toISOString() || '',
           phone: String(user.phone) || undefined,
           password: undefined, // Exclude password from the response
           token,
@@ -114,28 +112,28 @@ const resolvers = {
         throw new Error(error.message || 'Internal server error.');
       }
     },
-    clientByID: async (_: any, { id }: { id: string }): Promise<User> => {
+    clientByID: async (_: any, { id }: { id: string }): Promise<ClientUser> => {
       try {
         const users = await db
           .select()
-          .from(Users)
-          .where(eq(Users.id, id));
+          .from(Client)
+          .where(eq(Client.id, id));
 
         const user = users[0];
 
         if (!user) {
-          throw new UserInputError('User not found!');
+          throw new UserInputError('ClientUser not found!');
         }
 
         return {
           ...user,
-          firstName: user.firstName || '',
-          lastName: user.lastName || '',
+          first_name: user.first_name || '',
+          last_name: user.last_name || '',
           role: user.role || '',
           type: user.type || '',
-          avatarUrl: user.avatarUrl || '',
-          createdAt: user.createdAt?.toISOString() || '',
-          updatedAt: user.updatedAt?.toISOString() || '',
+          avatar_url: user.avatar_url || '',
+          created_at: user.created_at?.toISOString() || '',
+          updated_at: user.updated_at?.toISOString() || '',
           phone: String(user.phone) || undefined,
           password: undefined, // Exclude password from the response
         };
@@ -145,13 +143,13 @@ const resolvers = {
       }
     },
 
-    usersPaginatedList: async (
+    clientPaginatedList: async (
       _: any,
       {
         offset = 0,
         limit = 10,
         order = 'DESC',
-        orderBy = 'createdAt',
+        orderBy = 'created_at',
         name = '',
         type = ''
       }: {
@@ -167,24 +165,24 @@ const resolvers = {
         throw new AuthenticationError('Unauthenticated');
       }
       try {
-        let query = db.select().from(Users);
+        let query = db.select().from(Client);
 
         const filters = [];
 
         if (name) {
           filters.push(
             or(
-              ilike(Users.firstName, '%' + name + '%'),
-              ilike(Users.lastName, '%' + name + '%'),
-              ilike(Users.phone, '%' + name + '%'),
-              ilike(Users.email, '%' + name + '%'),
+              ilike(Client.first_name, '%' + name + '%'),
+              ilike(Client.last_name, '%' + name + '%'),
+              ilike(Client.phone, '%' + name + '%'),
+              ilike(Client.email, '%' + name + '%'),
 
             )
           );
         }
 
         if (type) {
-          filters.push(eq(Users.type, type));
+          filters.push(eq(Client.type, type));
         }
 
         if (filters.length > 0) {
@@ -193,22 +191,22 @@ const resolvers = {
 
         // Apply sorting
         if (orderBy && order) {
-          const isValidColumn = orderBy in Users && typeof Users[orderBy as keyof typeof Users] === 'object';
+          const isValidColumn = orderBy in Client && typeof Client[orderBy as keyof typeof Client] === 'object';
           if (isValidColumn) {
-            const sortColumn = Users[orderBy as keyof typeof Users] as any;
+            const sortColumn = Client[orderBy as keyof typeof Client] as any;
             query.orderBy(
               order.toUpperCase() === 'ASC' ? asc(sortColumn) : desc(sortColumn)
             );
           } else {
-            // Default to createdAt if invalid column provided
-            query.orderBy(order.toUpperCase() === 'ASC' ? asc(Users.createdAt) : desc(Users.createdAt));
+            // Default to created_at if invalid column provided
+            query.orderBy(order.toUpperCase() === 'ASC' ? asc(Client.created_at) : desc(Client.created_at));
           }
         }
 
         // Get total count for pagination
         const countResult = await db
           .select({ count: sql<number>`count(*)` })
-          .from(Users)
+          .from(Client)
           .where(filters.length > 0 ? and(...filters) : undefined);
 
         const totalCount = countResult[0]?.count || 0;
@@ -219,19 +217,19 @@ const resolvers = {
         // Map users to remove sensitive data
         const mappedUsers = users.map(user => ({
           ...user,
-          firstName: user.firstName || '',
-          lastName: user.lastName || '',
+          first_name: user.first_name || '',
+          last_name: user.last_name || '',
           role: user.role || '',
           // type: user.type || '',
-          avatarUrl: user.avatarUrl || '',
-          createdAt: user.createdAt?.toISOString() || '',
-          // updatedAt: user.updatedAt?.toISOString() || '',
+          avatar_url: user.avatar_url || '',
+          created_at: user.created_at?.toISOString() || '',
+          // updated_at: user.updated_at?.toISOString() || '',
           phone: String(user.phone) || undefined,
           // password: undefined, // Exclude password from the response
         }));
 
         return {
-          users: mappedUsers,
+          clients: mappedUsers,
           filteredCount: totalCount,
         };
       } catch (error: any) {
@@ -241,13 +239,17 @@ const resolvers = {
     },
   },
   Mutation: {
-    addUser: async (_: any, { userDetails, file }: { userDetails: UserDetails, file?: any }, context: any) => {
-      if (!context?.user) {
+    addClient: async (_: any, { clientDetails, file }: { clientDetails: ClientDetails, file?: any }, context: any) => {
+      // if (!context?.user) {
 
-        throw new UserInputError('Unauthenticated');
-      }
+      //   throw new UserInputError('Unauthenticated');
+      // }
+      console.log("clientDetails", clientDetails);
       try {
-        const password = await bcrypt.hash(userDetails.password, 10);
+        if (!clientDetails.password) {
+          throw new UserInputError('Password is required');
+        }
+        const password = await bcrypt.hash(clientDetails.password, 10);
         let s3URL = '';
 
         if (file) {
@@ -265,21 +267,21 @@ const resolvers = {
         const userData = {
           id: uuidv4(),
           password,
-          email: userDetails.email,
-          role: userDetails.role,
-          firstName: userDetails.firstName,
-          lastName: userDetails.lastName,
-          phone: userDetails.phone,
-          type: userDetails.type,
-          avatarUrl: s3URL,
+          email: clientDetails.email,
+          role: clientDetails.role,
+          first_name: clientDetails.first_name,
+          last_name: clientDetails.last_name,
+          phone: clientDetails.phone,
+          type: clientDetails.type,
+          avatar_url: s3URL,
         };
         console.log("result", userData);
-        const result = await db.insert(Users).values(userData).returning();
+        const result = await db.insert(Client).values(userData).returning();
         if (result) {
           console.log(JSON.stringify(result));
           return result[0];
         } else {
-          throw new Error('User creation failed. No result returned.');
+          throw new Error('ClientUser creation failed. No result returned.');
         }
       } catch (error: any) {
         console.error('Error creating user:', error);
@@ -287,7 +289,7 @@ const resolvers = {
       }
     },
 
-    editUser: async (_: any, { id, userDetails, file }: { id: string, userDetails: UserDetails, file?: any }, context: any) => {
+    editClient: async (_: any, { id, clientDetails, file }: { id: string, clientDetails: ClientDetails, file?: any }, context: any) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
@@ -308,63 +310,63 @@ const resolvers = {
         }
 
         // If password is provided, hash it; otherwise, leave it as is
-        let password = userDetails.password;
+        let password = clientDetails.password;
         if (password) {
           password = await bcrypt.hash(password, 10);
         }
 
 
         // Fetch the existing user details
-        const users = await db.select().from(Users).where(eq(Users.id, id));
+        const users = await db.select().from(Client).where(eq(Client.id, id));
         const existingUser = users[0];
 
         if (!existingUser) {
-          throw new UserInputError('User not found');
+          throw new UserInputError('ClientUser not found');
         }
 
         // Prepare the updated user data
         const updatedData = {
           password: password || existingUser.password,
-          email: userDetails.email || existingUser.email,
-          role: userDetails.role || existingUser.role,
-          firstName: userDetails.firstName || existingUser.firstName,
-          lastName: userDetails.lastName || existingUser.lastName,
-          phone: userDetails.phone || existingUser.phone,
-          type: userDetails.type || existingUser.type,
-          avatarUrl: s3URL || existingUser.avatarUrl,
+          email: clientDetails.email || existingUser.email,
+          role: clientDetails.role || existingUser.role,
+          first_name: clientDetails.first_name || existingUser.first_name,
+          last_name: clientDetails.last_name || existingUser.last_name,
+          phone: clientDetails.phone || existingUser.phone,
+          type: clientDetails.type || existingUser.type,
+          avatar_url: s3URL || existingUser.avatar_url,
         };
         // Update user details in the database
-        await db.update(Users).set(updatedData).where(eq(Users.id, id));
+        await db.update(Client).set(updatedData).where(eq(Client.id, id));
 
         // Fetch the updated user details
-        const updatedUsers = await db.select().from(Users).where(eq(Users.id, id));
+        const updatedUsers = await db.select().from(Client).where(eq(Client.id, id));
         const updatedUser = updatedUsers[0];
 
         if (updatedUser) {
-          console.log('User updated successfully:', updatedUser);
+          console.log('ClientUser updated successfully:', updatedUser);
           const token = generateToken(updatedUser);
 
           return { ...updatedUser, token };
         } else {
-          throw new Error('User update failed. No updated user returned.');
+          throw new Error('ClientUser update failed. No updated user returned.');
         }
       } catch (error: any) {
         console.error('Error updating user:', error.message);
         throw new Error('Error: ' + error.message);
       }
     },
-    updateUserPassword: async (_: any, { id, newPassword, oldPassword }: { id: string, newPassword: string, oldPassword?: string }, context: any) => {
+    updateClientPassword: async (_: any, { id, newPassword, oldPassword }: { id: string, newPassword: string, oldPassword?: string }, context: any) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
 
       try {
         // Fetch the existing user details
-        const users = await db.select().from(Users).where(eq(Users.id, id));
+        const users = await db.select().from(Client).where(eq(Client.id, id));
         const existingUser = users[0];
 
         if (!existingUser) {
-          throw new UserInputError('User not found');
+          throw new UserInputError('ClientUser not found');
         }
 
         // Initialize update object with proper typing
@@ -390,10 +392,10 @@ const resolvers = {
 
         // Only perform update if there are fields to update
         if (Object.keys(updateData).length > 0) {
-          await db.update(Users).set(updateData).where(eq(Users.id, id));
+          await db.update(Client).set(updateData).where(eq(Client.id, id));
 
           // Fetch the updated user details
-          const updatedUsers = await db.select().from(Users).where(eq(Users.id, id));
+          const updatedUsers = await db.select().from(Client).where(eq(Client.id, id));
           const updatedUser = updatedUsers[0];
 
           // Generate token with updated user info
@@ -402,7 +404,7 @@ const resolvers = {
           return {
             ...updatedUser,
             token,
-            displayName: `${updatedUser.firstName || ''} ${updatedUser.lastName || ''}`,
+            displayName: `${updatedUser.first_name || ''} ${updatedUser.last_name || ''}`,
           };
         } else {
           throw new UserInputError('No password updates provided');
@@ -419,38 +421,38 @@ const resolvers = {
 
       try {
         // Fetch the existing user details
-        const users = await db.select().from(Users).where(eq(Users.id, id));
+        const users = await db.select().from(Client).where(eq(Client.id, id));
         const existingUser = users[0];
 
         if (!existingUser) {
-          throw new UserInputError('User not found');
+          throw new UserInputError('ClientUser not found');
         }
 
         // Update the user's status
-        await db.update(Users).set({ status }).where(eq(Users.id, id));
+        await db.update(Client).set({ status }).where(eq(Client.id, id));
 
         // Fetch the updated user details
-        const updatedUsers = await db.select().from(Users).where(eq(Users.id, id));
+        const updatedUsers = await db.select().from(Client).where(eq(Client.id, id));
         const updatedUser = updatedUsers[0];
 
         if (updatedUser) {
-          console.log('User status updated successfully:', updatedUser);
+          console.log('ClientUser status updated successfully:', updatedUser);
 
           return {
             ...updatedUser,
-            firstName: updatedUser.firstName || '',
-            lastName: updatedUser.lastName || '',
+            first_name: updatedUser.first_name || '',
+            last_name: updatedUser.last_name || '',
             role: updatedUser.role || '',
             type: updatedUser.type || '',
-            avatarUrl: updatedUser.avatarUrl || '',
-            createdAt: updatedUser.createdAt?.toISOString() || '',
-            updatedAt: updatedUser.updatedAt?.toISOString() || '',
+            avatar_url: updatedUser.avatar_url || '',
+            created_at: updatedUser.created_at?.toISOString() || '',
+            updated_at: updatedUser.updated_at?.toISOString() || '',
             phone: String(updatedUser.phone) || undefined,
             password: undefined, // Exclude password from the response
             status: updatedUser.status || '',
           };
         } else {
-          throw new Error('User status update failed. No updated user returned.');
+          throw new Error('ClientUser status update failed. No updated user returned.');
         }
       } catch (error: any) {
         console.error('Error updating user status:', error.message);
