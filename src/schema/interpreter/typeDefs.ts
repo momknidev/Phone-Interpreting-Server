@@ -24,7 +24,8 @@ export const typeDefs = gql`
     last_name: String
     email: String
     phone: String!
-    languages: [LanguagePair]
+     sourceLanguages: JSON,
+    targetLanguages: JSON,
     created_at: String
     updated_at: String
     status: String
@@ -38,7 +39,7 @@ export const typeDefs = gql`
     availableForEmergencies: Boolean
     availableOnHolidays: Boolean
     priority: Int
-    groups:[Group]
+    groups:JSON
   }
 
   # Inputs
@@ -52,7 +53,8 @@ export const typeDefs = gql`
     email: String
     phone: String!
     iban: String
-    languages: [LanguagePairInput]
+    sourceLanguages: [String]
+    targetLanguages: [String]
     status: String
     monday_time_slots: String
     tuesday_time_slots: String

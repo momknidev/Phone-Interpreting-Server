@@ -3,7 +3,7 @@ import { and, asc, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import { AuthenticationError, UserInputError } from 'apollo-server';
 import { db } from '../../config/postgres';
 import uuidv4 from '../../utils/uuidv4';
-import { Languages, interpreter, mediatorGroup, mediatorGroupRelation, mediatorLanguageRelation } from '../../models'; // Ensure this exists in your models folder
+import { Languages, interpreter, mediatorGroup, mediatorGroupRelation, interpreterSourceLanguages, interpreterTargetLanguages } from '../../models'; // Ensure this exists in your models folder
 import { alias } from 'drizzle-orm/pg-core';
 import { ReadStream } from 'node:fs';
 import * as xlsx from 'xlsx'; // For Excel file parsing
@@ -29,13 +29,31 @@ const resolvers = {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
-
       try {
-        const mediators = await db.select().from(interpreter).
-          where(eq(interpreter.client_id, context.user.id))
-        return mediators;
+        const result = await db.query.interpreter.findMany({
+          where: eq(interpreter.client_id, context.user.id),
+          with: {
+            sourceLanguages: {
+              with: {
+                sourceLanguage: true,
+              },
+            },
+            targetLanguages: {
+              with: {
+                targetLanguage: true,
+              },
+            },
+            groups: {
+              with: {
+                group: true,
+              },
+            },
+          },
+        });
+        // console.log('Fetched interpreter with languages:', result);
+        return result;
       } catch (error: any) {
-        console.error('Error fetching mediators:', error.message);
+        console.error('Error fetching interpreter by ID:', error.message);
         throw new Error(error.message || 'Internal server error.');
       }
     },
@@ -45,72 +63,30 @@ const resolvers = {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
-
       try {
-        const result = await db.execute(sql`
-      SELECT
-        m.id,
-        m."client_id",
-        m."first_name",
-        m."last_name",
-        m.email,
-        m.phone,
-        m."iban",
-        m.status,
-        m."monday_time_slots",
-        m."tuesday_time_slots",
-        m."wednesday_time_slots",
-        m."thursday_time_slots",
-        m."friday_time_slots",
-        m."saturday_time_slots",
-        m."sunday_time_slots",
-        m."availableForEmergencies",
-        m."availableOnHolidays",
-        m."priority",
-        m."created_at",
-        m."updated_at",
-        COALESCE(
-          JSON_AGG(DISTINCT jsonb_build_object('id', g.id, 'group_name', g."group_name")) 
-          FILTER (WHERE g.id IS NOT NULL), '[]'
-        ) AS groups,
-        COALESCE(
-          JSON_AGG(DISTINCT jsonb_build_object(
-            'sourceLanguage', jsonb_build_object('id', sl.id, 'name', sl."language_name"),
-            'targetLanguage', jsonb_build_object('id', tl.id, 'name', tl."language_name")
-          )) FILTER (WHERE sl.id IS NOT NULL AND tl.id IS NOT NULL), '[]'
-        ) AS languages
-      FROM ${interpreter} m
-      LEFT JOIN ${mediatorGroupRelation} mgr ON mgr."mediator_id" = m.id
-      LEFT JOIN ${mediatorGroup} g ON g.id = mgr."mediator_group_id"
-      LEFT JOIN ${mediatorLanguageRelation} mlr ON mlr."mediator_id" = m.id
-      LEFT JOIN ${Languages} sl ON sl.id = mlr."source_language_id"
-      LEFT JOIN ${Languages} tl ON tl.id = mlr."target_language_id"
-      WHERE m.id = ${id} AND m."client_id" = ${context.user.id}
-      GROUP BY m.id;`);
+        const result = await db.query.interpreter.findMany({
+          where: eq(interpreter.id, id),
 
-        const mediatorFound = result.rows?.[0];
-        console.log('Interpreter found:', mediatorFound);
-        // console.log('Interpreter found:', JSON.stringify(mediatorFound, null, 1));
-        if (!mediatorFound) {
-          throw new UserInputError('Interpreter not found!');
-        }
-
-        return {
-          ...mediatorFound,
-          created_at: mediatorFound.created_at || '',
-          updated_at: mediatorFound.updated_at || '',
-          groups: mediatorFound.groups || [],
-          languages: Array.isArray(mediatorFound.languages)
-            ? mediatorFound.languages.map((item: { sourceLanguage: { id: any; name: any; }; targetLanguage: { id: any; name: any; }; }) => {
-              return {
-                source_language_id: item.sourceLanguage.id,
-                sourceLanguageName: item.sourceLanguage.name,
-                target_language_id: item.targetLanguage.id,
-                targetLanguageName: item.targetLanguage.name,
-              };
-            })
-            : [],
-        };
+          with: {
+            sourceLanguages: {
+              with: {
+                sourceLanguage: true,
+              },
+            },
+            targetLanguages: {
+              with: {
+                targetLanguage: true,
+              },
+            },
+            groups: {
+              with: {
+                group: true,
+              },
+            },
+          },
+        });
+        // console.log('Fetched interpreter with languages:', JSON.stringify(result, null, 1));
+        return result[0];
       } catch (error: any) {
         console.error('Error fetching interpreter by ID:', error.message);
         throw new Error(error.message || 'Internal server error.');
@@ -144,31 +120,7 @@ const resolvers = {
 
       try {
         // Base query
-        let query = db.select({
-          id: interpreter.id,
-          client_id: interpreter.client_id,
-          first_name: interpreter.first_name,
-          last_name: interpreter.last_name,
-          email: interpreter.email,
-          phone: interpreter.phone,
-          iban: interpreter.iban,
-          status: interpreter.status,
-          monday_time_slots: interpreter.monday_time_slots,
-          tuesday_time_slots: interpreter.tuesday_time_slots,
-          wednesday_time_slots: interpreter.wednesday_time_slots,
-          thursday_time_slots: interpreter.thursday_time_slots,
-          friday_time_slots: interpreter.friday_time_slots,
-          saturday_time_slots: interpreter.saturday_time_slots,
-          sunday_time_slots: interpreter.sunday_time_slots,
-          availableForEmergencies: interpreter.availableForEmergencies,
-          availableOnHolidays: interpreter.availableOnHolidays,
-          priority: interpreter.priority,
-          created_at: interpreter.created_at,
-          updated_at: interpreter.updated_at,
-        }).from(interpreter);
-
         const filters = [];
-
         if (name) {
           filters.push(
             or(
@@ -177,29 +129,37 @@ const resolvers = {
             )
           );
         }
-        filters.push(eq(interpreter.client_id, context.user.id))
-
+        filters.push(eq(interpreter.client_id, context.user.id));
         if (status) {
           filters.push(ilike(interpreter.status, `%${status}%`));
         }
+        const orderColumns: Record<string, any> = {
+          created_at: interpreter.created_at,
+          first_name: interpreter.first_name,
+          last_name: interpreter.last_name,
+          // ...add all sortable columns here
+        };
+        const sortColumn = orderColumns[orderBy] ?? interpreter.created_at;
 
-        if (filters.length > 0) {
-          query.where(and(...filters));
-        }
-
-        // Sorting
-        // Apply sorting
-        if (orderBy && order) {
-          const isValidColumn = orderBy in interpreter && typeof interpreter[orderBy as keyof typeof interpreter] === 'object';
-          if (isValidColumn) {
-            const sortColumn = interpreter[orderBy as keyof typeof interpreter] as any;
-            query.orderBy(
-              order.toUpperCase() === 'ASC' ? asc(sortColumn) : desc(sortColumn)
-            );
-          } else {
-            query.orderBy(order.toUpperCase() === 'ASC' ? asc(interpreter.created_at) : desc(interpreter.created_at));
-          }
-        }
+        // Query with relations
+        const mediators = await db.query.interpreter.findMany({
+          where: filters.length > 0 ? and(...filters) : undefined,
+          orderBy: order?.toUpperCase() === 'ASC'
+            ? [asc(sortColumn)]
+            : [desc(sortColumn)], limit,
+          offset,
+          with: {
+            sourceLanguages: {
+              with: { sourceLanguage: true },
+            },
+            targetLanguages: {
+              with: { targetLanguage: true },
+            },
+            groups: {
+              with: { group: true },
+            },
+          },
+        });
         // Count for pagination
         const countResult = await db
           .select({ count: sql<number>`count(*)` })
@@ -208,60 +168,8 @@ const resolvers = {
 
         const totalCount = countResult[0]?.count || 0;
 
-        // Apply pagination
-        const mediators = await query.limit(limit).offset(offset);
-        const mediatorIds = mediators.map((m) => m.id);
-
-        const groupNamesResult = await db
-          .select({
-            mediator_id: mediatorGroupRelation.mediator_id,
-            group_name: mediatorGroup.group_name,
-          })
-          .from(mediatorGroupRelation)
-          .leftJoin(
-            mediatorGroup,
-            eq(mediatorGroup.id, mediatorGroupRelation.mediator_group_id)
-          )
-          .where(inArray(mediatorGroupRelation.mediator_id, mediatorIds));
-        logger.info('Group names result:', groupNamesResult);
-        // --- Fetch languages ---
-        const languageResult = await db
-          .select({
-            mediator_id: mediatorLanguageRelation.mediator_id,
-            source_language_id: Languages.id,
-            sourceLanguageName: Languages.language_name,
-            target_language_id: alias(Languages, 'target').id,
-            targetLanguageName: alias(Languages, 'target').language_name,
-          })
-          .from(mediatorLanguageRelation)
-          .leftJoin(Languages, eq(Languages.id, mediatorLanguageRelation.source_language_id))
-          .leftJoin(alias(Languages, 'target'), eq(alias(Languages, 'target').id, mediatorLanguageRelation.target_language_id))
-          .where(inArray(mediatorLanguageRelation.mediator_id, mediatorIds));
-
-        // --- Map group names and languages into mediators ---
-        const mediatorsWithExtras = mediators.map((interpreter) => {
-          const groups = groupNamesResult
-            .filter((g) => g.mediator_id === interpreter.id)
-            .map((g) => ({ group_name: g.group_name }));
-
-          const languages = languageResult
-            .filter((l) => l.mediator_id === interpreter.id)
-            .map((l) => ({
-              source_language_id: l.source_language_id,
-              sourceLanguageName: l.sourceLanguageName,
-              target_language_id: l.target_language_id,
-              targetLanguageName: l.targetLanguageName,
-            }));
-
-          return {
-            ...interpreter,
-            groups: groups,
-            languages,
-          };
-        });
-
         return {
-          mediators: mediatorsWithExtras,
+          mediators,
           filteredCount: totalCount,
         };
       } catch (error: any) {
@@ -278,7 +186,6 @@ const resolvers = {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
-
       try {
         const mediatorEntry = {
           id: uuidv4(),
@@ -328,20 +235,26 @@ const resolvers = {
         } catch (groupError) {
           console.error('Error associating interpreter with groups:', groupError);
         }
-        if (mediatorData.languages && mediatorData.languages.length > 0) {
-          const languagesData = mediatorData?.languages || [];
-          const languagePairs = languagesData.map((pair: any) => ({
-            source_language_id: pair.source_language_id,
-            target_language_id: pair.target_language_id,
-            id: uuidv4(),
-            created_at: new Date(),
-            updated_at: new Date(),
-            mediator_id: mediatorObj.id,
-          }));
-          // Insert language pairs into the database
-          await db.insert(mediatorLanguageRelation).values(languagePairs).returning();
+        const sourceLanguageData = mediatorData?.sourceLanguages || [];
+        const targetLanguageData = mediatorData?.targetLanguages || [];
 
+        const languagePairsSource = sourceLanguageData.map((id: any) => ({
+          source_language_id: id,
+          id: uuidv4(),
+          interpreter_id: mediatorObj.id,
+        }));
+        const languagePairsTarget = targetLanguageData.map((id: any) => ({
+          target_language_id: id,
+          id: uuidv4(),
+          interpreter_id: mediatorObj.id,
+        }));
+        if (languagePairsSource.length > 0) {
+          await db.insert(interpreterSourceLanguages).values(languagePairsSource)
         }
+        if (languagePairsTarget.length > 0) {
+          await db.insert(interpreterTargetLanguages).values(languagePairsTarget)
+        }
+
 
         if (result && result[0]) {
           return result[0];
@@ -409,21 +322,31 @@ const resolvers = {
           ).returning();
           console.log('Interpreter associated with groups:', data);
         }
-        if (mediatorData.languages && mediatorData.languages.length > 0) {
-          const languagesData = mediatorData?.languages || [];
-          await db.delete(mediatorLanguageRelation).where(eq(mediatorLanguageRelation.mediator_id, updatedMediator.id));
+        await db.delete(interpreterSourceLanguages).where(eq(interpreterSourceLanguages.interpreter_id, updatedMediator.id));
+        await db.delete(interpreterTargetLanguages).where(eq(interpreterTargetLanguages.interpreter_id, updatedMediator.id));
 
-          const languagePairs = languagesData.map((pair: any) => ({
-            source_language_id: pair.source_language_id,
-            target_language_id: pair.target_language_id,
-            id: uuidv4(),
-            updated_at: new Date(),
-            mediator_id: updatedMediator.id,
-          }));
-          // Insert language pairs into the database
-          await db.insert(mediatorLanguageRelation).values(languagePairs).returning();
-
+        const sourceLanguageData = mediatorData?.sourceLanguages || [];
+        const targetLanguageData = mediatorData?.targetLanguages || [];
+        console.log('Source Languages:', sourceLanguageData);
+        const languagePairsSource = sourceLanguageData.map((id: any) => ({
+          source_language_id: id,
+          id: uuidv4(),
+          interpreter_id: updatedMediator.id,
+        }));
+        const languagePairsTarget = targetLanguageData.map((id: any) => ({
+          target_language_id: id,
+          id: uuidv4(),
+          interpreter_id: updatedMediator.id,
+        }));
+        console.log('Language Pairs Source:', languagePairsSource);
+        if (languagePairsSource.length > 0) {
+          await db.insert(interpreterSourceLanguages).values(languagePairsSource)
         }
+        if (languagePairsTarget.length > 0) {
+          await db.insert(interpreterTargetLanguages).values(languagePairsTarget)
+        }
+
+
 
         if (updatedMediator) {
           return updatedMediator;
@@ -731,13 +654,13 @@ const resolvers = {
                     }
                     return foundLang.id;
                   })(),
-                  target_language_id: (() => {
-                    const foundLang = languages.find((lang: any) => String(lang.language_name).toLocaleLowerCase() === String(targetLang).toLocaleLowerCase());
-                    if (!foundLang) {
-                      throw new Error(`Target language "${targetLang}" not found in row ${idx + 1}.`);
-                    }
-                    return foundLang.id;
-                  })(),
+                  // target_language_id: (() => {
+                  //   const foundLang = languages.find((lang: any) => String(lang.language_name).toLocaleLowerCase() === String(targetLang).toLocaleLowerCase());
+                  //   if (!foundLang) {
+                  //     throw new Error(`Target language "${targetLang}" not found in row ${idx + 1}.`);
+                  //   }
+                  //   return foundLang.id;
+                  // })(),
                   created_at: new Date(),
                   updated_at: new Date(),
                 };
@@ -752,9 +675,9 @@ const resolvers = {
             console.log({ groupData })
           }
           console.log({ languageRelationEntries })
-          if (languageRelationEntries.length > 0) {
-            await db.insert(mediatorLanguageRelation).values(languageRelationEntries).returning();
-          }
+          // if (languageRelationEntries.length > 0) {
+          //   await db.insert(interpreterSourceLanguages).values(languageRelationEntries).returning();
+          // }
 
           return data;
         }
