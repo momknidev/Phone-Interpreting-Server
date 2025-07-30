@@ -1,12 +1,12 @@
 import { logger } from '../../config/logger';
 import { twilioClient } from '../../config/twilio';
 import { eq } from 'drizzle-orm';
-import { PhoneMediation, Languages, mediator, } from '../../models';
+import { CallReports, Languages, interpreter, } from '../../models';
 import { db } from '../../config/postgres';
 // import { getDepartmentName } from '../department/departmentExists';
 import uuidv4 from '../../utils/uuidv4';
 /**
- * Function to create a new entry in the PhoneMediation.
+ * Function to create a new entry in the CallReports.
  * @param values - An object containing key-value pairs to populate the table.
  * @returns The created entry.
  */
@@ -57,8 +57,8 @@ export async function createRequest(values: any) {
             logger.info('Call to fallback phone number, skipping request creation');
             return;
         }
-        const mediatorResult = await db.select().from(mediator).where(
-            eq(mediator.phone, callDetails?.toFormatted)
+        const mediatorResult = await db.select().from(interpreter).where(
+            eq(interpreter.phone, callDetails?.toFormatted)
         ).limit(1);
         let obj = {
             "expectedDuration": callDetails?.duration
@@ -71,14 +71,14 @@ export async function createRequest(values: any) {
             id: uuidv4(),
             mediator_id: mediatorResult[0].id,
             status: "Completed",
-            mediation_date: new Date(callDetails?.startTime),
+            call_date: new Date(callDetails?.startTime),
             minutes: String(obj?.expectedDuration ?? 0),
             amount: String(obj?.amount ?? 0),
             additionalMinutes: String(0),
             language: obj?.targetLanguage,
         };
 
-        // let result = await db.insert(PhoneMediation).values(newBooking).returning();
+        // let result = await db.insert(CallReports).values(newBooking).returning();
 
 
         // return result[0];

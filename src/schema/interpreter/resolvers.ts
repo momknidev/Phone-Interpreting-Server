@@ -3,7 +3,7 @@ import { and, asc, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import { AuthenticationError, UserInputError } from 'apollo-server';
 import { db } from '../../config/postgres';
 import uuidv4 from '../../utils/uuidv4';
-import { Languages, mediator, mediatorGroup, mediatorGroupRelation, mediatorLanguageRelation } from '../../models'; // Ensure this exists in your models folder
+import { Languages, interpreter, mediatorGroup, mediatorGroupRelation, mediatorLanguageRelation } from '../../models'; // Ensure this exists in your models folder
 import { alias } from 'drizzle-orm/pg-core';
 import { ReadStream } from 'node:fs';
 import * as xlsx from 'xlsx'; // For Excel file parsing
@@ -31,8 +31,8 @@ const resolvers = {
       }
 
       try {
-        const mediators = await db.select().from(mediator).
-          where(eq(mediator.client_id, context.user.id))
+        const mediators = await db.select().from(interpreter).
+          where(eq(interpreter.client_id, context.user.id))
         return mediators;
       } catch (error: any) {
         console.error('Error fetching mediators:', error.message);
@@ -79,7 +79,7 @@ const resolvers = {
             'targetLanguage', jsonb_build_object('id', tl.id, 'name', tl."language_name")
           )) FILTER (WHERE sl.id IS NOT NULL AND tl.id IS NOT NULL), '[]'
         ) AS languages
-      FROM ${mediator} m
+      FROM ${interpreter} m
       LEFT JOIN ${mediatorGroupRelation} mgr ON mgr."mediator_id" = m.id
       LEFT JOIN ${mediatorGroup} g ON g.id = mgr."mediator_group_id"
       LEFT JOIN ${mediatorLanguageRelation} mlr ON mlr."mediator_id" = m.id
@@ -89,10 +89,10 @@ const resolvers = {
       GROUP BY m.id;`);
 
         const mediatorFound = result.rows?.[0];
-        console.log('Mediator found:', mediatorFound);
-        // console.log('Mediator found:', JSON.stringify(mediatorFound, null, 1));
+        console.log('Interpreter found:', mediatorFound);
+        // console.log('Interpreter found:', JSON.stringify(mediatorFound, null, 1));
         if (!mediatorFound) {
-          throw new UserInputError('Mediator not found!');
+          throw new UserInputError('Interpreter not found!');
         }
 
         return {
@@ -112,7 +112,7 @@ const resolvers = {
             : [],
         };
       } catch (error: any) {
-        console.error('Error fetching mediator by ID:', error.message);
+        console.error('Error fetching interpreter by ID:', error.message);
         throw new Error(error.message || 'Internal server error.');
       }
     },
@@ -145,42 +145,42 @@ const resolvers = {
       try {
         // Base query
         let query = db.select({
-          id: mediator.id,
-          client_id: mediator.client_id,
-          first_name: mediator.first_name,
-          last_name: mediator.last_name,
-          email: mediator.email,
-          phone: mediator.phone,
-          iban: mediator.iban,
-          status: mediator.status,
-          monday_time_slots: mediator.monday_time_slots,
-          tuesday_time_slots: mediator.tuesday_time_slots,
-          wednesday_time_slots: mediator.wednesday_time_slots,
-          thursday_time_slots: mediator.thursday_time_slots,
-          friday_time_slots: mediator.friday_time_slots,
-          saturday_time_slots: mediator.saturday_time_slots,
-          sunday_time_slots: mediator.sunday_time_slots,
-          availableForEmergencies: mediator.availableForEmergencies,
-          availableOnHolidays: mediator.availableOnHolidays,
-          priority: mediator.priority,
-          created_at: mediator.created_at,
-          updated_at: mediator.updated_at,
-        }).from(mediator);
+          id: interpreter.id,
+          client_id: interpreter.client_id,
+          first_name: interpreter.first_name,
+          last_name: interpreter.last_name,
+          email: interpreter.email,
+          phone: interpreter.phone,
+          iban: interpreter.iban,
+          status: interpreter.status,
+          monday_time_slots: interpreter.monday_time_slots,
+          tuesday_time_slots: interpreter.tuesday_time_slots,
+          wednesday_time_slots: interpreter.wednesday_time_slots,
+          thursday_time_slots: interpreter.thursday_time_slots,
+          friday_time_slots: interpreter.friday_time_slots,
+          saturday_time_slots: interpreter.saturday_time_slots,
+          sunday_time_slots: interpreter.sunday_time_slots,
+          availableForEmergencies: interpreter.availableForEmergencies,
+          availableOnHolidays: interpreter.availableOnHolidays,
+          priority: interpreter.priority,
+          created_at: interpreter.created_at,
+          updated_at: interpreter.updated_at,
+        }).from(interpreter);
 
         const filters = [];
 
         if (name) {
           filters.push(
             or(
-              ilike(mediator.first_name, `%${name}%`),
-              ilike(mediator.last_name, `%${name}%`)
+              ilike(interpreter.first_name, `%${name}%`),
+              ilike(interpreter.last_name, `%${name}%`)
             )
           );
         }
-        filters.push(eq(mediator.client_id, context.user.id))
+        filters.push(eq(interpreter.client_id, context.user.id))
 
         if (status) {
-          filters.push(ilike(mediator.status, `%${status}%`));
+          filters.push(ilike(interpreter.status, `%${status}%`));
         }
 
         if (filters.length > 0) {
@@ -190,20 +190,20 @@ const resolvers = {
         // Sorting
         // Apply sorting
         if (orderBy && order) {
-          const isValidColumn = orderBy in mediator && typeof mediator[orderBy as keyof typeof mediator] === 'object';
+          const isValidColumn = orderBy in interpreter && typeof interpreter[orderBy as keyof typeof interpreter] === 'object';
           if (isValidColumn) {
-            const sortColumn = mediator[orderBy as keyof typeof mediator] as any;
+            const sortColumn = interpreter[orderBy as keyof typeof interpreter] as any;
             query.orderBy(
               order.toUpperCase() === 'ASC' ? asc(sortColumn) : desc(sortColumn)
             );
           } else {
-            query.orderBy(order.toUpperCase() === 'ASC' ? asc(mediator.created_at) : desc(mediator.created_at));
+            query.orderBy(order.toUpperCase() === 'ASC' ? asc(interpreter.created_at) : desc(interpreter.created_at));
           }
         }
         // Count for pagination
         const countResult = await db
           .select({ count: sql<number>`count(*)` })
-          .from(mediator)
+          .from(interpreter)
           .where(filters.length > 0 ? and(...filters) : undefined);
 
         const totalCount = countResult[0]?.count || 0;
@@ -239,13 +239,13 @@ const resolvers = {
           .where(inArray(mediatorLanguageRelation.mediator_id, mediatorIds));
 
         // --- Map group names and languages into mediators ---
-        const mediatorsWithExtras = mediators.map((mediator) => {
+        const mediatorsWithExtras = mediators.map((interpreter) => {
           const groups = groupNamesResult
-            .filter((g) => g.mediator_id === mediator.id)
+            .filter((g) => g.mediator_id === interpreter.id)
             .map((g) => ({ group_name: g.group_name }));
 
           const languages = languageResult
-            .filter((l) => l.mediator_id === mediator.id)
+            .filter((l) => l.mediator_id === interpreter.id)
             .map((l) => ({
               source_language_id: l.source_language_id,
               sourceLanguageName: l.sourceLanguageName,
@@ -254,7 +254,7 @@ const resolvers = {
             }));
 
           return {
-            ...mediator,
+            ...interpreter,
             groups: groups,
             languages,
           };
@@ -303,16 +303,16 @@ const resolvers = {
           updated_at: new Date(),
         };
 
-        const result = await db.insert(mediator).values(mediatorEntry).returning();
+        const result = await db.insert(interpreter).values(mediatorEntry).returning();
         const mediatorObj = result[0]
         // Find groups by name
-        console.log('Mediator created:', mediatorObj);
-        console.log('Mediator data to associate with groups:', mediatorData.groupIDs);
+        console.log('Interpreter created:', mediatorObj);
+        console.log('Interpreter data to associate with groups:', mediatorData.groupIDs);
         try {
-          // If we need to associate the mediator with groups
+          // If we need to associate the interpreter with groups
           if (mediatorData.groupIDs && mediatorData.groupIDs.length > 0) {
             const groupIds = mediatorData.groupIDs;
-            console.log("Associating mediator with groups:", groupIds);
+            console.log("Associating interpreter with groups:", groupIds);
 
             let data = await db.insert(mediatorGroupRelation).values(
               groupIds.map((groupId: string) => ({
@@ -323,10 +323,10 @@ const resolvers = {
                 updated_at: new Date(),
               }))
             ).returning();
-            console.log('Mediator associated with groups:', data);
+            console.log('Interpreter associated with groups:', data);
           }
         } catch (groupError) {
-          console.error('Error associating mediator with groups:', groupError);
+          console.error('Error associating interpreter with groups:', groupError);
         }
         if (mediatorData.languages && mediatorData.languages.length > 0) {
           const languagesData = mediatorData?.languages || [];
@@ -346,10 +346,10 @@ const resolvers = {
         if (result && result[0]) {
           return result[0];
         } else {
-          throw new Error('Mediator creation failed. No result returned.');
+          throw new Error('Interpreter creation failed. No result returned.');
         }
       } catch (error: any) {
-        console.error('Error creating mediator:', error);
+        console.error('Error creating interpreter:', error);
         throw new Error('Error: ' + error.message);
       }
     },
@@ -360,15 +360,15 @@ const resolvers = {
       }
 
       try {
-        // Fetch the existing mediator details
-        const mediators = await db.select().from(mediator).where(eq(mediator.id, id));
+        // Fetch the existing interpreter details
+        const mediators = await db.select().from(interpreter).where(eq(interpreter.id, id));
         const existingMediator = mediators[0];
 
         if (!existingMediator) {
-          throw new UserInputError('Mediator not found');
+          throw new UserInputError('Interpreter not found');
         }
 
-        // Prepare the updated mediator data
+        // Prepare the updated interpreter data
         const updatedData = {
           first_name: mediatorData.first_name || existingMediator.first_name,
           last_name: mediatorData.last_name || existingMediator.last_name,
@@ -389,11 +389,11 @@ const resolvers = {
           updated_at: new Date(),
         };
 
-        // Update mediator details in the database
-        await db.update(mediator).set(updatedData).where(eq(mediator.id, id));
+        // Update interpreter details in the database
+        await db.update(interpreter).set(updatedData).where(eq(interpreter.id, id));
 
-        // Fetch the updated mediator details
-        const updatedMediators = await db.select().from(mediator).where(eq(mediator.id, id));
+        // Fetch the updated interpreter details
+        const updatedMediators = await db.select().from(interpreter).where(eq(interpreter.id, id));
         const updatedMediator = updatedMediators[0];
 
         if (mediatorData.groupIDs && mediatorData.groupIDs.length > 0) {
@@ -407,7 +407,7 @@ const resolvers = {
               updated_at: new Date(),
             }))
           ).returning();
-          console.log('Mediator associated with groups:', data);
+          console.log('Interpreter associated with groups:', data);
         }
         if (mediatorData.languages && mediatorData.languages.length > 0) {
           const languagesData = mediatorData?.languages || [];
@@ -428,10 +428,10 @@ const resolvers = {
         if (updatedMediator) {
           return updatedMediator;
         } else {
-          throw new Error('Mediator update failed. No updated mediator returned.');
+          throw new Error('Interpreter update failed. No updated interpreter returned.');
         }
       } catch (error: any) {
-        console.error('Error updating mediator:', error.message);
+        console.error('Error updating interpreter:', error.message);
         throw new Error('Error: ' + error.message);
       }
     },
@@ -442,17 +442,17 @@ const resolvers = {
       }
 
       try {
-        const mediators = await db.select().from(mediator).where(
-          and(eq(mediator.id, id), eq(mediator.client_id, context.user.id)));
+        const mediators = await db.select().from(interpreter).where(
+          and(eq(interpreter.id, id), eq(interpreter.client_id, context.user.id)));
 
         if (!mediators.length) {
-          throw new UserInputError('Mediator not found');
+          throw new UserInputError('Interpreter not found');
         }
 
-        await db.delete(mediator).where(eq(mediator.id, id));
+        await db.delete(interpreter).where(eq(interpreter.id, id));
         return true;
       } catch (error: any) {
-        console.error('Error deleting mediator:', error.message);
+        console.error('Error deleting interpreter:', error.message);
         throw new Error('Error: ' + error.message);
       }
     },
@@ -463,35 +463,35 @@ const resolvers = {
       }
 
       try {
-        // Fetch the existing mediator details
-        const mediators = await db.select().from(mediator).where(eq(mediator.id, id));
+        // Fetch the existing interpreter details
+        const mediators = await db.select().from(interpreter).where(eq(interpreter.id, id));
         const existingMediator = mediators[0];
 
         if (!existingMediator) {
-          throw new UserInputError('Mediator not found');
+          throw new UserInputError('Interpreter not found');
         }
 
         // Convert string status to boolean (assuming 'active'/'inactive' or similar)
 
-        // Update the mediator's status
-        await db.update(mediator).set({ status }).where(eq(mediator.id, id));
+        // Update the interpreter's status
+        await db.update(interpreter).set({ status }).where(eq(interpreter.id, id));
 
-        // Fetch the updated mediator details
-        const updatedMediators = await db.select().from(mediator).where(eq(mediator.id, id));
+        // Fetch the updated interpreter details
+        const updatedMediators = await db.select().from(interpreter).where(eq(interpreter.id, id));
         const updatedMediator = updatedMediators[0];
 
         if (updatedMediator) {
           return updatedMediator;
         } else {
-          throw new Error('Mediator status update failed. No updated mediator returned.');
+          throw new Error('Interpreter status update failed. No updated interpreter returned.');
         }
       } catch (error: any) {
-        console.error('Error updating mediator status:', error.message);
+        console.error('Error updating interpreter status:', error.message);
         throw new Error('Error: ' + error.message);
       }
     },
     //     uploadMediatorFile(file: Upload!): JSON
-    // this mutation will recieve mediators list file and verify all comlumns need for mediator object first declare columns and check for these columns if any column missing return error otherwise create rows in database
+    // this mutation will recieve mediators list file and verify all comlumns need for interpreter object first declare columns and check for these columns if any column missing return error otherwise create rows in database
 
 
     uploadMediatorFile: async (_: any, { file }: { file: any }, context: any) => {
@@ -657,14 +657,14 @@ const resolvers = {
             .map((row: any) => {
               const groupsForMediator = String(row.groups).split(',') || [];
               return groupsForMediator.map((group_name: string) => {
-                // Find the mediator by first_name and last_name
-                const mediator = mediatorEntries.find((mediator: any) =>
-                  mediator.first_name === row.first_name && mediator.last_name === row.last_name && mediator.phone === row.phone
+                // Find the interpreter by first_name and last_name
+                const interpreter = mediatorEntries.find((interpreter: any) =>
+                  interpreter.first_name === row.first_name && interpreter.last_name === row.last_name && interpreter.phone === row.phone
                 );
 
-                // Check if mediator is found
-                if (!mediator) {
-                  throw new Error(`Mediator with name ${row.first_name} ${row.last_name} not found.`);
+                // Check if interpreter is found
+                if (!interpreter) {
+                  throw new Error(`Interpreter with name ${row.first_name} ${row.last_name} not found.`);
                 }
 
                 // Find the group by group_name
@@ -686,10 +686,10 @@ const resolvers = {
                 }
                 // id: string; mediator_id: string; mediator_group_id: any; created_at: Date; updated_at: Date;
 
-                // Return the group relation entry if both mediator and group are found
+                // Return the group relation entry if both interpreter and group are found
                 return {
                   id: uuidv4(),
-                  mediator_id: mediator.id, // Access mediator id safely
+                  mediator_id: interpreter.id, // Access interpreter id safely
                   mediator_group_id: group.id, // Access group id safely
                   created_at: new Date(),
                   updated_at: new Date(),
@@ -708,12 +708,12 @@ const resolvers = {
                 throw new Error(`Row ${idx + 1}: Source and target languages must have the same number of entries.`);
               }
 
-              // Find the mediator by first_name, last_name, and phone
+              // Find the interpreter by first_name, last_name, and phone
               const mediatorObj = mediatorEntries.find((m: any) =>
                 m.first_name === row.first_name && m.last_name === row.last_name && m.phone === row.phone
               );
               if (!mediatorObj) {
-                throw new Error(`Mediator with name ${row.first_name} ${row.last_name} not found.`);
+                throw new Error(`Interpreter with name ${row.first_name} ${row.last_name} not found.`);
               }
 
               return sourceLanguages.map((sourceLang: string, i: number) => {
@@ -744,7 +744,7 @@ const resolvers = {
               });
             })
             .flat();
-          const data = await db.insert(mediator).values(mediatorEntries).returning();
+          const data = await db.insert(interpreter).values(mediatorEntries).returning();
 
           console.log({ data })
           if (groupRelationEntries.length > 0) {
@@ -777,7 +777,7 @@ const resolvers = {
           // Validate columns in Excel file
           // parser.on('end', async () => {
           if (rows.length === 0) {
-            throw new UserInputError('No valid mediator data found in the CSV file.');
+            throw new UserInputError('No valid interpreter data found in the CSV file.');
           }
           const result = validateAndTransformData(rows);
 
@@ -831,7 +831,7 @@ const resolvers = {
           });
           // parser.on('end', async () => {
           if (mediatorData.length === 0) {
-            throw new UserInputError('No valid mediator data found in the CSV file.');
+            throw new UserInputError('No valid interpreter data found in the CSV file.');
           }
 
           await saveMediatorsToDatabase(result, context.user.id);
@@ -844,7 +844,7 @@ const resolvers = {
         }
 
       } catch (error: any) {
-        console.error('Error uploading mediator file:', error.message);
+        console.error('Error uploading interpreter file:', error.message);
         throw new Error('Error: ' + error.message);
       }
     }

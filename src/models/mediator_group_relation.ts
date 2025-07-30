@@ -1,5 +1,5 @@
 import { pgTable, unique, uuid, text, timestamp } from 'drizzle-orm/pg-core';
-import { mediator } from "./mediator";
+import { interpreter } from "./interpreter";
 import { mediatorGroup } from "./mediator_group_table";
 
 export const mediatorGroupRelation = pgTable(
@@ -8,7 +8,7 @@ export const mediatorGroupRelation = pgTable(
         id: uuid('id').primaryKey(),
         mediator_id: uuid("mediator_id")
             .notNull()
-            .references(() => mediator.id, { onDelete: "cascade" }),
+            .references(() => interpreter.id, { onDelete: "cascade" }),
         mediator_group_id: uuid("mediator_group_id")
             .notNull()
             .references(() => mediatorGroup.id, { onDelete: "cascade" }),

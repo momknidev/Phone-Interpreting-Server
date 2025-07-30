@@ -3,7 +3,7 @@ import { and, asc, desc, eq, ilike, or, sql } from 'drizzle-orm';
 import { AuthenticationError, UserInputError } from 'apollo-server';
 import { db } from '../../config/postgres';
 import uuidv4 from '../../utils/uuidv4';
-import { mediator, mediatorGroup, mediatorGroupRelation } from '../../models'; // Make sure this exists in your models folder
+import { interpreter, mediatorGroup, mediatorGroupRelation } from '../../models'; // Make sure this exists in your models folder
 import { logger } from '../../config/logger';
 
 // Add to existing resolvers
@@ -33,16 +33,16 @@ const resolvers = {
         // Step 2: Fetch related mediators
         const mediators = await db
           .select({
-            id: mediator.id,
-            first_name: mediator.first_name,
-            last_name: mediator.last_name,
-            email: mediator.email,
+            id: interpreter.id,
+            first_name: interpreter.first_name,
+            last_name: interpreter.last_name,
+            email: interpreter.email,
             // Add more fields as needed
           })
-          .from(mediator)
+          .from(interpreter)
           .innerJoin(
             mediatorGroupRelation,
-            eq(mediator.id, mediatorGroupRelation.mediator_id)
+            eq(interpreter.id, mediatorGroupRelation.mediator_id)
           )
           .where(eq(mediatorGroupRelation.mediator_group_id, id));
 
@@ -294,16 +294,16 @@ const resolvers = {
         if (!group[0]) {
           throw new UserInputError('Group not found');
         }
-        // Check mediator exists
-        const mediatorExists = await db.select().from(mediator).where(eq(mediator.id, mediatorID));
+        // Check interpreter exists
+        const mediatorExists = await db.select().from(interpreter).where(eq(interpreter.id, mediatorID));
         if (!mediatorExists[0]) {
-          throw new UserInputError('Mediator not found');
+          throw new UserInputError('Interpreter not found');
         }
         // Check if already in group
         const relation = await db.select().from(mediatorGroupRelation)
           .where(and(eq(mediatorGroupRelation.mediator_group_id, groupID), eq(mediatorGroupRelation.mediator_id, mediatorID)));
         if (relation.length > 0) {
-          throw new UserInputError('Mediator already in group');
+          throw new UserInputError('Interpreter already in group');
         }
         // Add relation
         await db.insert(mediatorGroupRelation).values({
@@ -317,7 +317,7 @@ const resolvers = {
         const updatedGroup = await db.select().from(mediatorGroup).where(eq(mediatorGroup.id, groupID));
         return updatedGroup[0];
       } catch (error: any) {
-        console.error('Error adding mediator to group:', error.message);
+        console.error('Error adding interpreter to group:', error.message);
         throw new Error('Error: ' + error.message);
       }
     },
@@ -332,10 +332,10 @@ const resolvers = {
         if (!group[0]) {
           throw new UserInputError('Group not found');
         }
-        // Check mediator exists
-        const mediatorExists = await db.select().from(mediator).where(eq(mediator.id, mediatorID));
+        // Check interpreter exists
+        const mediatorExists = await db.select().from(interpreter).where(eq(interpreter.id, mediatorID));
         if (!mediatorExists[0]) {
-          throw new UserInputError('Mediator not found');
+          throw new UserInputError('Interpreter not found');
         }
         // Remove relation
         await db.delete(mediatorGroupRelation)
@@ -344,7 +344,7 @@ const resolvers = {
         const updatedGroup = await db.select().from(mediatorGroup).where(eq(mediatorGroup.id, groupID));
         return updatedGroup[0];
       } catch (error: any) {
-        console.error('Error removing mediator from group:', error.message);
+        console.error('Error removing interpreter from group:', error.message);
         throw new Error('Error: ' + error.message);
       }
     },

@@ -1,7 +1,7 @@
 import { numeric, pgTable, text, boolean, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
 import { Client } from './client_table';
 
-export const mediator = pgTable('mediators', {
+export const interpreter = pgTable('interpreters', {
   id: uuid('id').primaryKey().notNull(),
   client_id: uuid('client_id').references(() => Client.id),
   first_name: varchar('first_name').notNull(),

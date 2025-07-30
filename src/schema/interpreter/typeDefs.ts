@@ -16,7 +16,7 @@ export const typeDefs = gql`
     group_name: String!
     }
   
-  type Mediator {
+  type Interpreter {
     id: ID
     client_id: String
     iban: String
@@ -69,13 +69,13 @@ export const typeDefs = gql`
 
   type MediatorPaginatedList {
     filteredCount: Int
-    mediators: [Mediator]
+    mediators: [Interpreter]
   }
 
   # Add to Query type
   type Query {
-    mediatorList: [Mediator]
-    mediatorById(id: String!): Mediator
+    mediatorList: [Interpreter]
+    mediatorById(id: String!): Interpreter
     mediatorsPaginatedList(
       offset: Int
       limit: Int
@@ -89,10 +89,10 @@ export const typeDefs = gql`
 
   # Add to Mutation type
   type Mutation {
-    addMediator(mediatorData: MediatorInput): Mediator
-    updateMediator(id: String!,mediatorData: MediatorInput): Mediator
+    addMediator(mediatorData: MediatorInput): Interpreter
+    updateMediator(id: String!,mediatorData: MediatorInput): Interpreter
     deleteMediator(id: String!): Boolean
-    updateMediatorStatus(id: String!, status: String!): Mediator
+    updateMediatorStatus(id: String!, status: String!): Interpreter
     uploadMediatorFile(file: Upload!): String
   }
 `;

@@ -1,11 +1,11 @@
 import { gql } from 'apollo-server';
 
 const typeDefs = gql`
-  type PhoneMediation {
+  type CallReports {
     id: ID!
     client_id: ID
     mediator_id: ID
-    mediator: String
+    interpreter: String
     caller_phone: String
     caller_code: String
     source_language_id: ID
@@ -14,8 +14,8 @@ const typeDefs = gql`
     phone_mediation_no: Int
     target_language: String
     status: String
-    mediation_date: String
-    mediation_duration: Float
+    call_date: String
+    call_duration: Float
     amount: Float
     created_at: String
     updated_at: String
@@ -28,18 +28,18 @@ const typeDefs = gql`
     source_language_id: ID
     target_language_id: ID
     status: String
-    mediation_date: String
-    mediation_duration: Float
+    call_date: String
+    call_duration: Float
     amount: Float
   }
 
   type PhoneMediationPaginatedList {
     filteredCount: Int
-    phoneMediation: [PhoneMediation]
+    callReports: [CallReports]
   }
   type Query {
-    allPhoneMediation: [PhoneMediation]
-    PhoneMediationByID(id: ID): PhoneMediation
+    allPhoneMediation: [CallReports]
+    PhoneMediationByID(id: ID): CallReports
     phoneMediationPaginatedList(
       offset: Int
       limit: Int
@@ -50,8 +50,8 @@ const typeDefs = gql`
   }
 
   type Mutation {
-    createPhoneMediation(input: CreatePhoneMediationInput): PhoneMediation
-    updatePhoneMediation(id: ID, input: CreatePhoneMediationInput): PhoneMediation
+    createPhoneMediation(input: CreatePhoneMediationInput): CallReports
+    updatePhoneMediation(id: ID, input: CreatePhoneMediationInput): CallReports
     deletePhoneMediation(id: ID): Boolean
   }
 `;

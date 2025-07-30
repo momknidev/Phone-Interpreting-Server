@@ -1,4 +1,4 @@
-export * from './mediator';
+export * from './interpreter';
 export * from './client_table';
 export * from './phone_mediation_table';
 export * from './language_table'

@@ -1,6 +1,6 @@
 import { toZonedTime } from 'date-fns-tz';
 import { and, eq, or } from 'drizzle-orm';
-import { mediator, Languages } from '../../models';
+import { interpreter, Languages } from '../../models';
 import { db } from '../../config/postgres';
 import { weekDayTimeSlot } from '../../const/interpreter/weekDayTimeSlot';
 
@@ -25,26 +25,26 @@ export const getInterpreters = async ({
     }
     const languageToUse = languageRecord[0].language_name;
     const languageSelection = [
-        // eq(mediator.targetLanguage1, languageToUse),
-        // eq(mediator.targetLanguage2, languageToUse),
-        // eq(mediator.targetLanguage3, languageToUse),
-        // eq(mediator.targetLanguage4, languageToUse),
+        // eq(interpreter.targetLanguage1, languageToUse),
+        // eq(interpreter.targetLanguage2, languageToUse),
+        // eq(interpreter.targetLanguage3, languageToUse),
+        // eq(interpreter.targetLanguage4, languageToUse),
     ]
     const dateNow = toZonedTime(new Date(), 'Europe/Rome');
     const currentWeekDay = dateNow.getDay();
     const timeSlotToUse = weekDayTimeSlot[currentWeekDay];
 
     const interpreters = await db.select({
-        id: mediator.id,
-        email: mediator.email,
-        first_name: mediator.first_name,
-        last_name: mediator.last_name,
-        phone: mediator.phone,
-        priority: mediator.priority,
-        timeSlot: mediator[timeSlotToUse],
-    }).from(mediator).where(
+        id: interpreter.id,
+        email: interpreter.email,
+        first_name: interpreter.first_name,
+        last_name: interpreter.last_name,
+        phone: interpreter.phone,
+        priority: interpreter.priority,
+        timeSlot: interpreter[timeSlotToUse],
+    }).from(interpreter).where(
         and(
-            eq(mediator.priority, String(priority)),
+            eq(interpreter.priority, String(priority)),
             // or(...languageSelection),
         ),
     );
