@@ -785,7 +785,7 @@ const resolvers = {
 
           await saveMediatorsToDatabase(result, context.user.id);
           // console.log({ mediatorData })
-          return 'Mediators uploaded successfully using excel file.';
+          return 'Interpreters uploaded successfully using excel file.';
           // });
 
         } else if (mimetype === 'text/csv') {
@@ -836,7 +836,7 @@ const resolvers = {
 
           await saveMediatorsToDatabase(result, context.user.id);
           console.log({ mediatorData })
-          return 'Mediators uploaded successfully.';
+          return 'Interpreters uploaded successfully.';
           // });
 
         } else {
