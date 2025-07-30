@@ -81,8 +81,22 @@ const startServer = async () => {
     );
 
     SubscriptionServer.create(
-        { schema, execute, subscribe },
-        { server: httpServer, path: server }
+        {
+            schema,
+            execute,
+            subscribe,
+            onConnect: async (connectionParams: any) => {
+                console.log('🔌 Subscription client connected');
+                return {};
+            },
+            onDisconnect: () => {
+                console.log('🔌 Subscription client disconnected');
+            },
+        },
+        {
+            server: httpServer,
+            path: '/graphql',
+        }
     );
 };
 
