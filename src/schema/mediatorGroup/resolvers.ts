@@ -284,38 +284,25 @@ const resolvers = {
         throw new Error('Error: ' + error.message);
       }
     },
-    addMediatorToGroup: async (_: any, { groupID, mediatorID }: { groupID: string, mediatorID: string }, context: any) => {
+    addMediatorToGroup: async (_: any, { groupID, mediatorIDs }: { groupID: string, mediatorIDs: Array<string> }, context: any) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
       try {
-        // Check group exists
-        const group = await db.select().from(mediatorGroup).where(eq(mediatorGroup.id, groupID));
-        if (!group[0]) {
-          throw new UserInputError('Group not found');
-        }
-        // Check interpreter exists
-        const mediatorExists = await db.select().from(interpreter).where(eq(interpreter.id, mediatorID));
-        if (!mediatorExists[0]) {
-          throw new UserInputError('Interpreter not found');
-        }
-        // Check if already in group
-        const relation = await db.select().from(mediatorGroupRelation)
-          .where(and(eq(mediatorGroupRelation.mediator_group_id, groupID), eq(mediatorGroupRelation.mediator_id, mediatorID)));
-        if (relation.length > 0) {
-          throw new UserInputError('Interpreter already in group');
-        }
+        await db
+          .delete(mediatorGroupRelation)
+          .where(eq(mediatorGroupRelation.mediator_group_id, groupID));
         // Add relation
-        await db.insert(mediatorGroupRelation).values({
+        const obj = mediatorIDs.map((id: string) => ({
           id: uuidv4(),
           mediator_group_id: groupID,
-          mediator_id: mediatorID,
+          mediator_id: id,
           created_at: new Date(),
           updated_at: new Date(),
-        });
+        }));
+        await db.insert(mediatorGroupRelation).values(obj)
         // Return updated group
-        const updatedGroup = await db.select().from(mediatorGroup).where(eq(mediatorGroup.id, groupID));
-        return updatedGroup[0];
+        return 'success';
       } catch (error: any) {
         console.error('Error adding interpreter to group:', error.message);
         throw new Error('Error: ' + error.message);
