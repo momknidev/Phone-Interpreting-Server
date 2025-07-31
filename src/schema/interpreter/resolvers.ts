@@ -413,10 +413,6 @@ const resolvers = {
         throw new Error('Error: ' + error.message);
       }
     },
-    //     uploadMediatorFile(file: Upload!): JSON
-    // this mutation will recieve mediators list file and verify all comlumns need for interpreter object first declare columns and check for these columns if any column missing return error otherwise create rows in database
-
-
     uploadMediatorFile: async (_: any, { file }: { file: any }, context: any) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
@@ -522,24 +518,7 @@ const resolvers = {
           row.availableForEmergencies = String(row.availableForEmergencies).toLowerCase() === 'true'
           row.availableOnHolidays = String(row.availableOnHolidays).toLowerCase() === 'true'
           row.priority = row.priority || 1;
-          const setLanguageId = (languageField: string) => {
-            const language = row[languageField];
-            if (language) {
-              const matchedLanguage = languages.find((lang: { language_name: any; }) => String(lang.language_name).toLocaleLowerCase() === String(language).toLocaleLowerCase());
-              if (matchedLanguage) {
-                row[languageField] = matchedLanguage.id;
-              } else {
-                throw new Error(
-                  `Row ${index + 1
-                  }: Invalid language value for ${languageField}. No matching language found.`
-                );
-              }
-            }
-          };
-          setLanguageId('targetLanguage1');
-          setLanguageId('targetLanguage2');
-          setLanguageId('targetLanguage3');
-          setLanguageId('targetLanguage4');
+
 
           transformedData.push(row);
         });
@@ -620,33 +599,21 @@ const resolvers = {
               });
             })
             .flat();
-          console.log({ groupRelationEntries })
 
-          const languageRelationEntries = mediatorData
+          const sourceLanguageData = mediatorData
             .map((row: any, idx: number) => {
               const sourceLanguages = String(row.sourceLanguages || '').split(',').map((s: string) => s.trim());
-              const targetLanguages = String(row.targetLanguages || '').split(',').map((s: string) => s.trim());
-
-              if (sourceLanguages.length !== targetLanguages.length) {
-                throw new Error(`Row ${idx + 1}: Source and target languages must have the same number of entries.`);
-              }
-
-              // Find the interpreter by first_name, last_name, and phone
-              const mediatorObj = mediatorEntries.find((m: any) =>
-                m.first_name === row.first_name && m.last_name === row.last_name && m.phone === row.phone
+              const interpreter = mediatorEntries.find((interpreter: any) =>
+                interpreter.first_name === row.first_name && interpreter.last_name === row.last_name && interpreter.phone === row.phone
               );
-              if (!mediatorObj) {
+              if (!interpreter) {
                 throw new Error(`Interpreter with name ${row.first_name} ${row.last_name} not found.`);
               }
 
               return sourceLanguages.map((sourceLang: string, i: number) => {
-                const targetLang = targetLanguages[i];
-                if (!sourceLang || !targetLang) {
-                  throw new Error(`Row ${idx + 1}: Invalid language pair at position ${i + 1}.`);
-                }
                 return {
                   id: uuidv4(),
-                  mediator_id: mediatorObj.id,
+                  interpreter_id: interpreter.id,
                   source_language_id: (() => {
                     const foundLang = languages.find((lang: any) => String(lang.language_name).toLocaleLowerCase() === String(sourceLang).toLocaleLowerCase());
                     if (!foundLang) {
@@ -654,13 +621,32 @@ const resolvers = {
                     }
                     return foundLang.id;
                   })(),
-                  // target_language_id: (() => {
-                  //   const foundLang = languages.find((lang: any) => String(lang.language_name).toLocaleLowerCase() === String(targetLang).toLocaleLowerCase());
-                  //   if (!foundLang) {
-                  //     throw new Error(`Target language "${targetLang}" not found in row ${idx + 1}.`);
-                  //   }
-                  //   return foundLang.id;
-                  // })(),
+                  created_at: new Date(),
+                  updated_at: new Date(),
+                };
+              });
+            })
+            .flat();
+          const targetLanguageData = mediatorData
+            .map((row: any, idx: number) => {
+              const targetLanguages = String(row.targetLanguages || '').split(',').map((s: string) => s.trim());
+              const interpreter = mediatorEntries.find((interpreter: any) =>
+                interpreter.first_name === row.first_name && interpreter.last_name === row.last_name && interpreter.phone === row.phone
+              );
+              if (!interpreter) {
+                throw new Error(`Interpreter with name ${row.first_name} ${row.last_name} not found.`);
+              }
+              return targetLanguages.map((targetLang: string, i: number) => {
+                return {
+                  id: uuidv4(),
+                  interpreter_id: interpreter.id,
+                  target_language_id: (() => {
+                    const foundLang = languages.find((lang: any) => String(lang.language_name).toLocaleLowerCase() === String(targetLang).toLocaleLowerCase());
+                    if (!foundLang) {
+                      throw new Error(`Target language "${targetLang}" not found in row ${idx + 1}.`);
+                    }
+                    return foundLang.id;
+                  })(),
                   created_at: new Date(),
                   updated_at: new Date(),
                 };
@@ -674,11 +660,13 @@ const resolvers = {
             const groupData = await db.insert(mediatorGroupRelation).values(groupRelationEntries).returning();
             console.log({ groupData })
           }
-          console.log({ languageRelationEntries })
-          // if (languageRelationEntries.length > 0) {
-          //   await db.insert(interpreterSourceLanguages).values(languageRelationEntries).returning();
-          // }
-
+          console.log({ sourceLanguageData, targetLanguageData })
+          if (sourceLanguageData.length > 0) {
+            await db.insert(interpreterSourceLanguages).values(sourceLanguageData).returning();
+          }
+          if (targetLanguageData.length > 0) {
+            await db.insert(interpreterTargetLanguages).values(targetLanguageData).returning();
+          }
           return data;
         }
 
