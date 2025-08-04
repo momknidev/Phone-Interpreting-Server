@@ -35,7 +35,7 @@ const resolvers = {
         // Base query
         let query = db
           .select({
-            phone_mediation_no: CallReports.phone_mediation_no,
+            serial_no: CallReports.serial_no,
             id: CallReports.id,
             user_id: CallReports.client_id,
             mediator_id: CallReports.mediator_id,
@@ -95,7 +95,7 @@ const resolvers = {
             user_id: row.user_id,
             mediator_id: row.mediator_id,
             caller_phone: row.caller_phone,
-            phone_mediation_no: row.phone_mediation_no,
+            serial_no: row.serial_no,
             caller_code: row.caller_code,
             status: row.status,
             call_date: row.call_date?.toISOString() || "",
@@ -136,9 +136,9 @@ const resolvers = {
     createPhoneMediation: async (_: any, { input }: any, context: any) => {
       if (!context?.user) throw new AuthenticationError('Unauthenticated');
       try {
-        // Get the current max phone_mediation_no
+        // Get the current max serial_no
         const maxResult = await db
-          .select({ maxNo: sql<number>`MAX(phone_mediation_no)` })
+          .select({ maxNo: sql<number>`MAX(serial_no)` })
           .from(CallReports);
         const maxNo = maxResult[0]?.maxNo || 0;
         const nextNo = Number(maxNo) + 1;
@@ -150,7 +150,7 @@ const resolvers = {
           client_id: context.user.id, // Assuming client_id is the user's ID
           created_at: new Date(),
           updated_at: new Date(),
-          phone_mediation_no: nextNo,
+          serial_no: nextNo,
         };
         const result = await db.insert(CallReports).values(data).returning();
         return result[0];

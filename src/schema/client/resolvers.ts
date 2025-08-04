@@ -34,6 +34,7 @@ const generateToken = (user: {
   avatar_url: string | null;
   role: string | null;
   type: string | null;
+  client_phones?: { phone: string, label: string }[];
 }) => {
   const secretKey = process.env.SECRET_KEY;
   if (!secretKey) {
@@ -49,6 +50,7 @@ const generateToken = (user: {
       avatar_url: user.avatar_url || '',
       role: user.role || '',
       type: user.type || '',
+      client_phones: user.client_phones,
     },
     secretKey,
     { expiresIn: '24h' }
@@ -73,17 +75,17 @@ const resolvers = {
           }
         }
 
-        const users = await db
-          .select()
-          .from(Client)
-          .where(and(eq(Client.email, email), eq(Client.status, 'active')));
 
-        const user = users[0];
+        const user = await db.query.Client.findFirst({
+          where: and(ilike(Client.email, email), eq(Client.status, 'active')),
+          with: {
+            client_phones: true,
+          },
+        });
 
         if (!user) {
           throw new UserInputError('ClientUser not found!');
         }
-
         // Check password validity
         if (!user.password) {
           throw new UserInputError('Invalid user credentials!');
@@ -93,9 +95,15 @@ const resolvers = {
         if (!isCorrectPassword) {
           throw new UserInputError('Wrong password!');
         }
-
+        const obj = {
+          ...user,
+          client_phones: user.client_phones.map(phone => ({
+            phone: phone.phone ?? '',
+            label: phone.label ?? '',
+          })),
+        }
         // Generate token and return user data
-        const token = generateToken(user);
+        const token = generateToken(obj);
         return {
           ...user,
           first_name: user.first_name || '',
@@ -384,7 +392,6 @@ const resolvers = {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
-
       try {
         // Fetch the existing user details
         const users = await db.select().from(Client).where(eq(Client.id, id));

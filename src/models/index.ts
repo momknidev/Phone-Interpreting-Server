@@ -1,6 +1,6 @@
 export * from './interpreter';
 export * from './client_table';
-export * from './phone_mediation_table';
+export * from './call_reports_table';
 export * from './language_table'
 export * from './mediator_group_table';
 export * from './mediator_group_relation';

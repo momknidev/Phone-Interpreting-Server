@@ -11,7 +11,7 @@ const typeDefs = gql`
     source_language_id: ID
     target_language_id: ID
     source_language: String
-    phone_mediation_no: Int
+    serial_no: Int
     target_language: String
     status: String
     call_date: String

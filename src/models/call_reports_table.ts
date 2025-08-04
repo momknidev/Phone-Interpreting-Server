@@ -5,7 +5,7 @@ import { Languages } from './language_table';
 
 export const CallReports = pgTable('call_reports', {
   id: uuid('id').primaryKey().defaultRandom(),
-  phone_mediation_no: numeric('phone_mediation_no',).notNull().unique(),
+  serial_no: numeric('serial_no',).notNull().unique(),
   client_id: uuid('client_id').references(() => Client.id).notNull(),
   mediator_id: uuid('mediator_id').references(() => interpreter.id).notNull(),
   caller_phone: varchar('caller_phone', { length: 20 }).notNull(), // E.164 format (e.g., "+1234567890")
