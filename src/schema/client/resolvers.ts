@@ -4,11 +4,12 @@ import { AuthenticationError, UserInputError } from 'apollo-server';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import axios from 'axios'
-import { Client } from '../../models';
+import { Client, clientPhones } from '../../models';
 import { db } from '../../config/postgres';
 import { Client as ClientUser } from '../../../types/user'
 import { uploadObjectToS3 } from '../../utils/uploadObjectToS3';
 import uuidv4 from '../../utils/uuidv4';
+import { FileUpload } from 'graphql-upload-ts';
 
 
 interface ClientDetails {
@@ -20,6 +21,8 @@ interface ClientDetails {
   phone?: string;
   status?: string,
   type?: string;
+  phoneList?: { phone: string; label: string }[];
+  avatar_url?: string | FileUpload;
 }
 
 
@@ -112,33 +115,28 @@ const resolvers = {
         throw new Error(error.message || 'Internal server error.');
       }
     },
-    clientByID: async (_: any, { id }: { id: string }): Promise<ClientUser> => {
+    clientByID: async (_: any, { id }: { id: string }, context: any): Promise<any> => {
+      // if (!context?.user) {
+      //   throw new AuthenticationError('Unauthenticated');
+      // }
       try {
-        const users = await db
-          .select()
-          .from(Client)
-          .where(eq(Client.id, id));
+        const result = await db.query.Client.findFirst({
+          where: eq(Client.id, id),
+          with: {
+            client_phones: true,
+          },
+        });
 
-        const user = users[0];
+        console.log("result", result);
+        const user = result
 
         if (!user) {
           throw new UserInputError('ClientUser not found!');
         }
 
-        return {
-          ...user,
-          first_name: user.first_name || '',
-          last_name: user.last_name || '',
-          role: user.role || '',
-          type: user.type || '',
-          avatar_url: user.avatar_url || '',
-          created_at: user.created_at?.toISOString() || '',
-          updated_at: user.updated_at?.toISOString() || '',
-          phone: String(user.phone) || undefined,
-          password: undefined, // Exclude password from the response
-        };
+        return result
       } catch (error: any) {
-        console.error('Error fetching client by ID:', error.message);
+        console.error('Error:', error.message);
         throw new Error(error.message || 'Internal server error.');
       }
     },
@@ -240,10 +238,10 @@ const resolvers = {
   },
   Mutation: {
     addClient: async (_: any, { clientDetails, file }: { clientDetails: ClientDetails, file?: any }, context: any) => {
-      // if (!context?.user) {
+      if (!context?.user) {
 
-      //   throw new UserInputError('Unauthenticated');
-      // }
+        throw new UserInputError('Unauthenticated');
+      }
       console.log("clientDetails", clientDetails);
       try {
         if (!clientDetails.password) {
@@ -277,6 +275,18 @@ const resolvers = {
         };
         console.log("result", userData);
         const result = await db.insert(Client).values(userData).returning();
+        const phoneNumbers = clientDetails.phoneList || [];
+        if (phoneNumbers.length > 0) {
+          const phoneData = phoneNumbers.map((phone: { phone: string; label: string }) => ({
+            client_id: userData.id,
+            id: uuidv4(),
+            phone: phone.phone,
+            label: phone.label,
+
+          }));
+          let phones = await db.insert(clientPhones).values(phoneData).returning();
+          console.log("phones", phones);
+        }
         if (result) {
           console.log(JSON.stringify(result));
           return result[0];
@@ -341,7 +351,22 @@ const resolvers = {
         // Fetch the updated user details
         const updatedUsers = await db.select().from(Client).where(eq(Client.id, id));
         const updatedUser = updatedUsers[0];
-
+        const phoneNumbers = clientDetails.phoneList || [];
+        console.log("phoneNumbers", phoneNumbers);
+        if (phoneNumbers.length > 0) {
+          // Delete existing phone numbers for the user
+          console.log("phoneNumbers", phoneNumbers);
+          await db.delete(clientPhones).where(eq(clientPhones.client_id, id));
+          // Insert new phone numbers
+          const phoneData = phoneNumbers.map((phone: { phone: string; label: string }) => ({
+            client_id: id,
+            id: uuidv4(),
+            phone: phone.phone,
+            label: phone.label,
+          }));
+          let res = await db.insert(clientPhones).values(phoneData).returning();
+          console.log("res", res);
+        }
         if (updatedUser) {
           console.log('ClientUser updated successfully:', updatedUser);
           const token = generateToken(updatedUser);

@@ -19,8 +19,13 @@ export const typeDefs = gql`
     created_at: String
     updated_at: String
     status: String
+    client_phones: JSON
   }
   # Inputs
+  input clientPhoneInput {
+    phone: String
+    label: String
+  }
   input clientDetails {
     password: String
     email: String!
@@ -30,6 +35,7 @@ export const typeDefs = gql`
     last_name: String!
     phone: String
     type: String
+    phoneList: [clientPhoneInput]
   }
 
   type ClientPaginatedList {
