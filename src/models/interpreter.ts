@@ -9,6 +9,7 @@ import { Languages } from './language_table';
 export const interpreter = pgTable('interpreters', {
   id: uuid('id').primaryKey().notNull(),
   client_id: uuid('client_id').references(() => Client.id),
+  phone_number: varchar('phone_number').notNull(),
   first_name: varchar('first_name').notNull(),
   last_name: varchar('last_name').notNull(),
   email: text('email'),

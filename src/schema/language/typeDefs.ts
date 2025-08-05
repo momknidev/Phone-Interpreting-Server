@@ -28,7 +28,7 @@ export const typeDefs = gql`
       search: String
       phone_number: String!
     ): LanguagesResponse!
-    allLanguages: [Language!]!
+    allLanguages(phone_number:String!): [Language!]!
     language(id: ID!): Language
   }
 

@@ -73,9 +73,9 @@ const resolvers = {
       }
     },
 
-    allLanguages: async () => {
+    allLanguages: async (_: any, { phone_number }: any, context: any) => {
       try {
-        const languages = await db.select().from(Languages);
+        const languages = await db.select().from(Languages).where(eq(Languages.phone_number, phone_number));
         return languages;
       } catch (error: any) {
         console.error('Error fetching all languages:', error.message);

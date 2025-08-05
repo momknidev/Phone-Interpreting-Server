@@ -17,7 +17,7 @@ export const callingLanguage = pgEnum('calling_language', ['english', 'italian']
 
 export const callRoutingSettings = pgTable('call_routing_settings', {
   clientId: uuid('client_id').notNull().primaryKey(), // Assuming one setting per client
-  clientPhoneNo: varchar('client_phone_number', { length: 20 }).notNull(),
+  phone_number: varchar('phone_number', { length: 20 }).notNull(),
   callLanguage: callingLanguage('calling_language'), // e.g., ['EN', 'FR']
 
   enableCallRecording: boolean('enable_call_recording').default(false),

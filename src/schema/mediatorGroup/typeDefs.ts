@@ -30,9 +30,8 @@ export const typeDefs = gql`
   }
   # ==============> QUERIES <================
   type Query {
-    groupByID(id: String,phone_number: String!
-): Group
-    allGroups:[Group]
+    groupByID(id: String,phone_number: String!): Group
+    allGroups(phone_number: String!):[Group]
     groupsPaginatedList(
       offset: Int
       limit: Int

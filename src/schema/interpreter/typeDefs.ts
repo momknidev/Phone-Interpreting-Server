@@ -48,6 +48,7 @@ export const typeDefs = gql`
     target_language_id: ID!
   }
   input MediatorInput {
+    phone_number: String!
     first_name: String!
     last_name: String!
     email: String
@@ -76,8 +77,8 @@ export const typeDefs = gql`
 
   # Add to Query type
   type Query {
-    mediatorList: [Interpreter]
-    mediatorById(id: String!): Interpreter
+    mediatorList(phone_number:String!): [Interpreter]
+    mediatorById(id: String!,phone_number:String!): Interpreter
     mediatorsPaginatedList(
       offset: Int
       limit: Int
@@ -86,6 +87,7 @@ export const typeDefs = gql`
       name: String
       targetLanguage: String
       status: String
+      phone_number:String!
     ): MediatorPaginatedList
   }
 

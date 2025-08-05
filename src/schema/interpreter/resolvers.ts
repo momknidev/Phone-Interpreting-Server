@@ -59,14 +59,13 @@ const resolvers = {
     },
 
 
-    mediatorById: async (_: any, { id }: { id: string }, context: any): Promise<any> => {
+    mediatorById: async (_: any, { id, phone_number }: { id: string, phone_number: string }, context: any): Promise<any> => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
       try {
-        const result = await db.query.interpreter.findMany({
-          where: eq(interpreter.id, id),
-
+        const result = await db.query.interpreter.findFirst({
+          where: and(eq(interpreter.id, id), eq(interpreter.phone_number, phone_number)),
           with: {
             sourceLanguages: {
               with: {
@@ -86,7 +85,13 @@ const resolvers = {
           },
         });
         // console.log('Fetched interpreter with languages:', JSON.stringify(result, null, 1));
-        return result[0];
+        if (result) {
+          return result;
+
+        } else {
+          throw new Error("No Interpreter found");
+        }
+
       } catch (error: any) {
         console.error('Error fetching interpreter by ID:', error.message);
         throw new Error(error.message || 'Internal server error.');
@@ -103,6 +108,7 @@ const resolvers = {
         name = '',
         targetLanguage = '',
         status,
+        phone_number = ''
       }: {
         offset?: number;
         limit?: number;
@@ -111,6 +117,7 @@ const resolvers = {
         name?: string;
         targetLanguage?: string;
         status?: string;
+        phone_number?: string
       },
       context: any
     ) => {
@@ -129,7 +136,8 @@ const resolvers = {
             )
           );
         }
-        filters.push(eq(interpreter.client_id, context.user.id));
+        filters.push(and(eq(interpreter.client_id, context.user.id), eq(interpreter.phone_number, phone_number)));
+
         if (status) {
           filters.push(ilike(interpreter.status, `%${status}%`));
         }
@@ -205,6 +213,7 @@ const resolvers = {
           sunday_time_slots: mediatorData.sunday_time_slots || null,
           availableForEmergencies: mediatorData.availableForEmergencies || false,
           availableOnHolidays: mediatorData.availableOnHolidays || false,
+          phone_number: mediatorData.phone_number,
           priority: mediatorData.priority || 1,
           created_at: new Date(),
           updated_at: new Date(),
@@ -549,6 +558,7 @@ const resolvers = {
             sunday_time_slots: data.sunday_time_slots || null,
             availableForEmergencies: data.availableForEmergencies || false,
             availableOnHolidays: data.availableOnHolidays || false,
+            phone_number: phone_number,
             priority: data.priority || 1,
             created_at: new Date(),
             updated_at: new Date(),
