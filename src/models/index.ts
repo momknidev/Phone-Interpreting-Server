@@ -6,5 +6,5 @@ export * from './mediator_group_table';
 export * from './mediator_group_relation';
 export * from './client_codes_table';
 export * from './mediator_language_relation';
-export * from './call_routing_settings_table';
+export * from './call_routing_table';
 

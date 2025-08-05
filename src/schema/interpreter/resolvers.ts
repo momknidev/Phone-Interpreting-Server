@@ -25,13 +25,13 @@ const streamToBuffer = (stream: ReadStream) =>
 const resolvers = {
   Upload: require('graphql-upload-ts').GraphQLUpload,
   Query: {
-    mediatorList: async (_: any, __: any, context: any): Promise<any> => {
+    mediatorList: async (_: any, { phone_number }: any, context: any): Promise<any> => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
       try {
         const result = await db.query.interpreter.findMany({
-          where: eq(interpreter.client_id, context.user.id),
+          where: and(eq(interpreter.client_id, context.user.id), eq(interpreter.phone_number, phone_number)),
           with: {
             sourceLanguages: {
               with: {
