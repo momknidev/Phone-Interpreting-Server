@@ -413,7 +413,7 @@ const resolvers = {
         throw new Error('Error: ' + error.message);
       }
     },
-    uploadMediatorFile: async (_: any, { file }: { file: any }, context: any) => {
+    uploadMediatorFile: async (_: any, { file, phone_number }: { file: any, phone_number: string }, context: any) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
@@ -581,6 +581,7 @@ const resolvers = {
                     created_at: new Date(),
                     updated_at: new Date(),
                     status: 'active',
+                    phone_number: phone_number
                   };
                   // Insert the new group if not found
                   group = db.insert(mediatorGroup).values(newAddedGroup).returning();

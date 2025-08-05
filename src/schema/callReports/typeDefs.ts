@@ -39,13 +39,14 @@ const typeDefs = gql`
   }
   type Query {
     allPhoneMediation: [CallReports]
-    PhoneMediationByID(id: ID): CallReports
+    phoneMediationByID(id: ID,phone_number: String): CallReports
     phoneMediationPaginatedList(
       offset: Int
       limit: Int
       order: String
       orderBy: String
       search: String
+      phone_number: String!
     ): PhoneMediationPaginatedList
   }
 

@@ -9,7 +9,7 @@ import { logger } from '../../config/logger';
 // Add to existing resolvers
 const resolvers = {
   Query: {
-    groupByID: async (_: any, { id }: { id: string }): Promise<any> => {
+    groupByID: async (_: any, { id, phone_number }: { id: string, phone_number: string }): Promise<any> => {
       try {
         // Step 1: Fetch group info
         const groups = await db
@@ -22,7 +22,7 @@ const resolvers = {
             updated_at: mediatorGroup.updated_at,
           })
           .from(mediatorGroup)
-          .where(eq(mediatorGroup.id, id));
+          .where(and(eq(mediatorGroup.id, id), eq(mediatorGroup.phone_number, phone_number)));
 
         const group = groups[0];
 
@@ -70,12 +70,14 @@ const resolvers = {
         order = 'DESC',
         orderBy = 'created_at',
         name = '',
+        phone_number = ''
       }: {
         offset?: number;
         limit?: number;
         order?: string;
         orderBy?: string;
         name?: string;
+        phone_number?: string
       },
       context: any
     ) => {
@@ -104,7 +106,7 @@ const resolvers = {
         if (name) {
           filters.push(ilike(mediatorGroup.group_name, '%' + name + '%'));
         }
-
+        filters.push(eq(mediatorGroup.phone_number, phone_number))
         if (filters.length > 0) {
           query.where(and(...filters));
         }
@@ -143,7 +145,7 @@ const resolvers = {
         throw new Error(error.message || 'Internal server error.');
       }
     },
-    allGroups: async (_: any, __: any, context: any) => {
+    allGroups: async (_: any, { phone_number }: { phone_number: string }, context: any) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
@@ -152,7 +154,10 @@ const resolvers = {
         const groups = await db
           .select()
           .from(mediatorGroup)
-          .where(and(eq(mediatorGroup.client_id, context.user.id), eq(mediatorGroup.status, 'active')))
+          .where(and(
+            eq(mediatorGroup.client_id, context.user.id),
+            eq(mediatorGroup.status, 'active'),
+            eq(mediatorGroup.phone_number, phone_number)))
           .orderBy(desc(mediatorGroup.created_at));
 
         return groups.map(group => ({
@@ -181,6 +186,7 @@ const resolvers = {
           client_id: context.user.id,
           created_at: new Date(),
           updated_at: new Date(),
+          phone_number: groupInput.phone_number
         };
         console.log('Creating group with data:', groupData);
         const result = await db.insert(mediatorGroup).values(groupData).returning();

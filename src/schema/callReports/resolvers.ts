@@ -23,7 +23,7 @@ const resolvers = {
     },
     phoneMediationPaginatedList: async (
       _: any,
-      { offset = 0, limit = 10, order = 'DESC', orderBy = 'created_at', search = '' }: any,
+      { offset = 0, limit = 10, order = 'DESC', orderBy = 'created_at', search = '', phone_number = '' }: any,
       context: any
     ) => {
       if (!context?.user) throw new AuthenticationError('Unauthenticated');
@@ -60,6 +60,7 @@ const resolvers = {
         // Filters
         const filters = [];
         if (search) filters.push(ilike(CallReports.status, `%${search}%`));
+        filters.push(eq(CallReports.caller_phone, phone_number))
         if (filters.length > 0) query.where(and(...filters));
 
         // Sorting
@@ -116,7 +117,7 @@ const resolvers = {
       }
     },
 
-    PhoneMediationByID: async (_: any, { id }: { id: string }, context: any) => {
+    phoneMediationByID: async (_: any, { id }: { id: string }, context: any) => {
       if (!context?.user) throw new AuthenticationError('Unauthenticated');
       try {
         const rows = await db.select().from(CallReports).where(eq(CallReports.id, id));

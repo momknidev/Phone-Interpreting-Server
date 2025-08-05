@@ -14,12 +14,14 @@ const resolvers = {
         order = 'DESC',
         orderBy = 'created_at',
         search = '',
+        phone_number = ''
       }: {
         offset?: number;
         limit?: number;
         order?: string;
         orderBy?: string;
         search?: string;
+        phone_number?: string
       },
       context: any
     ) => {
@@ -31,7 +33,7 @@ const resolvers = {
         if (search) {
           filters.push(ilike(Languages.language_name, '%' + search + '%'));
         }
-
+        filters.push(eq(Languages.phone_number, phone_number))
         if (filters.length > 0) {
           query.where(and(...filters));
         }
@@ -105,7 +107,7 @@ const resolvers = {
   Mutation: {
     createLanguage: async (
       _: any,
-      { input }: { input: { language_code: number; language_name: string } },
+      { input }: { input: { language_code: number; language_name: string, phone_number: string } },
       context: any
     ) => {
       if (!context?.user) {
@@ -120,6 +122,7 @@ const resolvers = {
           client_id: context.user.id,
           created_at: new Date(),
           updated_at: new Date(),
+          phone_number: input.phone_number
         };
 
         console.log('Creating Languages with data:', languageData);

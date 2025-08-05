@@ -13,6 +13,7 @@ export const typeDefs = gql`
   input LanguageInput {
     language_code: Int!
     language_name: String!
+    phone_number: String!
   }
   type LanguagesResponse {
     filteredCount: Int!
@@ -25,6 +26,7 @@ export const typeDefs = gql`
       order: String
       orderBy: String
       search: String
+      phone_number: String!
     ): LanguagesResponse!
     allLanguages: [Language!]!
     language(id: ID!): Language

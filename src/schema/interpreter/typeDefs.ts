@@ -95,7 +95,7 @@ export const typeDefs = gql`
     updateMediator(id: String!,mediatorData: MediatorInput): Interpreter
     deleteMediator(id: String!): Boolean
     updateMediatorStatus(id: String!, status: String!): Interpreter
-    uploadMediatorFile(file: Upload!): String
+    uploadMediatorFile(file: Upload!, phone_number:String!): String
   }
 `;
 

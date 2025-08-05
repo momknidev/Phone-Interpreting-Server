@@ -21,6 +21,7 @@ export const typeDefs = gql`
   input groupInput {
     group_name: String
     status: String
+    phone_number: String!
   }
 
   type GroupPaginatedList {
@@ -29,7 +30,8 @@ export const typeDefs = gql`
   }
   # ==============> QUERIES <================
   type Query {
-    groupByID(id: String): Group
+    groupByID(id: String,phone_number: String!
+): Group
     allGroups:[Group]
     groupsPaginatedList(
       offset: Int
@@ -37,6 +39,7 @@ export const typeDefs = gql`
       order: String
       orderBy: String
       name: String
+      phone_number: String!
     ): GroupPaginatedList
   }
 

@@ -14,12 +14,14 @@ const resolvers = {
         order = 'DESC',
         orderBy = 'created_at',
         search = '',
+        phone_number = ''
       }: {
         offset?: number;
         limit?: number;
         order?: string;
         orderBy?: string;
         search?: string;
+        phone_number?: string
       },
       context: any
     ) => {
@@ -32,7 +34,7 @@ const resolvers = {
 
         const filters = [];
         filters.push(eq(ClientCode.client_id, context?.user?.id)); // Ensure only the current user's codes are fetched
-
+        filters.push(eq(ClientCode.phone_number, phone_number))
         if (search) {
           filters.push(ilike(ClientCode.code_label, `%${search}%`)); // Search by code_label
         }
@@ -88,7 +90,7 @@ const resolvers = {
       }
     },
 
-    clientCode: async (_: any, { id }: { id: string }, context: any) => {
+    clientCode: async (_: any, { id, phone_number }: { id: string, phone_number: string }, context: any) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
@@ -97,10 +99,10 @@ const resolvers = {
         const userCode = await db
           .select()
           .from(ClientCode)
-          .where(and(eq(ClientCode.id, id), eq(ClientCode.client_id, context.user.id)));
+          .where(and(eq(ClientCode.id, id), eq(ClientCode.client_id, context.user.id), eq(ClientCode.phone_number, phone_number)));
 
         if (!userCode.length) {
-          throw new UserInputError('ClientCode not found!');
+          throw new UserInputError('Client Code not found!');
         }
 
         return userCode[0];
@@ -114,7 +116,7 @@ const resolvers = {
   Mutation: {
     createClientCode: async (
       _: any,
-      { input }: { input: { client_code: number; code_label: string, status: string } },
+      { input }: { input: { client_code: number; code_label: string, status: string, phone_number: string } },
       context: any
     ) => {
       if (!context?.user) {
@@ -127,6 +129,7 @@ const resolvers = {
           client_code: Number(input.client_code),
           code_label: input.code_label,
           client_id: context.user.id,
+          phone_number: input.phone_number,
           status: input.status || 'active', // Default status to 'active'
           created_at: new Date(),
           updated_at: new Date(),
@@ -147,7 +150,7 @@ const resolvers = {
 
     updateClientCode: async (
       _: any,
-      { id, input }: { id: string; input: { status: string, client_code: number; code_label: string } },
+      { id, input }: { id: string; input: { status: string, client_code: number; code_label: string, phone_number: string } },
       context: any
     ) => {
       if (!context?.user) {
@@ -164,6 +167,7 @@ const resolvers = {
         const updatedData = {
           client_code: input.client_code ? Number(input.client_code) : userCode[0].client_code,
           code_label: input.code_label ? input.code_label : userCode[0].code_label,
+          phone_number: input.phone_number ? input.phone_number : userCode[0].phone_number,
           status: input.status || userCode[0].status, // Keep existing status if not provided
           updated_at: new Date(),
         };
