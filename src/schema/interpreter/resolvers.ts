@@ -3,7 +3,7 @@ import { and, asc, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import { AuthenticationError, UserInputError } from 'apollo-server';
 import { db } from '../../config/postgres';
 import uuidv4 from '../../utils/uuidv4';
-import { Languages, interpreter, mediatorGroup, mediatorGroupRelation, interpreterSourceLanguages, interpreterTargetLanguages } from '../../models'; // Ensure this exists in your models folder
+import { Languages, interpreter, mediatorGroup, mediatorGroupRelation, interpreterSourceLanguages, interpreterTargetLanguages, LanguagesTarget } from '../../models'; // Ensure this exists in your models folder
 import { alias } from 'drizzle-orm/pg-core';
 import { ReadStream } from 'node:fs';
 import * as xlsx from 'xlsx'; // For Excel file parsing
@@ -224,25 +224,21 @@ const resolvers = {
         // Find groups by name
         console.log('Interpreter created:', mediatorObj);
         console.log('Interpreter data to associate with groups:', mediatorData.groupIDs);
-        try {
-          // If we need to associate the interpreter with groups
-          if (mediatorData.groupIDs && mediatorData.groupIDs.length > 0) {
-            const groupIds = mediatorData.groupIDs;
-            console.log("Associating interpreter with groups:", groupIds);
 
-            let data = await db.insert(mediatorGroupRelation).values(
-              groupIds.map((groupId: string) => ({
-                mediator_id: mediatorObj.id,
-                mediator_group_id: groupId,
-                id: uuidv4(),
-                created_at: new Date(),
-                updated_at: new Date(),
-              }))
-            ).returning();
-            console.log('Interpreter associated with groups:', data);
-          }
-        } catch (groupError) {
-          console.error('Error associating interpreter with groups:', groupError);
+        if (mediatorData.groupIDs && mediatorData.groupIDs.length > 0) {
+          const groupIds = mediatorData.groupIDs;
+          console.log("Associating interpreter with groups:", groupIds);
+
+          let data = await db.insert(mediatorGroupRelation).values(
+            groupIds.map((groupId: string) => ({
+              mediator_id: mediatorObj.id,
+              mediator_group_id: groupId,
+              id: uuidv4(),
+              created_at: new Date(),
+              updated_at: new Date(),
+            }))
+          ).returning();
+          console.log('Interpreter associated with groups:', data);
         }
         const sourceLanguageData = mediatorData?.sourceLanguages || [];
         const targetLanguageData = mediatorData?.targetLanguages || [];
@@ -258,9 +254,11 @@ const resolvers = {
           interpreter_id: mediatorObj.id,
         }));
         if (languagePairsSource.length > 0) {
+          // console.log({ languagePairsSource })
           await db.insert(interpreterSourceLanguages).values(languagePairsSource)
         }
         if (languagePairsTarget.length > 0) {
+          // console.log({ languagePairsTarget })
           await db.insert(interpreterTargetLanguages).values(languagePairsTarget)
         }
 
@@ -427,13 +425,18 @@ const resolvers = {
         throw new AuthenticationError('Unauthenticated');
       }
       const languages = await db.select().from(Languages).where(
-        eq(Languages.client_id, context.user.id)
+        and(eq(Languages.client_id, context.user.id), eq(Languages.phone_number, phone_number))
+      );
+      const targetLanguageList = await db.select().from(LanguagesTarget).where(
+        and(eq(LanguagesTarget.client_id, context.user.id), eq(LanguagesTarget.phone_number, phone_number))
       );
       const groups = await db.select().from(mediatorGroup).where(
         eq(mediatorGroup.client_id, context.user.id)
       );
       if (!languages.length) {
         throw new UserInputError('No languages found for the user.');
+      } if (!targetLanguageList.length) {
+        throw new UserInputError('No target lang found for the user.');
       }
       // Function to convert time string (HH:MM) to Date object for easy comparison
       const convertToDate = (timeString: string) => {
@@ -652,7 +655,7 @@ const resolvers = {
                   id: uuidv4(),
                   interpreter_id: interpreter.id,
                   target_language_id: (() => {
-                    const foundLang = languages.find((lang: any) => String(lang.language_name).toLocaleLowerCase() === String(targetLang).toLocaleLowerCase());
+                    const foundLang = targetLanguageList.find((lang: any) => String(lang.language_name).toLocaleLowerCase() === String(targetLang).toLocaleLowerCase());
                     if (!foundLang) {
                       throw new Error(`Target language "${targetLang}" not found in row ${idx + 1}.`);
                     }
@@ -751,7 +754,6 @@ const resolvers = {
             console.error('CSV Parsing Error:', error);
             throw new UserInputError('Error parsing the CSV file.');
           });
-          // parser.on('end', async () => {
           if (mediatorData.length === 0) {
             throw new UserInputError('No valid interpreter data found in the CSV file.');
           }
@@ -759,7 +761,6 @@ const resolvers = {
           await saveMediatorsToDatabase(result, context.user.id);
           console.log({ mediatorData })
           return 'Interpreters uploaded successfully.';
-          // });
 
         } else {
           throw new UserInputError('Invalid file type. Only CSV and Excel files are allowed.');

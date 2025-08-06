@@ -4,7 +4,7 @@ import { relations } from 'drizzle-orm';
 import { interpreterSourceLanguages, interpreterTargetLanguages } from './mediator_language_relation';
 import { mediatorGroupRelation } from './mediator_group_relation';
 import { mediatorGroup } from './mediator_group_table';
-import { Languages } from './language_table';
+import { Languages, LanguagesTarget } from './language_table';
 
 export const interpreter = pgTable('interpreters', {
   id: uuid('id').primaryKey().notNull(),
@@ -45,7 +45,7 @@ export const interpreterSourceLanguagesRelations = relations(interpreterSourceLa
 
 export const interpreterTargetLanguagesRelations = relations(interpreterTargetLanguages, ({ one }) => ({
   interpreter: one(interpreter, { fields: [interpreterTargetLanguages.interpreter_id], references: [interpreter.id] }),
-  targetLanguage: one(Languages, { fields: [interpreterTargetLanguages.target_language_id], references: [Languages.id] }),
+  targetLanguage: one(LanguagesTarget, { fields: [interpreterTargetLanguages.target_language_id], references: [LanguagesTarget.id] }),
 }));
 
 export const interpreterGroupsRelations = relations(mediatorGroupRelation, ({ one }) => ({
