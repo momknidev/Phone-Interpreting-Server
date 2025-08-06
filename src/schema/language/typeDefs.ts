@@ -20,7 +20,7 @@ export const typeDefs = gql`
     languages: [Language!]!
   }
   type Query {
-    languages(
+    sourceLanguages(
       offset: Int
       limit: Int
       order: String
@@ -28,14 +28,27 @@ export const typeDefs = gql`
       search: String
       phone_number: String!
     ): LanguagesResponse!
-    allLanguages(phone_number:String!): [Language!]!
-    language(id: ID!): Language
+     targetLanguages(
+      offset: Int
+      limit: Int
+      order: String
+      orderBy: String
+      search: String
+      phone_number: String!
+    ): LanguagesResponse!
+    allSourceLanguages(phone_number:String!): [Language!]!
+    allTargetLanguages(phone_number:String!): [Language!]!
   }
 
   type Mutation {
-    createLanguage(input: LanguageInput!): Language!
-    updateLanguage(id: ID!, input: LanguageInput!): Language!
-    deleteLanguage(id: ID!): Boolean!
+    createSourceLanguage(input: LanguageInput!): Language!
+    updateSourceLanguage(id: ID!, input: LanguageInput!): Language!
+    deleteSourceLanguage(id: ID!): Boolean!
+    createTargetLanguage(input: LanguageInput!): Language!
+    updateTargetLanguage(id: ID!, input: LanguageInput!): Language!
+    deleteTargetLanguage(id: ID!): Boolean!
+    syncTargetLanguagesData(phone_number:String!): String
+    syncSourceLanguagesData(phone_number:String!): String
   }
 `;
 
