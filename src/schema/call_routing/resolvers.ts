@@ -1,83 +1,62 @@
-import { and, eq } from 'drizzle-orm';
-import { callRoutingSettings } from '../../models/call_routing_table';
+import { eq } from 'drizzle-orm';
 import { db } from '../../config/postgres';
-
-// Utility to sanitize and structure input properly
-const getCallRoutingSettingsData = (input: any, now: string) => ({
-  phone_number: input.phone_number,
-  enable_code: input.enable_code ?? false,
-  callingCodePrompt: input.callingCodePrompt,
-  askSourceLanguage: input.askSourceLanguage ?? false,
-  askTargetLanguage: input.askTargetLanguage ?? false,
-  sourceLanguagePromptPrompt: input.sourceLanguagePromptPrompt,
-  targetLanguagePrompt: input.targetLanguagePrompt,
-  mediatorCallAlgorithm: input.mediatorCallAlgorithm ?? 'sequential',
-  enableFallback: input.enableFallback ?? false,
-  fallbackType: input.fallbackType,
-  fallbackNumber: input.fallbackNumber,
-  fallbackPrompt: input.fallbackPrompt,
-  updatedAt: now,
-});
+import { AuthenticationError, UserInputError } from 'apollo-server';
+import uuidv4 from '../../utils/uuidv4';
+import { callRoutingSettings } from '../../models';
 
 const resolvers = {
   Query: {
-    getCallRoutingSettings: async (_: any, { client_id, phone_number }: any) => {
-      const [setting] = await db
-        .select()
-        .from(callRoutingSettings)
-        .where(and(eq(callRoutingSettings.client_id, client_id), eq(callRoutingSettings.phone_number, phone_number)));
+    getCallRoutingSettings: async (_: any, { phone_number }: { phone_number: string }, context: any) => {
+      if (!context?.user) throw new AuthenticationError('Unauthenticated');
 
-      return setting ?? null;
+      const result = await db.select().from(callRoutingSettings).where(eq(callRoutingSettings.phone_number, phone_number));
+      return result[0] || null;
     },
 
     allCallRoutingSettings: async () => {
-      return db.select().from(callRoutingSettings);
+      return await db.select().from(callRoutingSettings);
     },
   },
 
   Mutation: {
-    createOrUpdateCallRoutingSettings: async (_, { client_id, input }: any) => {
-      const [existing] = await db
-        .select()
-        .from(callRoutingSettings)
-        .where(eq(callRoutingSettings.client_id, client_id));
+    createOrUpdateCallRoutingSettings: async (
+      _: any,
+      { input }: { input: any },
+      context: any
+    ) => {
+      if (!context?.user) throw new AuthenticationError('Unauthenticated');
 
-      const now = new Date().toISOString();
+      const existing = await db.select().from(callRoutingSettings).where(eq(callRoutingSettings.phone_number, input.phone_number));
 
       const data = {
-        client_id,
-        createdAt: existing?.createdAt ?? now,
-        ...getCallRoutingSettingsData(input, now),
+        ...input,
+        updatedAt: new Date(),
+        client_id: context.user.id
       };
 
-      if (existing) {
-        await db
-          .update(callRoutingSettings)
-          .set(data)
-          .where(eq(callRoutingSettings.client_id, client_id));
+      if (existing.length) {
+        await db.update(callRoutingSettings).set(data).where(eq(callRoutingSettings.phone_number, input.phone_number));
+        const updated = await db.select().from(callRoutingSettings).where(eq(callRoutingSettings.phone_number, input.phone_number));
+        return updated[0];
       } else {
-        await db.insert(callRoutingSettings).values(data);
+        const record = {
+          id: uuidv4(),
+          ...data,
+          client_id: context.user.id,
+          createdAt: new Date(),
+        };
+        await db.insert(callRoutingSettings).values(record);
+        return record;
       }
-
-      const [updated] = await db
-        .select()
-        .from(callRoutingSettings)
-        .where(eq(callRoutingSettings.client_id, client_id));
-
-      return updated;
     },
+    deleteCallRoutingSettings: async (_: any, { client_id }: { client_id: string }, context: any) => {
+      if (!context?.user) throw new AuthenticationError('Unauthenticated');
 
-    deleteCallRoutingSettings: async (_: any, { client_id }: any) => {
-      const result = await db
-        .delete(callRoutingSettings)
-        .where(eq(callRoutingSettings.client_id, client_id));
+      const existing = await db.select().from(callRoutingSettings).where(eq(callRoutingSettings.client_id, client_id));
+      if (!existing.length) throw new UserInputError('Settings not found');
 
-      if (result.rowCount && result.rowCount > 0) {
-        return result.rowCount > 0;
-
-      } else {
-        throw new Error("Error in deleting setting")
-      }
+      await db.delete(callRoutingSettings).where(eq(callRoutingSettings.client_id, client_id));
+      return true;
     },
   },
 };

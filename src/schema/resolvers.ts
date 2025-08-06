@@ -5,6 +5,7 @@ import interpreter from "./interpreter/resolvers";
 import language from "./language/resolvers";
 import ClientCode from "./clientCode/resolvers";
 import CallReports from "./callReports/resolvers";
+import CallRouting from './call_routing/resolvers'
 
 
 const resolvers = merge(
@@ -13,6 +14,7 @@ const resolvers = merge(
   interpreter,
   language,
   ClientCode,
-  CallReports
+  CallReports,
+  CallRouting
 );
 export default resolvers;

@@ -12,20 +12,25 @@ export const typeDefs = gql`
   }
 
   type CallRoutingSettings {
+    id: ID!
     client_id: ID!
     phone_number: String!
+    
     enable_code: Boolean
     callingCodePrompt: String
+    callingCodePromptURL: String
 
     askSourceLanguage: Boolean
     askTargetLanguage: Boolean
-    sourceLanguagePromptPrompt: String
+    sourceLanguagePrompt: String
+    sourceLanguagePromptURL: String
     targetLanguagePrompt: String
+    targetLanguagePromptURL: String
 
-    mediatorCallAlgorithm: CallAlgorithm
+    interpreterCallType: CallAlgorithm
+    retryAttempts: Int
 
     enableFallback: Boolean
-    fallbackType: FallbackType
     fallbackNumber: String
     fallbackPrompt: String
 
@@ -35,30 +40,34 @@ export const typeDefs = gql`
 
   input CallRoutingSettingsInput {
     phone_number: String!
+    
     enable_code: Boolean
     callingCodePrompt: String
+    callingCodePromptFile: Upload
 
     askSourceLanguage: Boolean
     askTargetLanguage: Boolean
-    sourceLanguagePromptPrompt: String
+    sourceLanguagePrompt: String
+    sourceLanguagePromptFile: Upload
     targetLanguagePrompt: String
+    targetLanguagePromptFile: Upload
 
-    mediatorCallAlgorithm: CallAlgorithm
+    interpreterCallType: CallAlgorithm
+    retryAttempts: Int
 
     enableFallback: Boolean
-    fallbackType: FallbackType
     fallbackNumber: String
     fallbackPrompt: String
   }
 
   type Query {
-    getCallRoutingSettings(client_id: ID!): CallRoutingSettings
+    getCallRoutingSettings(phone_number: String!): CallRoutingSettings
     allCallRoutingSettings: [CallRoutingSettings!]!
   }
 
   type Mutation {
-    createOrUpdateCallRoutingSettings(client_id: ID!, input: CallRoutingSettingsInput!): CallRoutingSettings!
-    deleteCallRoutingSettings(client_id: ID!): Boolean!
+    createOrUpdateCallRoutingSettings( input: CallRoutingSettingsInput!): CallRoutingSettings!
+    deleteCallRoutingSettings(client_id: ID!,phone_number: String!): Boolean!
   }
 `;
 

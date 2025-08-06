@@ -4,6 +4,7 @@ import interpreter from './interpreter/typeDefs'
 import language from './language/typeDefs'
 import ClientCode from './clientCode/typeDefs'
 import CallReports from './callReports/typeDefs'
+import CallRouting from './call_routing/typeDefs'
 
 
 const typeDefs = [
@@ -12,6 +13,7 @@ const typeDefs = [
   interpreter,
   language,
   ClientCode,
-  CallReports
+  CallReports,
+  CallRouting
 ];
 export default typeDefs;
