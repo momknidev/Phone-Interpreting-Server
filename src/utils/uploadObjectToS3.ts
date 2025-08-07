@@ -1,4 +1,7 @@
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, PutObjectCommandInput } from '@aws-sdk/client-s3';
+import { ReadStream } from 'fs';
+
+// Initialize S3 client
 const s3Client = new S3Client({
   region: 'us-east-1',
   credentials: {
@@ -7,27 +10,31 @@ const s3Client = new S3Client({
   },
 });
 
-export async function uploadObjectToS3(params: {
-  Bucket: string;
-  Key: string;
-  Body: any;
-  ContentType?: string;
-  [key: string]: any;
-}) {
+// Upload function
+export async function uploadObjectToS3(params: PutObjectCommandInput): Promise<string> {
   try {
     const command = new PutObjectCommand(params);
-    const response = await s3Client.send(command);
-    return response;
+    await s3Client.send(command);
+
+    // Return the S3 public URL (assumes public-read or signed URL policy)
+    const url = `https://${params.Bucket}.s3.${s3Client.config.region}.amazonaws.com/${params.Key}`;
+    return url;
   } catch (err) {
-    throw err;
+    console.error('S3 Upload Error:', err);
+    throw new Error('Failed to upload file to S3');
   }
 }
 
-// Usage of function
-// const stream = createReadStream();
+
+// const bucketName = 'lingoyouniverselinguistcv';
+
 // const params = {
-//   Bucket: "lingoyouniverselinguistcv",
-//   Key: filename,
+//   Bucket: bucketName,
+//   Key: `${Date.now()}-${filename}`, // Add timestamp to avoid collisions
 //   Body: stream,
+//   ContentType: mimetype,
+//   ACL: 'public-read', // Optional: only if you want public access
 // };
-// const s3Data = await uploadObjectToS3(params);
+
+// const url = await uploadObjectToS3(params);
+// return url;

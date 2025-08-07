@@ -6,26 +6,27 @@ export const typeDefs = gql`
     sequential
   }
 
-  enum FallbackType {
-    recall
-    fixed_number
-  }
 
   type CallRoutingSettings {
     id: ID!
     client_id: ID!
     phone_number: String!
-    
+
     enable_code: Boolean
     callingCodePrompt: String
     callingCodePromptURL: String
+    callingCodeError: String
 
     askSourceLanguage: Boolean
     askTargetLanguage: Boolean
+
     sourceLanguagePrompt: String
     sourceLanguagePromptURL: String
+    sourceLanguageError: String
+
     targetLanguagePrompt: String
     targetLanguagePromptURL: String
+    targetLanguageError: String
 
     interpreterCallType: CallAlgorithm
     retryAttempts: Int
@@ -57,7 +58,7 @@ export const typeDefs = gql`
 
     enableFallback: Boolean
     fallbackNumber: String
-    fallbackPrompt: String
+    fallbackPromptTTS: String
   }
 
   type Query {
@@ -66,8 +67,8 @@ export const typeDefs = gql`
   }
 
   type Mutation {
-    createOrUpdateCallRoutingSettings( input: CallRoutingSettingsInput!): CallRoutingSettings!
-    deleteCallRoutingSettings(client_id: ID!,phone_number: String!): Boolean!
+    createOrUpdateCallRoutingSettings(input: CallRoutingSettingsInput!): CallRoutingSettings!
+    deleteCallRoutingSettings(client_id: ID!, phone_number: String!): Boolean!
   }
 `;
 

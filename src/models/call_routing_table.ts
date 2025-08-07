@@ -20,14 +20,15 @@ export const callRoutingSettings = pgTable('call_routing_settings', {
   enable_code: boolean('enable_code').default(true),
   callingCodePrompt: text('calling_code_prompt').default('Inserisci il codice identificativo fornito'),
   callingCodePromptURL: text('calling_code_prompt_url'),
-
+  callingCodeError: text('calling_code_error'),
   askSourceLanguage: boolean('ask_source_language').default(true),
   askTargetLanguage: boolean('ask_target_language').default(true),
   sourceLanguagePrompt: text('source_language_prompt').default('Seleziona la lingua di partenza'),
-  sourceLanguagePromptURL: text('source_language_prompt_url').default('Seleziona la lingua di destinazione'),
+  sourceLanguagePromptURL: text('source_language_prompt_url'),
+  sourceLanguageError: text('source_language_error'),
   targetLanguagePrompt: text('target_language_prompt'),
   targetLanguagePromptURL: text('target_language_prompt_url'),
-
+  targetLanguageError: text('target_language_error'),
   interpreterCallType: callAlgorithmEnum('interpreter_call_type').default('sequential'),
   retryAttempts: integer('retry_attempts').default(0),
 
