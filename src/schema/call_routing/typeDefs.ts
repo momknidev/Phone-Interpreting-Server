@@ -15,7 +15,6 @@ export const typeDefs = gql`
     enable_code: Boolean
     callingCodePrompt: String
     callingCodePromptURL: String
-    callingCodeError: String
 
     askSourceLanguage: Boolean
     askTargetLanguage: Boolean
@@ -23,10 +22,12 @@ export const typeDefs = gql`
     sourceLanguagePrompt: String
     sourceLanguagePromptURL: String
     sourceLanguageError: String
-
+    callingCodeError: String
+    targetLanguageError: String
+    fallbackType: String
+    fallbackMessage: String
     targetLanguagePrompt: String
     targetLanguagePromptURL: String
-    targetLanguageError: String
 
     interpreterCallType: CallAlgorithm
     retryAttempts: Int
@@ -41,11 +42,14 @@ export const typeDefs = gql`
 
   input CallRoutingSettingsInput {
     phone_number: String!
-    
+    fallbackType: String
+    fallbackMessage: String
     enable_code: Boolean
     callingCodePrompt: String
     callingCodePromptFile: Upload
-
+    sourceLanguageError: String
+    callingCodeError: String
+    targetLanguageError: String
     askSourceLanguage: Boolean
     askTargetLanguage: Boolean
     sourceLanguagePrompt: String

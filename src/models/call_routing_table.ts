@@ -33,7 +33,9 @@ export const callRoutingSettings = pgTable('call_routing_settings', {
   retryAttempts: integer('retry_attempts').default(0),
 
   enableFallback: boolean('enable_fallback').default(false),
+  fallbackType: varchar('fallback_type', { length: 20 }),
 
+  fallbackMessage: varchar('fallback_message', { length: 20 }),
   fallbackNumber: varchar('fallback_number', { length: 20 }),
   fallbackPrompt: text('fallback_prompt_tts'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
