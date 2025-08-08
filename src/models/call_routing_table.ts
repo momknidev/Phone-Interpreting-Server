@@ -11,12 +11,11 @@ import {
 } from 'drizzle-orm/pg-core';
 
 export const callAlgorithmEnum = pgEnum('call_algorithm', ['simultaneous', 'sequential']);
-export const fallbackTypeEnum = pgEnum('fallback_type', ['recall', 'fixed_number']);
 
 export const callRoutingSettings = pgTable('call_routing_settings', {
   id: uuid('id').notNull().primaryKey(),
   client_id: uuid('client_id').notNull(),
-  phone_number: varchar('phone_number', { length: 20 }).notNull(),
+  phone_number: varchar('phone_number',).notNull(),
   enable_code: boolean('enable_code').default(true),
   callingCodePrompt: text('calling_code_prompt').default('Inserisci il codice identificativo fornito'),
   callingCodePromptURL: text('calling_code_prompt_url'),
@@ -29,14 +28,14 @@ export const callRoutingSettings = pgTable('call_routing_settings', {
   targetLanguagePrompt: text('target_language_prompt'),
   targetLanguagePromptURL: text('target_language_prompt_url'),
   targetLanguageError: text('target_language_error'),
-  interpreterCallType: callAlgorithmEnum('interpreter_call_type').default('sequential'),
+  interpreterCallType: callAlgorithmEnum('interpreter_call_type').default('simultaneous'),
   retryAttempts: integer('retry_attempts').default(0),
 
   enableFallback: boolean('enable_fallback').default(false),
-  fallbackType: varchar('fallback_type', { length: 20 }),
+  fallbackType: varchar('fallback_type',),
 
-  fallbackMessage: varchar('fallback_message', { length: 20 }),
-  fallbackNumber: varchar('fallback_number', { length: 20 }),
+  fallbackMessage: varchar('fallback_message',),
+  fallbackNumber: varchar('fallback_number',),
   fallbackPrompt: text('fallback_prompt_tts'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),

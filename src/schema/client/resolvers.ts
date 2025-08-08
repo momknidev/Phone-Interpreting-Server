@@ -4,7 +4,7 @@ import { AuthenticationError, UserInputError } from 'apollo-server';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import axios from 'axios'
-import { Client, clientPhones } from '../../models';
+import { callRoutingSettings, Client, clientPhones } from '../../models';
 import { db } from '../../config/postgres';
 import { Client as ClientUser } from '../../../types/user'
 import { uploadObjectToS3 } from '../../utils/uploadObjectToS3';
@@ -292,8 +292,36 @@ const resolvers = {
             label: phone.label,
 
           }));
-          let phones = await db.insert(clientPhones).values(phoneData).returning();
+          const phones = await db.insert(clientPhones).values(phoneData).returning();
           console.log("phones", phones);
+          let settings = phones.map(item => {
+            return ({
+              id: uuidv4(),
+              phone_number: item.phone,
+              client_id: userData.id,
+              enable_code: true,
+              callingCodePrompt: "Inserisci il codice identificativo fornito",
+              callingCodePromptURL: null,
+              askSourceLanguage: true,
+              askTargetLanguage: true,
+              sourceLanguagePrompt: "Seleziona la lingua di partenza",
+              sourceLanguagePromptURL: null,
+              sourceLanguageError: "Source Language not found",
+              callingCodeError: "Calling code Error",
+              targetLanguageError: "Target Language not found",
+              fallbackType: "message",
+              fallbackMessage: "Call back message is being played",
+              targetLanguagePrompt: null,
+              targetLanguagePromptURL: null,
+              retryAttempts: 0,
+              enableFallback: true,
+              fallbackNumber: '',
+              createdAt: new Date(),
+              updatedAt: new Date()
+            })
+          })
+          await db.insert(callRoutingSettings).values(settings);
+
         }
         if (result) {
           console.log(JSON.stringify(result));
@@ -307,18 +335,22 @@ const resolvers = {
       }
     },
 
-    editClient: async (_: any, { id, clientDetails, file }: { id: string, clientDetails: ClientDetails, file?: any }, context: any) => {
+    editClient: async (
+      _: any,
+      { id, clientDetails, file }: { id: string; clientDetails: ClientDetails; file?: any },
+      context: any
+    ) => {
       if (!context?.user) {
-        throw new AuthenticationError('Unauthenticated');
+        throw new AuthenticationError("Unauthenticated");
       }
       try {
-        let s3URL = '';
+        let s3URL = "";
 
         if (file) {
           const { createReadStream, filename } = await file;
           const stream = createReadStream();
           const params = {
-            Bucket: 'lingoyouniverselinguistimage',
+            Bucket: "lingoyouniverselinguistimage",
             Key: filename,
             Body: stream,
           };
@@ -333,13 +365,12 @@ const resolvers = {
           password = await bcrypt.hash(password, 10);
         }
 
-
         // Fetch the existing user details
         const users = await db.select().from(Client).where(eq(Client.id, id));
         const existingUser = users[0];
 
         if (!existingUser) {
-          throw new UserInputError('ClientUser not found');
+          throw new UserInputError("ClientUser not found");
         }
 
         // Prepare the updated user data
@@ -353,41 +384,82 @@ const resolvers = {
           type: clientDetails.type || existingUser.type,
           avatar_url: s3URL || existingUser.avatar_url,
         };
+
         // Update user details in the database
         await db.update(Client).set(updatedData).where(eq(Client.id, id));
 
         // Fetch the updated user details
         const updatedUsers = await db.select().from(Client).where(eq(Client.id, id));
         const updatedUser = updatedUsers[0];
+
         const phoneNumbers = clientDetails.phoneList || [];
-        console.log("phoneNumbers", phoneNumbers);
         if (phoneNumbers.length > 0) {
-          // Delete existing phone numbers for the user
-          console.log("phoneNumbers", phoneNumbers);
+          // Get existing phone numbers from DB
+          const existingPhones = await db
+            .select({ phone: clientPhones.phone })
+            .from(clientPhones)
+            .where(eq(clientPhones.client_id, id));
+
+          const existingPhoneSet = new Set(existingPhones.map((p) => p.phone));
+
+          // Separate new phone numbers
+          const newPhones = phoneNumbers.filter((p) => !existingPhoneSet.has(p.phone));
+
+          // Delete all phone numbers (old behavior)
           await db.delete(clientPhones).where(eq(clientPhones.client_id, id));
-          // Insert new phone numbers
+
+          // Insert all phone numbers
           const phoneData = phoneNumbers.map((phone: { phone: string; label: string }) => ({
             client_id: id,
             id: uuidv4(),
             phone: phone.phone,
             label: phone.label,
           }));
-          let res = await db.insert(clientPhones).values(phoneData).returning();
-          console.log("res", res);
-        }
-        if (updatedUser) {
-          console.log('ClientUser updated successfully:', updatedUser);
-          const token = generateToken(updatedUser);
+          await db.insert(clientPhones).values(phoneData);
 
+          // Insert default settings only for newly added numbers
+          if (newPhones.length > 0) {
+            const settings = newPhones.map((item) => ({
+              id: uuidv4(),
+              phone_number: item.phone,
+              client_id: id,
+              enable_code: true,
+              callingCodePrompt: "Inserisci il codice identificativo fornito",
+              callingCodePromptURL: null,
+              askSourceLanguage: true,
+              askTargetLanguage: true,
+              sourceLanguagePrompt: "Seleziona la lingua di partenza",
+              sourceLanguagePromptURL: null,
+              sourceLanguageError: "Source Language not found",
+              callingCodeError: "Calling code Error",
+              targetLanguageError: "Target Language not found",
+              fallbackType: "message",
+              fallbackMessage: "Call back message is being played",
+              targetLanguagePrompt: "Seleziona la lingua di partenza",
+              targetLanguagePromptURL: null,
+              retryAttempts: 0,
+              enableFallback: true,
+              fallbackNumber: "",
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            }));
+
+            await db.insert(callRoutingSettings).values(settings);
+          }
+        }
+
+        if (updatedUser) {
+          const token = generateToken(updatedUser);
           return { ...updatedUser, token };
         } else {
-          throw new Error('ClientUser update failed. No updated user returned.');
+          throw new Error("ClientUser update failed. No updated user returned.");
         }
       } catch (error: any) {
-        console.error('Error updating user:', error.message);
-        throw new Error('Error: ' + error.message);
+        console.error("Error updating user:", error.message);
+        throw new Error("Error: " + error.message);
       }
     },
+
     updateClientPassword: async (_: any, { id, newPassword, oldPassword }: { id: string, newPassword: string, oldPassword?: string }, context: any) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
