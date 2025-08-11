@@ -10,6 +10,8 @@ import { Client as ClientUser } from '../../../types/user'
 import { uploadObjectToS3 } from '../../utils/uploadObjectToS3';
 import uuidv4 from '../../utils/uuidv4';
 import { FileUpload } from 'graphql-upload-ts';
+import mailer from '@sendgrid/mail';
+import { emailFooter, emailHeader, newPhoneRequest } from '../../mail_templates';
 
 
 interface ClientDetails {
@@ -519,9 +521,9 @@ const resolvers = {
       }
     },
     changeStatus: async (_: any, { id, status }: { id: string, status: string }, context: any) => {
-      // if (!context?.user) {
-      //   throw new AuthenticationError('Unauthenticated');
-      // }
+      if (!context?.user) {
+        throw new AuthenticationError('Unauthenticated');
+      }
 
       try {
         // Fetch the existing user details
@@ -563,6 +565,44 @@ const resolvers = {
         throw new Error('Error: ' + error.message);
       }
     },
+    requestNewPhone: async (_: any, { description, title }: { description: string, title: string }, context: any) => {
+      if (!context?.user) {
+        throw new AuthenticationError('Unauthenticated');
+      }
+      try {
+
+
+
+        const user = await db.query.Client.findFirst({
+          where: and(eq(Client.id, context.user?.id), eq(Client.status, 'active'), eq(Client.role, 'client')),
+          with: {
+            client_phones: true,
+          },
+        });
+
+        if (description && title) {
+          const msgObject = {
+            // to: 'pm@lingoyou.com',
+            to: 'abdul.waqar@lingoyou.com',
+            from: 'portal@lingoyou.com',
+            subject: `Client ${user?.first_name} requested for a new Phone Number. `,
+            html: `${emailHeader}${newPhoneRequest({
+              name: user?.first_name || '',
+              title: title,
+              description: description,
+
+            })}${emailFooter}`,
+          };
+
+          let res = await mailer.send(msgObject);
+          return true
+        }
+
+      } catch (err) {
+        throw new Error(`error in sending email : ${err}`)
+
+      }
+    }
 
 
   },

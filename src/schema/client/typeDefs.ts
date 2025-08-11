@@ -66,6 +66,7 @@ export const typeDefs = gql`
       oldPassword: String
     ): Client
     changeStatus(id:ID!, status: String):Client
+    requestNewPhone(title:String, description:String):Boolean
   }
 `;
 

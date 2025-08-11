@@ -11,6 +11,7 @@ export const vars = Object.freeze({
   domain: parseString(process.env.DOMAIN, 'http://localhost:8000'),
   isLocal: parseBoolean(process.env.IS_LOCAL, true),
   secret_key: process.env.SECRET_KEY,
+  node_mailer_key: parseString(process.env.MAILER_API_KEY, ''),
   postgres: {
     host: parseString(process.env.POSTGRES_HOST, 'localhost'),
     port: parseNumber(process.env.POSTGRES_PORT, 5432),

@@ -16,8 +16,13 @@ import resolvers from '../schema/resolvers';
 import typeDefs from '../schema/typeDefs';
 import { apiRoutes } from '../rest';
 import { vars } from './vars';
-const { secret_key } = vars;
+import dotenv from 'dotenv';
+import mailer from '@sendgrid/mail';
 
+const { secret_key, node_mailer_key } = vars;
+dotenv.config();
+
+mailer.setApiKey(node_mailer_key);
 const app = express();
 
 app.use(urlencoded({ extended: false }));
