@@ -17,13 +17,13 @@ import { createRequest } from '../../../services/request/createRequest';
 const removeAndCallNewTargets = async ({
     originCallId,
     targetCallId,
-    langaugeCode,
+    languageCode,
     priority,
     fallbackCalled,
 }: {
     originCallId: string,
     targetCallId: string,
-    langaugeCode: number,
+    languageCode: number,
     priority: number,
     fallbackCalled: boolean,
 }) => {
@@ -64,7 +64,7 @@ const removeAndCallNewTargets = async ({
 
     do {
         // eslint-disable-next-line no-await-in-loop
-        interpreters = await getInterpreters({ priority: currentPriority, language_code: langaugeCode });
+        interpreters = await getInterpreters({ priority: currentPriority, language_code: languageCode });
         currentPriority++;
     } while (interpreters.length === 0 && currentPriority <= 5);
 
@@ -76,13 +76,13 @@ const removeAndCallNewTargets = async ({
     const createdCalls = await Promise.all(interpreters.map(({ phone }) => (
         twilioClient.calls.create({
             url: `${TWILIO_WEBHOOK}/machineDetectionResult?originCallId=${originCallId}`
-                + `&langaugeCode=${langaugeCode}&priority=${currentPriority}&fallbackCalled=${currentFallbackCalled}`,
+                + `&languageCode=${languageCode}&priority=${currentPriority}&fallbackCalled=${currentFallbackCalled}`,
             to: phone,
             from: '+39800932464',
             machineDetection: 'Enable',
             machineDetectionTimeout: 10,
             statusCallback: `${TWILIO_WEBHOOK}/callStatusResult?originCallId=${originCallId}`
-                + `&langaugeCode=${langaugeCode}&priority=${currentPriority}&fallbackCalled=${currentFallbackCalled}`,
+                + `&languageCode=${languageCode}&priority=${currentPriority}&fallbackCalled=${currentFallbackCalled}`,
             statusCallbackMethod: 'POST',
             timeout: 15,
         })
@@ -247,7 +247,7 @@ export const languageCodeValidation = convertMiddlewareToAsync(async (req, res) 
 
     if (language_code && languageExists({ language_code })) {
         await redisClient.set(`${originCallId}:language_code`, language_code);
-        twiml.redirect(`./callInterpreter?langaugeCode=${language_code}`);
+        twiml.redirect(`./callInterpreter?languageCode=${language_code}`);
     } else {
         twiml.redirect(`./languageCodeRequest?retriesAmount=${retriesAmount}`
             + `&errorsAmount=${errorsAmount + 1}&actionError=true`);
@@ -262,7 +262,7 @@ export const callInterpreter = convertMiddlewareToAsync(async (req, res) => {
     const { CallSid: originCallId, } = req.body;
     // Store start time in Redis
 
-    const langaugeCode = Number(req.query.langaugeCode);
+    const languageCode = Number(req.query.languageCode);
     let priority = 1;
     let fallbackCalled = false;
 
@@ -282,7 +282,7 @@ export const callInterpreter = convertMiddlewareToAsync(async (req, res) => {
 
     do {
         // eslint-disable-next-line no-await-in-loop
-        interpreters = await getInterpreters({ priority, language_code: langaugeCode });
+        interpreters = await getInterpreters({ priority, language_code: languageCode });
         priority++;
     } while (interpreters.length === 0 && priority <= 5);
 
@@ -294,13 +294,13 @@ export const callInterpreter = convertMiddlewareToAsync(async (req, res) => {
     const createdCalls = await Promise.all(interpreters.map(({ phone }) => (
         twilioClient.calls.create({
             url: `${TWILIO_WEBHOOK}/machineDetectionResult?originCallId=${originCallId}`
-                + `&langaugeCode=${langaugeCode}&priority=${priority}&fallbackCalled=${fallbackCalled}`,
+                + `&languageCode=${languageCode}&priority=${priority}&fallbackCalled=${fallbackCalled}`,
             to: phone,
             from: '+39800932464',
             machineDetection: 'Enable',
             machineDetectionTimeout: 10,
             statusCallback: `${TWILIO_WEBHOOK}/callStatusResult?originCallId=${originCallId}`
-                + `&langaugeCode=${langaugeCode}&priority=${priority}&fallbackCalled=${fallbackCalled}`,
+                + `&languageCode=${languageCode}&priority=${priority}&fallbackCalled=${fallbackCalled}`,
             statusCallbackMethod: 'POST',
             timeout: 15,
         })
@@ -312,7 +312,7 @@ export const callInterpreter = convertMiddlewareToAsync(async (req, res) => {
 export const machineDetectionResult = convertMiddlewareToAsync(async (req, res) => {
     const { AnsweredBy, CallSid: targetCallId, } = req.body;
     const originCallId = String(req.query.originCallId ?? '');
-    const langaugeCode = Number(req.query.langaugeCode);
+    const languageCode = Number(req.query.languageCode);
     const priority = Number(req.query.priority);
     const fallbackCalled = req.query.fallbackCalled === 'true';
 
@@ -336,7 +336,7 @@ export const machineDetectionResult = convertMiddlewareToAsync(async (req, res) 
             status: 'completed',
         });
         await removeAndCallNewTargets({
-            originCallId, targetCallId, langaugeCode, priority, fallbackCalled,
+            originCallId, targetCallId, languageCode, priority, fallbackCalled,
         });
     }
 });
@@ -344,7 +344,7 @@ export const machineDetectionResult = convertMiddlewareToAsync(async (req, res) 
 export const callStatusResult = convertMiddlewareToAsync(async (req) => {
     const { CallSid: targetCallId, CallStatus } = req.body;
     const originCallId = String(req.query.originCallId ?? '');
-    const langaugeCode = Number(req.query.langaugeCode);
+    const languageCode = Number(req.query.languageCode);
     const priority = Number(req.query.priority);
     const fallbackCalled = req.query.fallbackCalled === 'true';
 
@@ -355,7 +355,7 @@ export const callStatusResult = convertMiddlewareToAsync(async (req) => {
         || CallStatus === 'busy'
     ) {
         await removeAndCallNewTargets({
-            originCallId, targetCallId, langaugeCode, priority, fallbackCalled,
+            originCallId, targetCallId, languageCode, priority, fallbackCalled,
         });
     }
 });
