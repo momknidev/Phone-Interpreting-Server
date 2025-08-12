@@ -431,7 +431,7 @@ const resolvers = {
         and(eq(LanguagesTarget.client_id, context.user.id), eq(LanguagesTarget.phone_number, phone_number))
       );
       const groups = await db.select().from(mediatorGroup).where(
-        eq(mediatorGroup.client_id, context.user.id)
+        and(eq(mediatorGroup.client_id, context.user.id), eq(mediatorGroup?.phone_number, phone_number))
       );
       if (!languages.length) {
         throw new UserInputError('No languages found for the user.');
@@ -568,51 +568,55 @@ const resolvers = {
           }));
           // Insert all mediators in a single transaction
 
-          const groupRelationEntries = mediatorData
-            .map((row: any) => {
-              const groupsForMediator = String(row.groups).split(',') || [];
-              return groupsForMediator.map((group_name: string) => {
-                // Find the interpreter by first_name and last_name
-                const interpreter = mediatorEntries.find((interpreter: any) =>
-                  interpreter.first_name === row.first_name && interpreter.last_name === row.last_name && interpreter.phone === row.phone
+          const groupRelationEntries = (
+            await Promise.all(
+              mediatorData.map(async (row: any) => {
+                const groupsForMediator = String(row.groups).split(',') || [];
+
+                return Promise.all(
+                  groupsForMediator.map(async (group_name: string) => {
+                    const interpreter = mediatorEntries.find(
+                      (i: any) =>
+                        i.first_name === row.first_name &&
+                        i.last_name === row.last_name &&
+                        i.phone === row.phone
+                    );
+
+                    if (!interpreter) {
+                      throw new Error(`Interpreter with name ${row.first_name} ${row.last_name} not found.`);
+                    }
+
+                    let group: any = groups.find(
+                      (g: any) =>
+                        String(g.group_name).trim().toLocaleLowerCase() ===
+                        String(group_name).trim().toLocaleLowerCase()
+                    );
+
+                    if (!group) {
+                      const newAddedGroup = {
+                        id: uuidv4(),
+                        client_id: context.user.id,
+                        group_name: group_name,
+                        created_at: new Date(),
+                        updated_at: new Date(),
+                        status: 'active',
+                        phone_number: phone_number,
+                      };
+                      group = (await db.insert(mediatorGroup).values(newAddedGroup).returning())[0];
+                    }
+
+                    return {
+                      id: uuidv4(),
+                      mediator_id: interpreter.id,
+                      mediator_group_id: group.id,
+                      created_at: new Date(),
+                      updated_at: new Date(),
+                    };
+                  })
                 );
-
-                // Check if interpreter is found
-                if (!interpreter) {
-                  throw new Error(`Interpreter with name ${row.first_name} ${row.last_name} not found.`);
-                }
-
-                // Find the group by group_name
-                let group: any = groups.find((group: any) => String(group.group_name).trim().toLocaleLowerCase() === String(group_name).trim().toLocaleLowerCase());
-
-                // Check if group is found
-                if (!group) {
-                  const newAddedGroup = {
-                    id: uuidv4(),
-                    client_id: context.user.id,
-                    group_name: group_name,
-                    created_at: new Date(),
-                    updated_at: new Date(),
-                    status: 'active',
-                    phone_number: phone_number
-                  };
-                  // Insert the new group if not found
-                  group = db.insert(mediatorGroup).values(newAddedGroup).returning();
-                  throw new Error(`Group ${group_name} not found.`);
-                }
-                // id: string; mediator_id: string; mediator_group_id: any; created_at: Date; updated_at: Date;
-
-                // Return the group relation entry if both interpreter and group are found
-                return {
-                  id: uuidv4(),
-                  mediator_id: interpreter.id, // Access interpreter id safely
-                  mediator_group_id: group.id, // Access group id safely
-                  created_at: new Date(),
-                  updated_at: new Date(),
-                };
-              });
-            })
-            .flat();
+              })
+            )
+          ).flat();
 
           const sourceLanguageData = mediatorData
             .map((row: any, idx: number) => {
@@ -669,7 +673,7 @@ const resolvers = {
             .flat();
           const data = await db.insert(interpreter).values(mediatorEntries).returning();
 
-          console.log({ data })
+          console.log({ data, groupRelationEntries })
           if (groupRelationEntries.length > 0) {
             const groupData = await db.insert(mediatorGroupRelation).values(groupRelationEntries).returning();
             console.log({ groupData })
