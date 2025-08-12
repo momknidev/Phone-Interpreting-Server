@@ -565,7 +565,7 @@ const resolvers = {
         throw new Error('Error: ' + error.message);
       }
     },
-    requestNewPhone: async (_: any, { description, title }: { description: string, title: string }, context: any) => {
+    requestNewPhone: async (_: any, { description, }: { description: string, }, context: any) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
@@ -580,7 +580,7 @@ const resolvers = {
           },
         });
 
-        if (description && title) {
+        if (description) {
           const msgObject = {
             // to: 'pm@lingoyou.com',
             to: 'abdul.waqar@lingoyou.com',
@@ -588,13 +588,12 @@ const resolvers = {
             subject: `Client ${user?.first_name} requested for a new Phone Number. `,
             html: `${emailHeader}${newPhoneRequest({
               name: user?.first_name || '',
-              title: title,
               description: description,
 
             })}${emailFooter}`,
           };
 
-          let res = await mailer.send(msgObject);
+          await mailer.send(msgObject);
           return true
         }
 
