@@ -18,7 +18,6 @@ import { apiRoutes } from '../rest';
 import { vars } from './vars';
 import dotenv from 'dotenv';
 import mailer from '@sendgrid/mail';
-import path from 'node:path';
 
 const { secret_key, node_mailer_key } = vars;
 dotenv.config();
@@ -29,13 +28,6 @@ const app = express();
 app.use(urlencoded({ extended: false }));
 
 app.use('/api', apiRoutes);
-// Serve React build at root
-const reactBuildPath = path.join('/home/waqar/Desktop/LingoYou/Phone_Interpreting_app/telephone-mediation-app-client', 'build');
-
-app.use(express.static(reactBuildPath));
-app.get('/', (req, res) => {
-    res.sendFile(path.join(reactBuildPath, 'index.html'));
-});
 
 const httpServer = createServer(app);
 interface MyContext {
