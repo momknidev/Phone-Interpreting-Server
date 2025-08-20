@@ -27,7 +27,6 @@ const resolvers = {
       context: any
     ) => {
       if (!context?.user) throw new AuthenticationError('Unauthenticated');
-
       try {
         const sourceLang = alias(Languages, 'source_lang');
         const targetLang = alias(Languages, 'target_lang');
@@ -40,17 +39,17 @@ const resolvers = {
             user_id: CallReports.client_id,
             mediator_id: CallReports.mediator_id,
             caller_phone: CallReports.caller_phone,
-            caller_code: CallReports.caller_code,
+            client_code: CallReports.client_code,
             status: CallReports.status,
             call_date: CallReports.call_date,
             call_duration: CallReports.call_duration,
             amount: CallReports.amount,
             created_at: CallReports.created_at,
             updated_at: CallReports.updated_at,
-            mediatorFirstName: interpreter.first_name,
-            mediatorLastName: interpreter.last_name,
-            source_language: sourceLang.language_name,
-            target_language: targetLang.language_name
+            mediatorFirstName: interpreter.first_name ?? null,
+            mediatorLastName: interpreter.last_name ?? null,
+            source_language: sourceLang.language_name ?? null,
+            target_language: targetLang.language_name ?? null
           })
           .from(CallReports)
           .leftJoin(interpreter, eq(CallReports.mediator_id, interpreter.id))
@@ -60,7 +59,7 @@ const resolvers = {
         // Filters
         const filters = [];
         if (search) filters.push(ilike(CallReports.status, `%${search}%`));
-        filters.push(eq(CallReports.caller_phone, phone_number))
+        filters.push(eq(CallReports.phone_number, phone_number))
         if (filters.length > 0) query.where(and(...filters));
 
         // Sorting
@@ -89,7 +88,6 @@ const resolvers = {
 
         // Fetch paginated rows
         const rows = await query.limit(limit).offset(offset);
-
         return {
           callReports: rows.map(row => ({
             id: row.id,
@@ -97,7 +95,7 @@ const resolvers = {
             mediator_id: row.mediator_id,
             caller_phone: row.caller_phone,
             serial_no: row.serial_no,
-            caller_code: row.caller_code,
+            client_code: row.client_code,
             status: row.status,
             call_date: row.call_date?.toISOString() || "",
             call_duration: row.call_duration,
