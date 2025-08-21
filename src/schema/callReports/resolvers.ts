@@ -2,7 +2,7 @@ import { and, asc, desc, eq, ilike, sql } from 'drizzle-orm';
 import { AuthenticationError, UserInputError } from 'apollo-server';
 import { db } from '../../config/postgres';
 import uuidv4 from '../../utils/uuidv4';
-import { CallReports, interpreter, Languages } from '../../models'; // Adjust import as needed
+import { CallReports, interpreter, Languages, LanguagesTarget } from '../../models'; // Adjust import as needed
 import { logger } from '../../config/logger';
 import { alias } from 'drizzle-orm/pg-core';
 
@@ -29,7 +29,7 @@ const resolvers = {
       if (!context?.user) throw new AuthenticationError('Unauthenticated');
       try {
         const sourceLang = alias(Languages, 'source_lang');
-        const targetLang = alias(Languages, 'target_lang');
+        const targetLang = alias(LanguagesTarget, 'target_lang');
 
         // Base query
         let query = db
@@ -37,7 +37,7 @@ const resolvers = {
             serial_no: CallReports.serial_no,
             id: CallReports.id,
             user_id: CallReports.client_id,
-            mediator_id: CallReports.mediator_id,
+            interpreter_id: CallReports.interpreter_id,
             caller_phone: CallReports.caller_phone,
             client_code: CallReports.client_code,
             status: CallReports.status,
@@ -52,7 +52,7 @@ const resolvers = {
             target_language: targetLang.language_name ?? null
           })
           .from(CallReports)
-          .leftJoin(interpreter, eq(CallReports.mediator_id, interpreter.id))
+          .leftJoin(interpreter, eq(CallReports.interpreter_id, interpreter.id))
           .leftJoin(sourceLang, eq(CallReports.source_language_id, sourceLang.id))
           .leftJoin(targetLang, eq(CallReports.target_language_id, targetLang.id));
 
@@ -92,7 +92,7 @@ const resolvers = {
           callReports: rows.map(row => ({
             id: row.id,
             user_id: row.user_id,
-            mediator_id: row.mediator_id,
+            interpreter_id: row.interpreter_id,
             caller_phone: row.caller_phone,
             serial_no: row.serial_no,
             client_code: row.client_code,

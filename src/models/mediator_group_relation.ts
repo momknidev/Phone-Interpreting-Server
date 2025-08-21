@@ -6,7 +6,7 @@ export const mediatorGroupRelation = pgTable(
     "mediator_group_relation",
     {
         id: uuid('id').primaryKey(),
-        mediator_id: uuid("mediator_id")
+        interpreter_id: uuid("interpreter_id")
             .notNull()
             .references(() => interpreter.id, { onDelete: "cascade" }),
         mediator_group_id: uuid("mediator_group_id")
@@ -18,7 +18,7 @@ export const mediatorGroupRelation = pgTable(
     },
     // (table) => [
     //     unique("mediatorGroupRelationUnique").on(
-    //         table.mediator_id,
+    //         table.interpreter_id,
     //         table.mediator_group_id
     //     )
     // ]

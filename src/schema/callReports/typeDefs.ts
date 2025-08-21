@@ -4,10 +4,10 @@ const typeDefs = gql`
   type CallReports {
     id: ID!
     client_id: ID
-    mediator_id: ID
+    interpreter_id: ID
     interpreter: String
     caller_phone: String
-    caller_code: String
+    client_code: String
     source_language_id: ID
     target_language_id: ID
     source_language: String
@@ -22,9 +22,9 @@ const typeDefs = gql`
   }
 
   input CreatePhoneMediationInput {
-    mediator_id: ID
+    interpreter_id: ID
     caller_phone: String
-    caller_code: String
+    client_code: String
     source_language_id: ID
     target_language_id: ID
     status: String

@@ -4,23 +4,36 @@ import * as controller from './controller';
 const twilioRouter = Router();
 
 twilioRouter.post(
-    '/departmentCodeRequest',
-    controller.departmentCodeRequest,
+    '/call',
+    controller.call,
+);
+twilioRouter.post(
+    '/requestCode',
+    controller.requestCode,
 );
 
 twilioRouter.post(
-    '/departmentCodeValidation',
-    controller.departmentCodeValidation,
+    '/validateCode',
+    controller.validateCode,
 );
 
 twilioRouter.post(
-    '/languageCodeRequest',
-    controller.languageCodeRequest,
+    '/requestSourceLanguage',
+    controller.requestSourceLanguage,
 );
 
 twilioRouter.post(
-    '/languageCodeValidation',
-    controller.languageCodeValidation,
+    '/validateSourceLanguage',
+    controller.validateSourceLanguage,
+);
+twilioRouter.post(
+    '/requestTargetLanguage',
+    controller.requestTargetLanguage,
+);
+
+twilioRouter.post(
+    '/validateTargetLanguage',
+    controller.validateTargetLanguage,
 );
 
 twilioRouter.post(

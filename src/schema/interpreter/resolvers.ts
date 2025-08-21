@@ -231,7 +231,7 @@ const resolvers = {
 
           let data = await db.insert(mediatorGroupRelation).values(
             groupIds.map((groupId: string) => ({
-              mediator_id: mediatorObj.id,
+              interpreter_id: mediatorObj.id,
               mediator_group_id: groupId,
               id: uuidv4(),
               created_at: new Date(),
@@ -318,10 +318,10 @@ const resolvers = {
 
         if (mediatorData.groupIDs && mediatorData.groupIDs.length > 0) {
           const groupIds = mediatorData.groupIDs;
-          await db.delete(mediatorGroupRelation).where(eq(mediatorGroupRelation.mediator_id, updatedMediator.id));
+          await db.delete(mediatorGroupRelation).where(eq(mediatorGroupRelation.interpreter_id, updatedMediator.id));
           let data = await db.insert(mediatorGroupRelation).values(
             groupIds.map((groupId: string) => ({
-              mediator_id: updatedMediator.id,
+              interpreter_id: updatedMediator.id,
               mediator_group_id: groupId,
               id: uuidv4(),
               updated_at: new Date(),
@@ -607,7 +607,7 @@ const resolvers = {
 
                     return {
                       id: uuidv4(),
-                      mediator_id: interpreter.id,
+                      interpreter_id: interpreter.id,
                       mediator_group_id: group.id,
                       created_at: new Date(),
                       updated_at: new Date(),

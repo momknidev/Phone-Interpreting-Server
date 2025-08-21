@@ -42,7 +42,7 @@ const resolvers = {
           .from(interpreter)
           .innerJoin(
             mediatorGroupRelation,
-            eq(interpreter.id, mediatorGroupRelation.mediator_id)
+            eq(interpreter.id, mediatorGroupRelation.interpreter_id)
           )
           .where(eq(mediatorGroupRelation.mediator_group_id, id));
 
@@ -93,7 +93,7 @@ const resolvers = {
             updated_at: mediatorGroup.updated_at,
             status: mediatorGroup.status,
             mediatorCount: sql<number>`
-          COUNT(${mediatorGroupRelation.mediator_id})
+          COUNT(${mediatorGroupRelation.interpreter_id})
         `,
           })
           .from(mediatorGroup)
@@ -302,7 +302,7 @@ const resolvers = {
         const obj = mediatorIDs.map((id: string) => ({
           id: uuidv4(),
           mediator_group_id: groupID,
-          mediator_id: id,
+          interpreter_id: id,
           created_at: new Date(),
           updated_at: new Date(),
         }));
@@ -332,7 +332,7 @@ const resolvers = {
         }
         // Remove relation
         await db.delete(mediatorGroupRelation)
-          .where(and(eq(mediatorGroupRelation.mediator_group_id, groupID), eq(mediatorGroupRelation.mediator_id, mediatorID)));
+          .where(and(eq(mediatorGroupRelation.mediator_group_id, groupID), eq(mediatorGroupRelation.interpreter_id, mediatorID)));
         // Return updated group
         const updatedGroup = await db.select().from(mediatorGroup).where(eq(mediatorGroup.id, groupID));
         return updatedGroup[0];

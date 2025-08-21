@@ -49,7 +49,7 @@ export const interpreterTargetLanguagesRelations = relations(interpreterTargetLa
 }));
 
 export const interpreterGroupsRelations = relations(mediatorGroupRelation, ({ one }) => ({
-  interpreter: one(interpreter, { fields: [mediatorGroupRelation.mediator_id], references: [interpreter.id] }),
+  interpreter: one(interpreter, { fields: [mediatorGroupRelation.interpreter_id], references: [interpreter.id] }),
   group: one(mediatorGroup, { fields: [mediatorGroupRelation.mediator_group_id], references: [mediatorGroup.id] }),
 }));
 
