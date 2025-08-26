@@ -6,16 +6,18 @@ export const typeDefs = gql`
     client_code: Int!
     client_id: String
     code_label: String!
-    status: String!  
+    status: String!
     created_at: String
     updated_at: String
+    credits: String
   }
 
   input ClientCodeInput {
     client_code: Int!
-    status: String!  
+    status: String!
     code_label: String!
     phone_number: String!
+    credits: String
   }
 
   type ClientCodesResponse {
@@ -33,7 +35,7 @@ export const typeDefs = gql`
       phone_number: String!
     ): ClientCodesResponse!
     allClientCodes: [ClientCode]!
-    clientCode(id: ID!,phone_number: String!): ClientCode
+    clientCode(id: ID!, phone_number: String!): ClientCode
   }
 
   type Mutation {
