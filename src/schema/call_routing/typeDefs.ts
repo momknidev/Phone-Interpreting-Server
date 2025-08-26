@@ -6,19 +6,15 @@ export const typeDefs = gql`
     sequential
   }
 
-
   type CallRoutingSettings {
     id: ID!
     client_id: ID!
     phone_number: String!
-
     enable_code: Boolean
     callingCodePrompt: String
     callingCodePromptURL: String
-
     askSourceLanguage: Boolean
     askTargetLanguage: Boolean
-
     sourceLanguagePrompt: String
     sourceLanguagePromptURL: String
     sourceLanguageError: String
@@ -71,7 +67,9 @@ export const typeDefs = gql`
   }
 
   type Mutation {
-    createOrUpdateCallRoutingSettings(input: CallRoutingSettingsInput!): CallRoutingSettings!
+    createOrUpdateCallRoutingSettings(
+      input: CallRoutingSettingsInput!
+    ): CallRoutingSettings!
     deleteCallRoutingSettings(client_id: ID!, phone_number: String!): Boolean!
   }
 `;

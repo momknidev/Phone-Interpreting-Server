@@ -226,7 +226,7 @@ export const requestCode = convertMiddlewareToAsync(async (req, res) => {
 
   let phraseToSay = settings.callingCodePrompt;
   if (req.query.actionError) {
-    phraseToSay = 'The code entered is not valid. Please try again.';
+    phraseToSay = settings.callingCodeError;
   }
   gather.say({ language: 'en-GB' }, phraseToSay);
 
@@ -319,13 +319,13 @@ export const requestSourceLanguage = convertMiddlewareToAsync(
     }
 
     const gather = twiml.gather({
-      numDigits: 2,
-      timeout: 15,
+      // numDigits: 2,
+      timeout: 8,
       action: `./validateSourceLanguage?originCallId=${originCallId}`,
     });
     gather.say(
-      { language: 'it-IT' },
-      settings.sourceLanguagePrompt || 'Seleziona la lingua di partenza',
+      { language: 'en-GB' },
+      settings.sourceLanguagePrompt || 'Select the source language',
     );
     twiml.redirect(`./requestSourceLanguage?originCallId=${originCallId}`);
     res.type('text/xml').send(twiml.toString());
@@ -359,7 +359,10 @@ export const validateSourceLanguage = convertMiddlewareToAsync(
       saveCallStepAsync(uuid || '', { source_language_id: languages[0].id });
       twiml.redirect(`./requestTargetLanguage?originCallId=${originCallId}`);
     } else {
-      twiml.say({ language: 'it-IT' }, 'Invalid language code. Try again');
+      twiml.say(
+        { language: 'en-GB' },
+        settings?.sourceLanguageError || 'Invalid language code. Try again',
+      );
       twiml.redirect(`./requestSourceLanguage?originCallId=${originCallId}`);
     }
     res.type('text/xml').send(twiml.toString());
@@ -386,7 +389,7 @@ export const requestTargetLanguage = convertMiddlewareToAsync(
       )}`,
     );
     if (!languages || languages.length === 0) {
-      twiml.say({ language: 'it-IT' }, 'No language available for this number');
+      twiml.say({ language: 'en-GB' }, 'No language available for this number');
       twiml.hangup();
       res.type('text/xml').send(twiml.toString());
       return;
@@ -412,7 +415,7 @@ export const requestTargetLanguage = convertMiddlewareToAsync(
       action: `./validateTargetLanguage?originCallId=${originCallId}`,
     });
     gather.say(
-      { language: 'it-IT' },
+      { language: 'en-GB' },
       settings.targetLanguagePrompt || 'Please enter code of target language',
     );
     twiml.redirect(`./requestTargetLanguage?originCallId=${originCallId}`);
@@ -447,7 +450,10 @@ export const validateTargetLanguage = convertMiddlewareToAsync(
       saveCallStepAsync(uuid || '', { target_language_id: languages[0].id });
       twiml.redirect(`./callInterpreter?originCallId=${originCallId}`);
     } else {
-      twiml.say({ language: 'it-IT' }, 'Invalid language code. Try again.');
+      twiml.say(
+        { language: 'en-GB' },
+        settings?.targetLanguageError || 'Invalid language code. Try again.',
+      );
       twiml.redirect(`./requestTargetLanguage?originCallId=${originCallId}`);
     }
     res.type('text/xml').send(twiml.toString());
