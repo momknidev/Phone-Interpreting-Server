@@ -150,7 +150,20 @@ export const call = convertMiddlewareToAsync(async (req, res) => {
   );
   try {
     const routeSettings = await db
-      .select()
+      .select({
+        client_id: callRoutingSettings.client_id,
+        phone_number: callRoutingSettings.phone_number,
+        enable_code: callRoutingSettings.enable_code,
+        callingCodePrompt: callRoutingSettings.callingCodePrompt,
+        callingCodeError: callRoutingSettings.callingCodeError,
+        askSourceLanguage: callRoutingSettings.askSourceLanguage,
+        sourceLanguagePrompt: callRoutingSettings.sourceLanguagePrompt,
+        sourceLanguageError: callRoutingSettings.sourceLanguageError,
+        askTargetLanguage: callRoutingSettings.askTargetLanguage,
+        targetLanguagePrompt: callRoutingSettings.targetLanguagePrompt,
+        targetLanguageError: callRoutingSettings.targetLanguageError,
+        interpreterCallType: callRoutingSettings.interpreterCallType,
+      })
       .from(callRoutingSettings)
       .where(eq(callRoutingSettings.phone_number, calledNumber))
       .limit(1);
@@ -219,12 +232,13 @@ export const requestCode = convertMiddlewareToAsync(async (req, res) => {
   }
 
   const gather = twiml.gather({
-    numDigits: 2,
-    timeout: 15,
+    // numDigits: 2,
+    timeout: 8,
     action: `./validateCode?originCallId=${originCallId}&retriesAmount=${retriesAmount}&errorsAmount=${errorsAmount}`,
   });
 
   let phraseToSay = settings.callingCodePrompt;
+  logger.info(`actionError: ${JSON.stringify(req.query, null, 1)}`);
   if (req.query.actionError) {
     phraseToSay = settings.callingCodeError;
   }
