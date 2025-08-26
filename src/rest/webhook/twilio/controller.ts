@@ -296,7 +296,7 @@ export const requestSourceLanguage = convertMiddlewareToAsync(
     );
     if (!languages || languages.length === 0) {
       twiml.say(
-        { language: 'it-IT' },
+        { language: 'en-GB' },
         'No language available for this number.',
       );
       twiml.hangup();
@@ -384,8 +384,9 @@ export const requestTargetLanguage = convertMiddlewareToAsync(
       phone_number: calledNumber,
     });
     logger.info(
-      `requesting target Language /requestTargetLanguage languages: ${JSON.stringify(
+      `requesting target Language /requestTargetLanguage languages:${calledNumber}: ${JSON.stringify(
         languages,
+        calledNumber,
       )}`,
     );
     if (!languages || languages.length === 0) {
@@ -410,8 +411,8 @@ export const requestTargetLanguage = convertMiddlewareToAsync(
     }
 
     const gather = twiml.gather({
-      numDigits: 2,
-      timeout: 15,
+      // numDigits: 2,
+      timeout: 8,
       action: `./validateTargetLanguage?originCallId=${originCallId}`,
     });
     gather.say(
