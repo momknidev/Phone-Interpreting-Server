@@ -103,18 +103,24 @@ export async function updateRequestInformation(id: string, data: any) {
       .set(newBooking)
       .where(eq(CallReports.id, id))
       .returning();
+    logger.info(`Request updated: ${JSON.stringify(result[0])}`);
     if (result[0]?.client_code) {
       const clientCode = await db
         .select()
         .from(ClientCode)
         .where(eq(ClientCode.id, result[0]?.client_code));
+      logger.info(`Client code found: ${JSON.stringify(clientCode[0])}`);
+      logger.info(`Used credits: ${obj?.used_credits ?? 0}`);
+      logger.info(`Current credits: ${clientCode[0]?.credits ?? 0}`);
       if (clientCode.length > 0) {
-        await db
+        let data = await db
           .update(ClientCode)
           .set({
             credits: (clientCode[0]?.credits ?? 0) - (obj?.used_credits ?? 0),
           })
-          .where(eq(ClientCode.id, result[0]?.client_code));
+          .where(eq(ClientCode.id, result[0]?.client_code))
+          .returning();
+        logger.info(`Client code updated: ${JSON.stringify(data[0])}`);
       }
     }
     return result[0];
