@@ -1,8 +1,6 @@
 import { vars } from '../../config/vars';
 
-export const CORE_ROOT = vars.isLocal
-    ? vars.domain
-    : `${vars.env}-${vars.domain}`;
+export const CORE_ROOT = vars.domain;
 
 export const API_ROOT = `${CORE_ROOT}/api`;
 
