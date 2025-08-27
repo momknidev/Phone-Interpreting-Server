@@ -31,7 +31,7 @@ export async function createRequest(values: any) {
       client_id: values.client_id,
       phone_number: values.phone_number,
       caller_phone: values.caller_phone,
-      status: 'pending',
+      status: 'Cancelled' as 'Cancelled',
     };
     const result = await db.insert(CallReports).values(newBooking).returning();
     return result;
@@ -110,7 +110,7 @@ export async function updateRequestInformation(id: string, data: any) {
     };
     const newBooking = {
       interpreter_id: interpreterResult[0].id,
-      status: 'Completed',
+      status: 'Completed' as 'Completed',
       call_date: new Date(callDetails?.startTime),
       call_duration: String(obj?.expectedDuration ?? 0),
       amount: String(obj?.amount ?? 0),
