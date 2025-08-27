@@ -19,6 +19,7 @@ const typeDefs = gql`
     amount: Float
     created_at: String
     updated_at: String
+    used_credits: Int
   }
 
   input CreatePhoneMediationInput {
@@ -39,7 +40,7 @@ const typeDefs = gql`
   }
   type Query {
     allPhoneMediation: [CallReports]
-    phoneMediationByID(id: ID,phone_number: String): CallReports
+    phoneMediationByID(id: ID, phone_number: String): CallReports
     phoneMediationPaginatedList(
       offset: Int
       limit: Int

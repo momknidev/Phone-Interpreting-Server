@@ -9,7 +9,7 @@ export const typeDefs = gql`
     status: String!
     created_at: String
     updated_at: String
-    credits: String
+    credits: Int
   }
 
   input ClientCodeInput {
@@ -17,7 +17,7 @@ export const typeDefs = gql`
     status: String!
     code_label: String!
     phone_number: String!
-    credits: String
+    credits: Int
   }
 
   type ClientCodesResponse {

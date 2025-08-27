@@ -6,6 +6,7 @@ import {
   decimal,
   numeric,
   serial,
+  integer,
 } from 'drizzle-orm/pg-core';
 import { interpreter } from './interpreter';
 import { Client } from './client_table';
@@ -30,7 +31,7 @@ export const CallReports = pgTable('call_reports', {
   status: varchar('status', { length: 50 }).notNull(), // e.g., pending, completed
   call_duration: decimal('call_duration', { precision: 5, scale: 2 }),
   amount: decimal('amount', { precision: 10, scale: 2 }),
-  used_credits: numeric('used_credits', { precision: 10, scale: 2 }),
+  used_credits: integer('used_credits').default(0),
   created_at: timestamp('created_at').notNull().defaultNow(),
   updated_at: timestamp('updated_at').notNull().defaultNow(),
 });

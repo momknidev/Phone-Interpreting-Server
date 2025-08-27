@@ -153,7 +153,7 @@ const resolvers = {
           code_label: string;
           status: string;
           phone_number: string;
-          credits: string;
+          credits: number;
         };
       },
       context: any,
@@ -170,7 +170,7 @@ const resolvers = {
           client_id: context.user.id,
           phone_number: input.phone_number,
           status: input.status || 'active', // Default status to 'active'
-          credits: input.credits || '0', // Default credits to 0
+          credits: input.credits || 0, // Default credits to 0
           created_at: new Date(),
           updated_at: new Date(),
         };
@@ -203,7 +203,7 @@ const resolvers = {
           client_code: number;
           code_label: string;
           phone_number: string;
-          credits: string;
+          credits: number;
         };
       },
       context: any,
@@ -234,12 +234,12 @@ const resolvers = {
           code_label: input.code_label
             ? input.code_label
             : userCode[0].code_label,
-          phone_number: input.phone_number
-            ? input.phone_number
-            : userCode[0].phone_number,
+          phone_number: userCode[0].phone_number,
           status: input.status || userCode[0].status,
           updated_at: new Date(),
-          credits: input.credits || userCode[0].credits,
+          credits: !isNaN(input.credits)
+            ? Number(input.credits)
+            : userCode[0].credits,
         };
 
         await db
