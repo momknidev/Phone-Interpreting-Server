@@ -1,24 +1,11 @@
 import { logger } from '../../config/logger';
 import { twilioClient } from '../../config/twilio';
 import { and, eq } from 'drizzle-orm';
-import { CallReports, Languages, interpreter } from '../../models';
+import { CallReports, ClientCode, Languages, interpreter } from '../../models';
 import { db } from '../../config/postgres';
 import uuidv4 from '../../utils/uuidv4';
-const calculatePrice = (minutes: number) => {
-  const hourlyRate = 15;
-  let totalPrice = 0;
-
-  if (minutes <= 60) {
-    if (minutes <= 30) {
-      totalPrice = hourlyRate / 2;
-    } else {
-      totalPrice = hourlyRate;
-    }
-  } else {
-    const perMinuteRate = hourlyRate / 60;
-    totalPrice = minutes * perMinuteRate;
-  }
-  return parseFloat(totalPrice.toFixed(2));
+const calculateCredit = (seconds: number) => {
+  return Math.ceil(seconds / 60);
 };
 
 export async function createRequest(values: any) {
@@ -102,24 +89,34 @@ export async function updateRequestInformation(id: string, data: any) {
       expectedDuration: callDetails?.duration
         ? String(Math.ceil(Math.max(Number(callDetails.duration), 60) / 60))
         : '0',
-      amount: String(
-        calculatePrice(
-          Math.ceil(Math.max(Number(callDetails.duration), 60) / 60),
-        ),
-      ),
+      used_credits: Number(calculateCredit(Number(callDetails.duration))),
     };
     const newBooking = {
       interpreter_id: interpreterResult[0].id,
       status: 'Completed' as 'Completed',
       call_date: new Date(callDetails?.startTime),
       call_duration: String(obj?.expectedDuration ?? 0),
-      amount: String(obj?.amount ?? 0),
+      used_credits: Number(obj?.used_credits ?? 0),
     };
     const result = await db
       .update(CallReports)
       .set(newBooking)
       .where(eq(CallReports.id, id))
       .returning();
+    if (result[0]?.client_code) {
+      const clientCode = await db
+        .select()
+        .from(ClientCode)
+        .where(eq(ClientCode.id, result[0]?.client_code));
+      if (clientCode.length > 0) {
+        await db
+          .update(ClientCode)
+          .set({
+            credits: (clientCode[0]?.credits ?? 0) - (obj?.used_credits ?? 0),
+          })
+          .where(eq(ClientCode.id, result[0]?.client_code));
+      }
+    }
     return result[0];
   } catch (error) {
     logger.error('Error creating request:', error);
