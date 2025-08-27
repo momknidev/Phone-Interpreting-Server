@@ -494,6 +494,7 @@ export const callInterpreter = convertMiddlewareToAsync(async (req, res) => {
   );
   // const callType = settings.interpreterCallType || 'simultaneous';
   let fallbackCalled = false;
+  let fallbackEnabled = Boolean(settings?.enableFallback);
 
   twiml.dial().conference(
     {
@@ -529,7 +530,7 @@ export const callInterpreter = convertMiddlewareToAsync(async (req, res) => {
     );
   } while (interpreters.length === 0 && priority <= 5);
 
-  if (interpreters.length === 0 && priority > 5) {
+  if (interpreters.length === 0 && priority > 5 && fallbackEnabled) {
     fallbackCalled = true;
     interpreters = [{ phone: vars.fallbackPhoneNumber }];
   }
@@ -563,6 +564,9 @@ export const machineDetectionResult = convertMiddlewareToAsync(
     const { AnsweredBy, CallSid: targetCallId } = req.body;
     const originCallId = String(req.query.originCallId ?? '');
     const priority = Number(req.query.priority);
+    const settings = JSON.parse(
+      (await redisClient.get(`${originCallId}:settings`)) || '{}',
+    );
     const sourceLanguage = await redisClient.get(
       `${originCallId}:sourceLanguage`,
     );
@@ -582,7 +586,7 @@ export const machineDetectionResult = convertMiddlewareToAsync(
         (interpreterCallSid) => interpreterCallSid !== targetCallId,
       );
 
-      let calls = await Promise.all(
+      await Promise.all(
         filteredInterpretersCallsSid.map((interpreterCallSid) => {
           twilioClient.calls(interpreterCallSid).update({
             status: 'completed',
@@ -596,14 +600,17 @@ export const machineDetectionResult = convertMiddlewareToAsync(
       await twilioClient.calls(targetCallId).update({
         status: 'completed',
       });
-      await removeAndCallNewTargets({
-        originCallId,
-        targetCallId,
-        sourceLanguageID: sourceLanguage || '',
-        targetLanguageID: targetLanguage || '',
-        priority,
-        fallbackCalled,
-      });
+      const attempts = Number(settings?.retryAttempts);
+      for (let i = 0; i < attempts; i++) {
+        await removeAndCallNewTargets({
+          originCallId,
+          targetCallId,
+          sourceLanguageID: sourceLanguage || '',
+          targetLanguageID: targetLanguage || '',
+          priority,
+          fallbackCalled,
+        });
+      }
     }
   },
 );
@@ -612,6 +619,9 @@ export const callStatusResult = convertMiddlewareToAsync(async (req) => {
   const { CallSid: targetCallId, CallStatus } = req.body;
   const originCallId = String(req.query.originCallId ?? '');
   const priority = Number(req.query.priority);
+  const settings = JSON.parse(
+    (await redisClient.get(`${originCallId}:settings`)) || '{}',
+  );
   const fallbackCalled = req.query.fallbackCalled === 'true';
   const sourceLanguage = await redisClient.get(
     `${originCallId}:sourceLanguage`,
@@ -625,14 +635,17 @@ export const callStatusResult = convertMiddlewareToAsync(async (req) => {
     CallStatus === 'canceled' ||
     CallStatus === 'busy'
   ) {
-    await removeAndCallNewTargets({
-      originCallId,
-      targetCallId,
-      sourceLanguageID: sourceLanguage || '',
-      targetLanguageID: targetLanguage || '',
-      priority,
-      fallbackCalled,
-    });
+    const attempts = Number(settings?.retryAttempts);
+    for (let i = 0; i < attempts; i++) {
+      await removeAndCallNewTargets({
+        originCallId,
+        targetCallId,
+        sourceLanguageID: sourceLanguage || '',
+        targetLanguageID: targetLanguage || '',
+        priority,
+        fallbackCalled,
+      });
+    }
   }
 });
 
@@ -676,6 +689,11 @@ export const conferenceStatusResult = convertMiddlewareToAsync(async (req) => {
 
 export const noAnswer = convertMiddlewareToAsync(async (req, res) => {
   const twiml = new VoiceResponse();
+  const originCallId = String(req.query.originCallId ?? '');
+
+  const uuid = await redisClient.get(`${originCallId}:uuid`);
+  saveCallStepAsync(uuid || '', { status: 'No-Answer' });
+
   twiml.say(
     {
       language: 'en-GB',
