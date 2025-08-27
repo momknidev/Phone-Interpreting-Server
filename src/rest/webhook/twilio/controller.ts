@@ -239,6 +239,8 @@ export const requestCode = convertMiddlewareToAsync(async (req, res) => {
 
   let phraseToSay = settings.callingCodePrompt;
   logger.info(`actionError: ${JSON.stringify(req.query, null, 1)}`);
+  logger.info(`Setting error phrase ${typeof settings.callingCodeError}`);
+
   if (req.query.actionError) {
     phraseToSay = settings.callingCodeError;
   }
