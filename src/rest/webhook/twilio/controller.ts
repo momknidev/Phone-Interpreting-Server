@@ -851,7 +851,9 @@ export const callStatusResult = convertMiddlewareToAsync(async (req) => {
   const fallbackCalled = req.query.fallbackCalled === 'true';
 
   logger.info(
-    `Call status result: ${CallStatus} for call ${targetCallId}, type: ${callType}`,
+    `Call status result: ${CallStatus} for call ${targetCallId}, type: ${callType} ${JSON.stringify(
+      req.body,
+    )}`,
   );
 
   if (
