@@ -311,6 +311,15 @@ export const validateCode = convertMiddlewareToAsync(async (req, res) => {
   logger.info(
     `validateCode /validateCode department: ${JSON.stringify(department)}`,
   );
+  if (department.credits <= 0) {
+    twiml.say(
+      { language: 'en-GB' },
+      'No Credits are available please contact administrator.',
+    );
+    twiml.hangup();
+    res.type('text/xml').send(twiml.toString());
+    return;
+  }
   if (department) {
     await redisClient.set(`${originCallId}:clientCode`, clientCode);
     saveCallStepAsync(uuid || '', { client_code: department?.id });
