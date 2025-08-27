@@ -282,7 +282,16 @@ const resolvers = {
         await db.delete(ClientCode).where(eq(ClientCode.id, id));
         return true;
       } catch (error: any) {
-        console.error('Error deleting ClientCode:', error.message);
+        console.error('Error deleting ClientCode:', error);
+        if (
+          error?.code === '23503' &&
+          error?.constraint?.includes('client_code')
+        ) {
+          // Foreign key violation: referenced in another table (e.g., call_reports)
+          throw new Error(
+            'Cannot delete ClientCode: It is referenced in other records .',
+          );
+        }
         throw new Error(error.message || 'Internal server error.');
       }
     },
