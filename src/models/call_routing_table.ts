@@ -42,6 +42,10 @@ export const callRoutingSettings = pgTable('call_routing_settings', {
 
   enableFallback: boolean('enable_fallback').default(false),
   fallbackNumber: varchar('fallback_number'),
+  creditError: text('credit_error').default(
+    'Siamo spiacenti, ma non hai abbastanza credito per effettuare questa chiamata. Per favore ricarica il tuo account e riprova.',
+  ),
+  digitsTimeOut: integer('digits_time_out').default(5),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });

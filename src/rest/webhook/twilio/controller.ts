@@ -156,7 +156,7 @@ const removeAndCallNewTargets = async ({
           `${TWILIO_WEBHOOK}/machineDetectionResult?originCallId=${originCallId}` +
           `&sourceLanguageID=${sourceLanguageID}&targetLanguageID=${targetLanguageID}&priority=${currentPriority}&fallbackCalled=${currentFallbackCalled}`,
         to: phone,
-        from: '+39800932464',
+        from: '+13093321185',
         machineDetection: 'Enable',
         machineDetectionTimeout: 10,
         statusCallback:
@@ -199,6 +199,11 @@ export const call = convertMiddlewareToAsync(async (req, res) => {
         targetLanguagePrompt: callRoutingSettings.targetLanguagePrompt,
         targetLanguageError: callRoutingSettings.targetLanguageError,
         interpreterCallType: callRoutingSettings.interpreterCallType,
+        enableFallback: callRoutingSettings.enableFallback,
+        fallbackNumber: callRoutingSettings.fallbackNumber,
+        retryAttempts: callRoutingSettings.retryAttempts,
+        creditError: callRoutingSettings.creditError,
+        digitsTimeOut: callRoutingSettings.digitsTimeOut,
       })
       .from(callRoutingSettings)
       .where(eq(callRoutingSettings.phone_number, calledNumber))
@@ -209,9 +214,11 @@ export const call = convertMiddlewareToAsync(async (req, res) => {
         'Hello Welcome to Phone mediation. Please update your settings.',
       );
       res.type('text/xml').send(twiml.toString());
+      twiml.hangup();
       return;
     }
-    twiml.say({ language: 'en-GB' }, 'Hello Welcome to Phone mediation.');
+
+    twiml.say({ language: 'en-GB' }, 'Welcome to Phone mediation.');
 
     const settings = routeSettings[0];
     let uuid = uuidv4();
@@ -262,20 +269,17 @@ export const requestCode = convertMiddlewareToAsync(async (req, res) => {
       { language: 'en-GB' },
       'Too many attempts. Please try again later.',
     );
-    twiml.hangup();
     res.type('text/xml').send(twiml.toString());
+    twiml.hangup();
     return;
   }
 
   const gather = twiml.gather({
-    // numDigits: 2,
-    timeout: 8,
+    timeout: Number(settings.digitsTimeOut) || 5,
     action: `./validateCode?originCallId=${originCallId}&retriesAmount=${retriesAmount}&errorsAmount=${errorsAmount}`,
   });
 
   let phraseToSay = settings.callingCodePrompt;
-  logger.info(`actionError: ${JSON.stringify(req.query, null, 1)}`);
-  logger.info(`Setting error phrase ${typeof settings.callingCodeError}`);
 
   if (req.query.actionError) {
     phraseToSay = settings.callingCodeError;
@@ -297,6 +301,9 @@ export const validateCode = convertMiddlewareToAsync(async (req, res) => {
   const retriesAmount = Number(req.query.retriesAmount ?? 0);
   const errorsAmount = Number(req.query.errorsAmount ?? 0);
   const uuid = await redisClient.get(`${originCallId}:uuid`);
+  const settings = JSON.parse(
+    (await redisClient.get(`${originCallId}:settings`)) || '{}',
+  );
   // await redisClient.set(`${originCallId}:phone_number`, calledNumber);
   const phoneNumber = await redisClient.get(`${originCallId}:phone_number`);
 
@@ -308,13 +315,11 @@ export const validateCode = convertMiddlewareToAsync(async (req, res) => {
     client_code: clientCode,
     phone_number: phoneNumber || '',
   });
-  logger.info(
-    `validateCode /validateCode department: ${JSON.stringify(department)}`,
-  );
   if (department.credits <= 0) {
     twiml.say(
       { language: 'en-GB' },
-      'No Credits are available please contact administrator.',
+      settings?.creditError ||
+        'No Credits are available please contact administrator.',
     );
     twiml.hangup();
     res.type('text/xml').send(twiml.toString());
@@ -345,23 +350,17 @@ export const requestSourceLanguage = convertMiddlewareToAsync(
     const calledNumber = settings.phone_number;
     const uuid = await redisClient.get(`${originCallId}:uuid`);
 
-    logger.info(`requesting source Language /requestSourceLanguage`);
-
     const languages = await getSourceLanguageByNumber({
       phone_number: calledNumber,
     });
-    logger.info(
-      `requesting source Language /requestSourceLanguage languages: ${JSON.stringify(
-        languages,
-      )}`,
-    );
+
     if (!languages || languages.length === 0) {
       twiml.say(
         { language: 'en-GB' },
         'No language available for this number.',
       );
-      twiml.hangup();
       res.type('text/xml').send(twiml.toString());
+      twiml.hangup();
       return;
     }
 
@@ -380,8 +379,7 @@ export const requestSourceLanguage = convertMiddlewareToAsync(
     }
 
     const gather = twiml.gather({
-      // numDigits: 2,
-      timeout: 8,
+      timeout: Number(settings.digitsTimeOut) || 5,
       action: `./validateSourceLanguage?originCallId=${originCallId}`,
     });
     gather.say(
@@ -403,18 +401,11 @@ export const validateSourceLanguage = convertMiddlewareToAsync(
     );
     const uuid = await redisClient.get(`${originCallId}:uuid`);
     const calledNumber = settings.phone_number;
-    logger.info(
-      `validating source Language /validateSourceLanguage ${originCallId}, ${languageCode}`,
-    );
     const languages = await getSourceLanguage({
       language_code: languageCode,
       phone_number: calledNumber,
     });
-    logger.info(
-      `validating source Language /validateSourceLanguage languages: ${JSON.stringify(
-        languages,
-      )}`,
-    );
+
     if (languages.length === 1) {
       await redisClient.set(`${originCallId}:sourceLanguage`, languages[0].id);
       saveCallStepAsync(uuid || '', { source_language_id: languages[0].id });
@@ -440,20 +431,14 @@ export const requestTargetLanguage = convertMiddlewareToAsync(
     );
     const calledNumber = settings.phone_number;
     const uuid = await redisClient.get(`${originCallId}:uuid`);
-    logger.info(`requesting target Language /requestTargetLanguage.`);
     const languages = await getTargetLanguageByNumber({
       phone_number: calledNumber,
     });
-    logger.info(
-      `requesting target Language /requestTargetLanguage languages:${calledNumber}: ${JSON.stringify(
-        languages,
-        calledNumber,
-      )}`,
-    );
+
     if (!languages || languages.length === 0) {
       twiml.say({ language: 'en-GB' }, 'No language available for this number');
-      twiml.hangup();
       res.type('text/xml').send(twiml.toString());
+      twiml.hangup();
       return;
     }
 
@@ -472,8 +457,7 @@ export const requestTargetLanguage = convertMiddlewareToAsync(
     }
 
     const gather = twiml.gather({
-      // numDigits: 2,
-      timeout: 8,
+      timeout: Number(settings.digitsTimeOut) || 5,
       action: `./validateTargetLanguage?originCallId=${originCallId}`,
     });
     gather.say(
@@ -495,18 +479,12 @@ export const validateTargetLanguage = convertMiddlewareToAsync(
     );
     const calledNumber = settings.phone_number;
     const uuid = await redisClient.get(`${originCallId}:uuid`);
-    logger.info(
-      `validating target Language /validateTargetLanguage ${originCallId}, ${languageCode}`,
-    );
+
     const languages = await getTargetLanguage({
       language_code: languageCode,
       phone_number: calledNumber,
     });
-    logger.info(
-      `validating target Language /validateTargetLanguage languages: ${JSON.stringify(
-        languages,
-      )}`,
-    );
+
     if (languages.length === 1) {
       await redisClient.set(`${originCallId}:targetLanguage`, languages[0].id);
       saveCallStepAsync(uuid || '', { target_language_id: languages[0].id });
@@ -628,7 +606,7 @@ async function callInterpretersSimultaneously(
           `${TWILIO_WEBHOOK}/machineDetectionResult?originCallId=${originCallId}` +
           `&priority=${priority}&fallbackCalled=${fallbackCalled}&callType=simultaneous`,
         to: phone,
-        from: '+39800932464',
+        from: '+13093321185',
         machineDetection: 'Enable',
         machineDetectionTimeout: 10,
         statusCallback:
@@ -745,7 +723,7 @@ async function callNextInterpreterInSequence(originCallId: string) {
       `${TWILIO_WEBHOOK}/machineDetectionResult?originCallId=${originCallId}` +
       `&priority=${priority}&fallbackCalled=${fallbackCalled}&callType=sequential`,
     to: phone,
-    from: '+39800932464',
+    from: '+13093321185',
     machineDetection: 'Enable',
     machineDetectionTimeout: 10,
     statusCallback:

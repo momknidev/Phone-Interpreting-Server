@@ -31,7 +31,8 @@ export const typeDefs = gql`
     enableFallback: Boolean
     fallbackNumber: String
     fallbackPrompt: String
-
+    digitsTimeOut: Int
+    creditError: String
     createdAt: String
     updatedAt: String
   }
@@ -52,7 +53,8 @@ export const typeDefs = gql`
     sourceLanguagePromptFile: Upload
     targetLanguagePrompt: String
     targetLanguagePromptFile: Upload
-
+    digitsTimeOut: Int
+    creditError: String
     interpreterCallType: CallAlgorithm
     retryAttempts: Int
 
