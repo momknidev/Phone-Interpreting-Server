@@ -63,7 +63,7 @@ const removeAndCallNewTargets = async ({
   fallbackCalled: boolean;
 }) => {
   const originCall = await twilioClient.calls(originCallId).fetch();
-
+  const credits = await redisClient.get(`${originCallId}:credits`);
   if (
     originCall.status === 'completed' ||
     originCall.status === 'canceled' ||
@@ -159,6 +159,7 @@ const removeAndCallNewTargets = async ({
         from: '+13093321185',
         machineDetection: 'Enable',
         machineDetectionTimeout: 10,
+        timeLimit: Number(credits) * 60 || 0,
         statusCallback:
           `${TWILIO_WEBHOOK}/callStatusResult?originCallId=${originCallId}` +
           `&sourceLanguageID=${sourceLanguageID}&targetLanguageID=${targetLanguageID}&priority=${currentPriority}&fallbackCalled=${currentFallbackCalled}`,
@@ -315,7 +316,7 @@ export const validateCode = convertMiddlewareToAsync(async (req, res) => {
     client_code: clientCode,
     phone_number: phoneNumber || '',
   });
-  if (department.credits <= 0) {
+  if (department?.credits <= 0) {
     twiml.say(
       { language: 'en-GB' },
       settings?.creditError ||
@@ -327,6 +328,7 @@ export const validateCode = convertMiddlewareToAsync(async (req, res) => {
   }
   if (department) {
     await redisClient.set(`${originCallId}:clientCode`, clientCode);
+    await redisClient.set(`${originCallId}:credits`, department.credits);
     saveCallStepAsync(uuid || '', { client_code: department?.id });
     twiml.redirect(`./requestSourceLanguage?originCallId=${originCallId}`);
   } else {
@@ -598,7 +600,7 @@ async function callInterpretersSimultaneously(
   fallbackCalled: boolean,
 ) {
   logger.info(`Calling ${interpreters.length} interpreters simultaneously`);
-
+  const credits = await redisClient.get(`${originCallId}:credits`);
   const createdCalls = await Promise.all(
     interpreters.map(({ phone }) =>
       twilioClient.calls.create({
@@ -609,6 +611,7 @@ async function callInterpretersSimultaneously(
         from: '+13093321185',
         machineDetection: 'Enable',
         machineDetectionTimeout: 10,
+        timeLimit: Number(credits) * 60,
         statusCallback:
           `${TWILIO_WEBHOOK}/callStatusResult?originCallId=${originCallId}` +
           `&priority=${priority}&fallbackCalled=${fallbackCalled}&callType=simultaneous`,
@@ -661,7 +664,7 @@ async function callInterpretersSequentially(
 // Function to call the next interpreter in sequence
 async function callNextInterpreterInSequence(originCallId: string) {
   const nextInterpreterData = await redisClient.lPop(`${originCallId}:queue`);
-
+  const credits = await redisClient.get(`${originCallId}:credits`);
   if (!nextInterpreterData) {
     // No more interpreters in current queue, try next priority or fallback
     const settings = JSON.parse(
@@ -726,6 +729,7 @@ async function callNextInterpreterInSequence(originCallId: string) {
     from: '+13093321185',
     machineDetection: 'Enable',
     machineDetectionTimeout: 10,
+    timeLimit: Number(credits) * 60,
     statusCallback:
       `${TWILIO_WEBHOOK}/callStatusResult?originCallId=${originCallId}` +
       `&priority=${priority}&fallbackCalled=${fallbackCalled}&callType=sequential`,
