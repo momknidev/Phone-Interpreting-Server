@@ -131,6 +131,9 @@ const resolvers = {
           );
 
         if (!userCode.length) {
+          logger.warn(
+            `Client Code not found for ID: ${id} and Phone Number: ${phone_number}`,
+          );
           throw new UserInputError('Client Code not found!');
         }
 

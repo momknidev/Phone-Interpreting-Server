@@ -42,7 +42,7 @@ export const getCode = async ({
     .limit(1);
 
   if (result.length === 0) {
-    console.error(
+    logger.warn(
       `Code not found for phone_number ${phone_number} and client_code ${client_code}`,
     );
     return null;
