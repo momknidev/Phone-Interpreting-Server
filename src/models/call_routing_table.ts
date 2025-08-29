@@ -45,6 +45,9 @@ export const callRoutingSettings = pgTable('call_routing_settings', {
   creditError: text('credit_error').default(
     'Siamo spiacenti, ma non hai abbastanza credito per effettuare questa chiamata. Per favore ricarica il tuo account e riprova.',
   ),
+  noAnswerMessage: text('no_answer_message').default(
+    'Siamo spiacenti, ma non siamo riusciti a connetterti con un interprete. Per favore riprova più tardi.',
+  ),
   digitsTimeOut: integer('digits_time_out').default(5),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),

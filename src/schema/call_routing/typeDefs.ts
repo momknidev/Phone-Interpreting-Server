@@ -33,6 +33,7 @@ export const typeDefs = gql`
     fallbackPrompt: String
     digitsTimeOut: Int
     creditError: String
+    noAnswerMessage: String
     createdAt: String
     updatedAt: String
   }
@@ -57,6 +58,7 @@ export const typeDefs = gql`
     creditError: String
     interpreterCallType: CallAlgorithm
     retryAttempts: Int
+    noAnswerMessage: String
 
     enableFallback: Boolean
     fallbackNumber: String
