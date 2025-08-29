@@ -54,6 +54,7 @@ const removeAndCallNewTargets = async ({
   targetLanguageID,
   priority,
   fallbackCalled,
+  phone_number,
 }: {
   originCallId: string;
   targetCallId: string;
@@ -61,6 +62,7 @@ const removeAndCallNewTargets = async ({
   targetLanguageID: string;
   priority: number;
   fallbackCalled: boolean;
+  phone_number: string;
 }) => {
   const originCall = await twilioClient.calls(originCallId).fetch();
   const credits = await redisClient.get(`${originCallId}:credits`);
@@ -102,7 +104,7 @@ const removeAndCallNewTargets = async ({
   if (currentPriority <= 5) {
     do {
       interpreters = await getInterpreters({
-        phone_number: '',
+        phone_number,
         priority: Number(currentPriority),
         source_language_id: sourceLanguageID,
         target_language_id: targetLanguageID,
@@ -747,6 +749,10 @@ export const machineDetectionResult = convertMiddlewareToAsync(
     const priority = Number(req.query.priority);
     const callType = req.query.callType || 'simultaneous';
     const fallbackCalled = req.query.fallbackCalled === 'true';
+    const settings = JSON.parse(
+      (await redisClient.get(`${originCallId}:settings`)) || '{}',
+    );
+    const calledNumber = settings.phone_number;
 
     logger.info(
       `Machine detection result: ${AnsweredBy} for call ${targetCallId}, type: ${callType}`,
@@ -826,6 +832,7 @@ export const machineDetectionResult = convertMiddlewareToAsync(
             targetLanguageID: targetLanguage || '',
             priority,
             fallbackCalled,
+            phone_number: calledNumber,
           });
         }
       }
@@ -840,6 +847,10 @@ export const callStatusResult = convertMiddlewareToAsync(async (req) => {
   const priority = Number(req.query.priority);
   const callType = req.query.callType || 'simultaneous';
   const fallbackCalled = req.query.fallbackCalled === 'true';
+  const settings = JSON.parse(
+    (await redisClient.get(`${originCallId}:settings`)) || '{}',
+  );
+  const calledNumber = settings.phone_number;
 
   logger.info(
     `Call status result: ${CallStatus} for call ${targetCallId}, type: ${callType} ${JSON.stringify(
@@ -879,6 +890,7 @@ export const callStatusResult = convertMiddlewareToAsync(async (req) => {
           targetLanguageID: targetLanguage || '',
           priority,
           fallbackCalled,
+          phone_number: calledNumber,
         });
       }
     }
