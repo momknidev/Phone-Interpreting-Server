@@ -209,6 +209,7 @@ export const call = convertMiddlewareToAsync(async (req, res) => {
         retryAttempts: callRoutingSettings.retryAttempts,
         creditError: callRoutingSettings.creditError,
         digitsTimeOut: callRoutingSettings.digitsTimeOut,
+        noAnswerMessage: callRoutingSettings.noAnswerMessage,
       })
       .from(callRoutingSettings)
       .where(eq(callRoutingSettings.phone_number, calledNumber))
@@ -941,6 +942,9 @@ export const conferenceStatusResult = convertMiddlewareToAsync(async (req) => {
 export const noAnswer = convertMiddlewareToAsync(async (req, res) => {
   const twiml = new VoiceResponse();
   const originCallId = String(req.query.originCallId ?? '');
+  const settings = JSON.parse(
+    (await redisClient.get(`${originCallId}:settings`)) || '{}',
+  );
 
   const uuid = await redisClient.get(`${originCallId}:uuid`);
   logger.info(`No answer handler for call ${originCallId}, uuid: ${uuid}`);
@@ -950,7 +954,7 @@ export const noAnswer = convertMiddlewareToAsync(async (req, res) => {
     {
       language: 'en-GB',
     },
-    'No Answer.',
+    settings.noAnswerMessage || 'No Answer.',
   );
 
   twiml.hangup();
