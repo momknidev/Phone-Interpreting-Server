@@ -944,7 +944,7 @@ export const noAnswer = convertMiddlewareToAsync(async (req, res) => {
 
   const uuid = await redisClient.get(`${originCallId}:uuid`);
   logger.info(`No answer handler for call ${originCallId}, uuid: ${uuid}`);
-  saveCallStepAsync(uuid || '', { status: 'No-Answer' });
+  saveCallStepAsync(uuid || '', { status: 'No Answer' });
 
   twiml.say(
     {
