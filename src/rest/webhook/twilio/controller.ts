@@ -38,7 +38,6 @@ async function saveCallStep(id: string, data: any) {
     await updateRequest(id, data);
   }
 }
-
 const saveCallStepAsync = (id: string, data: any) => {
   logger.info(`Background saveCallStep: ${id} ${data}`);
   setImmediate(async () => {
@@ -49,63 +48,6 @@ const saveCallStepAsync = (id: string, data: any) => {
     }
   });
 };
-
-// Handle fallback call - does not save to call reports, just redirects to noAnswer
-const handleFallbackCall = async (originCallId: string) => {
-  logger.info(`Initiating fallback call for ${originCallId}`);
-  const credits = await redisClient.get(`${originCallId}:credits`);
-
-  try {
-    const fallbackCall = await twilioClient.calls.create({
-      url: `${TWILIO_WEBHOOK}/fallbackResult?originCallId=${originCallId}`,
-      to: vars.fallbackPhoneNumber,
-      from: '+13093321185',
-      machineDetection: 'Enable',
-      machineDetectionTimeout: 10,
-      statusCallback: `${TWILIO_WEBHOOK}/fallbackStatusResult?originCallId=${originCallId}`,
-      statusCallbackMethod: 'POST',
-      timeout: 15,
-    });
-
-    await redisClient.set(`${originCallId}:fallbackCallSid`, fallbackCall.sid);
-    logger.info(`Fallback call created: ${fallbackCall.sid}`);
-  } catch (error) {
-    logger.error(`Failed to create fallback call: ${error}`);
-    // If fallback call fails, go directly to noAnswer
-    await twilioClient.calls(originCallId).update({
-      url: `${TWILIO_WEBHOOK}/noAnswer?originCallId=${originCallId}`,
-      method: 'POST',
-    });
-  }
-};
-
-// Handle retry logic - restart interpreter calling process
-const handleRetryAttempt = async (originCallId: string) => {
-  const retryCount = await redisClient.get(`${originCallId}:retryCount`);
-  const currentRetries = Number(retryCount) || 0;
-  const settings = JSON.parse(
-    (await redisClient.get(`${originCallId}:settings`)) || '{}',
-  );
-  const maxRetries = Number(settings.retryAttempts) || 0;
-
-  if (currentRetries < maxRetries) {
-    // Increment retry count
-    await redisClient.set(`${originCallId}:retryCount`, currentRetries + 1);
-    logger.info(
-      `Retry attempt ${currentRetries + 1}/${maxRetries} for ${originCallId}`,
-    );
-
-    // Restart interpreter calling process without asking for code/language again
-    await twilioClient.calls(originCallId).update({
-      url: `${TWILIO_WEBHOOK}/callInterpreter?originCallId=${originCallId}&retry=true`,
-      method: 'POST',
-    });
-    return true;
-  }
-
-  return false; // No more retries available
-};
-
 const removeAndCallNewTargets = async ({
   originCallId,
   targetCallId,
@@ -125,6 +67,7 @@ const removeAndCallNewTargets = async ({
 }) => {
   const originCall = await twilioClient.calls(originCallId).fetch();
   const credits = await redisClient.get(`${originCallId}:credits`);
+
   if (
     originCall.status === 'completed' ||
     originCall.status === 'canceled' ||
@@ -138,6 +81,16 @@ const removeAndCallNewTargets = async ({
     return;
   }
 
+  // If we were already using fallback, go to noAnswer
+  if (fallbackCalled) {
+    logger.info(`Fallback number failed for ${originCallId}, calling noAnswer`);
+    twilioClient.calls(originCallId).update({
+      url: `${TWILIO_WEBHOOK}/noAnswer?originCallId=${originCallId}`,
+      method: 'POST',
+    });
+    return;
+  }
+
   await redisClient.lRem(originCallId, 0, targetCallId);
   const isAllNumbersUnavailable = !(await redisClient.exists(originCallId));
 
@@ -145,8 +98,65 @@ const removeAndCallNewTargets = async ({
     return;
   }
 
+  const settings = JSON.parse(
+    (await redisClient.get(`${originCallId}:settings`)) || '{}',
+  );
+  const retryAttempts = Number(settings?.retryAttempts || 0);
+
+  // Get current retry count for this priority
+  const retryKey = `${originCallId}:retry:${priority}`;
+  const currentRetries = Number((await redisClient.get(retryKey)) || 0);
+
+  // If retry attempts is 0, don't retry
+  if (retryAttempts === 0) {
+    logger.info(`Retry attempts is 0 for ${originCallId}, skipping retry`);
+  } else if (currentRetries < retryAttempts) {
+    // Increment retry counter and try again with same priority
+    await redisClient.set(retryKey, currentRetries + 1);
+    logger.info(
+      `Retrying priority ${priority} for ${originCallId}, attempt ${
+        currentRetries + 1
+      }/${retryAttempts}`,
+    );
+
+    const interpreters = await getInterpreters({
+      phone_number,
+      priority: Number(priority),
+      source_language_id: sourceLanguageID,
+      target_language_id: targetLanguageID,
+    });
+
+    if (interpreters.length > 0) {
+      const createdCalls = await Promise.all(
+        interpreters.map(({ phone }: { phone: any }) =>
+          twilioClient.calls.create({
+            url:
+              `${TWILIO_WEBHOOK}/machineDetectionResult?originCallId=${originCallId}` +
+              `&sourceLanguageID=${sourceLanguageID}&targetLanguageID=${targetLanguageID}&priority=${priority}&fallbackCalled=${fallbackCalled}`,
+            to: phone,
+            from: '+13093321185',
+            machineDetection: 'Enable',
+            machineDetectionTimeout: 10,
+            timeLimit: Number(credits) * 60 || 0,
+            statusCallback:
+              `${TWILIO_WEBHOOK}/callStatusResult?originCallId=${originCallId}` +
+              `&sourceLanguageID=${sourceLanguageID}&targetLanguageID=${targetLanguageID}&priority=${priority}&fallbackCalled=${fallbackCalled}`,
+            statusCallbackMethod: 'POST',
+            timeout: 15,
+          }),
+        ),
+      );
+
+      await Promise.all(
+        createdCalls.map(({ sid }) => redisClient.lPush(originCallId, sid)),
+      );
+      return;
+    }
+  }
+
   let interpreters: any = [];
   let currentPriority = priority;
+  let currentFallbackCalled: boolean = fallbackCalled;
 
   // Continue checking higher priorities (only if we haven't reached priority 5 yet)
   if (currentPriority <= 5) {
@@ -161,26 +171,21 @@ const removeAndCallNewTargets = async ({
     } while (interpreters.length === 0 && currentPriority <= 5);
   }
 
-  // If no interpreters found after checking all priorities
+  // After checking all priorities (1-5), try fallback if enabled
   if (interpreters.length === 0 && currentPriority > 5) {
-    const settings = JSON.parse(
-      (await redisClient.get(`${originCallId}:settings`)) || '{}',
-    );
     const fallbackEnabled = Boolean(settings?.enableFallback);
+    const fallbackNumber = settings?.fallbackNumber;
 
-    // Try retry first if available
-    if (await handleRetryAttempt(originCallId)) {
-      return; // Retry initiated, stop here
-    }
-
-    // If no retries available, try fallback
-    if (fallbackEnabled && !fallbackCalled) {
-      await handleFallbackCall(originCallId);
-      return;
-    } else {
-      // No interpreters, no retries, no fallback - call noAnswer
+    if (fallbackEnabled && fallbackNumber && !currentFallbackCalled) {
+      currentFallbackCalled = true;
+      interpreters = [{ phone: fallbackNumber }];
       logger.info(
-        `No interpreters, retries, or fallback available for ${originCallId}, calling noAnswer`,
+        `No interpreters found in priorities 1-5, trying fallback number: ${fallbackNumber}`,
+      );
+    } else {
+      // No interpreters and no fallback available, call noAnswer
+      logger.info(
+        `No interpreters or fallback available for ${originCallId}, calling noAnswer`,
       );
       twilioClient.calls(originCallId).update({
         url: `${TWILIO_WEBHOOK}/noAnswer?originCallId=${originCallId}`,
@@ -190,25 +195,8 @@ const removeAndCallNewTargets = async ({
     }
   }
 
-  // If we still have no interpreters, handle accordingly
+  // If we still have no interpreters, call noAnswer
   if (interpreters.length === 0) {
-    // Try retry first
-    if (await handleRetryAttempt(originCallId)) {
-      return;
-    }
-
-    // Then try fallback
-    const settings = JSON.parse(
-      (await redisClient.get(`${originCallId}:settings`)) || '{}',
-    );
-    const fallbackEnabled = Boolean(settings?.enableFallback);
-
-    if (fallbackEnabled && !fallbackCalled) {
-      await handleFallbackCall(originCallId);
-      return;
-    }
-
-    // No options left - call noAnswer
     logger.info(
       `No interpreters available for ${originCallId}, calling noAnswer`,
     );
@@ -224,7 +212,7 @@ const removeAndCallNewTargets = async ({
       twilioClient.calls.create({
         url:
           `${TWILIO_WEBHOOK}/machineDetectionResult?originCallId=${originCallId}` +
-          `&sourceLanguageID=${sourceLanguageID}&targetLanguageID=${targetLanguageID}&priority=${currentPriority}&fallbackCalled=${fallbackCalled}`,
+          `&sourceLanguageID=${sourceLanguageID}&targetLanguageID=${targetLanguageID}&priority=${currentPriority}&fallbackCalled=${currentFallbackCalled}`,
         to: phone,
         from: '+13093321185',
         machineDetection: 'Enable',
@@ -232,7 +220,7 @@ const removeAndCallNewTargets = async ({
         timeLimit: Number(credits) * 60 || 0,
         statusCallback:
           `${TWILIO_WEBHOOK}/callStatusResult?originCallId=${originCallId}` +
-          `&sourceLanguageID=${sourceLanguageID}&targetLanguageID=${targetLanguageID}&priority=${currentPriority}&fallbackCalled=${fallbackCalled}`,
+          `&sourceLanguageID=${sourceLanguageID}&targetLanguageID=${targetLanguageID}&priority=${currentPriority}&fallbackCalled=${currentFallbackCalled}`,
         statusCallbackMethod: 'POST',
         timeout: 15,
       }),
@@ -300,7 +288,6 @@ export const call = convertMiddlewareToAsync(async (req, res) => {
       redisClient.set(`${originCallId}:phone_number`, calledNumber),
       redisClient.set(`${originCallId}:caller_phone`, callerNumber),
       redisClient.set(`${originCallId}:client_id`, settings.client_id),
-      redisClient.set(`${originCallId}:retryCount`, '0'), // Initialize retry count
     ]);
     saveCallStepAsync(uuid, {
       caller_phone: callerNumber,
@@ -377,6 +364,7 @@ export const validateCode = convertMiddlewareToAsync(async (req, res) => {
   const settings = JSON.parse(
     (await redisClient.get(`${originCallId}:settings`)) || '{}',
   );
+  // await redisClient.set(`${originCallId}:phone_number`, calledNumber);
   const phoneNumber = await redisClient.get(`${originCallId}:phone_number`);
 
   logger.info(
@@ -577,15 +565,11 @@ export const validateTargetLanguage = convertMiddlewareToAsync(
 export const callInterpreter = convertMiddlewareToAsync(async (req, res) => {
   const twiml = new VoiceResponse();
   const originCallId = req.query.originCallId as string;
-  const isRetry = req.query.retry === 'true';
   const settings = JSON.parse(
     (await redisClient.get(`${originCallId}:settings`)) || '{}',
   );
   const calledNumber = settings.phone_number;
-  logger.info(
-    `calling interpreter /callInterpreter ${isRetry ? '(retry)' : ''}`,
-  );
-
+  logger.info(`calling interpreter /callInterpreter `);
   const sourceLanguage = await redisClient.get(
     `${originCallId}:sourceLanguage`,
   );
@@ -593,30 +577,27 @@ export const callInterpreter = convertMiddlewareToAsync(async (req, res) => {
     `${originCallId}:targetLanguage`,
   );
   const callType = settings.interpreterCallType || 'simultaneous';
+  const fallbackEnabled = Boolean(settings?.enableFallback);
+  const fallbackNumber = settings?.fallbackNumber;
 
-  // Only create TwiML response if not a retry
-  if (!isRetry) {
-    twiml.dial().conference(
-      {
-        statusCallback: `${TWILIO_WEBHOOK}/conferenceStatusResult?originCallId=${originCallId}`,
-        statusCallbackEvent: ['leave'],
-        statusCallbackMethod: 'POST',
-        endConferenceOnExit: true,
-        maxParticipants: 2,
-        record: 'record-from-start',
-      },
-      originCallId,
-    );
+  twiml.dial().conference(
+    {
+      statusCallback: `${TWILIO_WEBHOOK}/conferenceStatusResult?originCallId=${originCallId}`,
+      statusCallbackEvent: ['leave'],
+      statusCallbackMethod: 'POST',
+      endConferenceOnExit: true,
+      maxParticipants: 2,
+      record: 'record-from-start',
+    },
+    originCallId,
+  );
 
-    res.type('text/xml');
-    res.send(twiml.toString());
-  } else {
-    // For retry, just send OK response
-    res.status(200).send('OK');
-  }
+  res.type('text/xml');
+  res.send(twiml.toString());
 
   let priority = 1;
   let interpreters = [];
+  let fallbackCalled = false;
 
   // Get interpreters for current priority level (1-5)
   do {
@@ -630,22 +611,18 @@ export const callInterpreter = convertMiddlewareToAsync(async (req, res) => {
     priority++;
   } while (priority <= 5);
 
-  // If no interpreters found after checking all priorities
+  // After checking all priorities (1-5), check fallback
   if (interpreters.length === 0 && priority > 5) {
-    // Try retry first if available
-    if (await handleRetryAttempt(originCallId)) {
-      return;
-    }
-
-    // Then try fallback
-    const fallbackEnabled = Boolean(settings?.enableFallback);
-    if (fallbackEnabled) {
-      await handleFallbackCall(originCallId);
-      return;
-    } else {
-      // No interpreters, no retries, no fallback - call noAnswer
+    if (fallbackEnabled && fallbackNumber) {
+      fallbackCalled = true;
+      interpreters = [{ phone: fallbackNumber }];
       logger.info(
-        `No interpreters available for ${originCallId} and fallback disabled, calling noAnswer`,
+        `No interpreters found in priorities 1-5, using fallback number: ${fallbackNumber}`,
+      );
+    } else {
+      // No interpreters and no fallback enabled/available, call noAnswer
+      logger.info(
+        `No interpreters available for ${originCallId} and fallback not available, calling noAnswer`,
       );
       await twilioClient.calls(originCallId).update({
         url: `${TWILIO_WEBHOOK}/noAnswer?originCallId=${originCallId}`,
@@ -656,7 +633,7 @@ export const callInterpreter = convertMiddlewareToAsync(async (req, res) => {
   }
 
   logger.info(
-    `Found ${interpreters.length} interpreters for priority ${priority}, callType: ${callType}`,
+    `Found ${interpreters.length} interpreters for priority ${priority}, callType: ${callType}, fallbackCalled: ${fallbackCalled}`,
   );
 
   if (callType === 'sequential') {
@@ -664,18 +641,17 @@ export const callInterpreter = convertMiddlewareToAsync(async (req, res) => {
       interpreters,
       originCallId,
       priority,
-      false, // Not fallback called yet
+      fallbackCalled,
     );
   } else {
     await callInterpretersSimultaneously(
       interpreters,
       originCallId,
       priority,
-      false, // Not fallback called yet
+      fallbackCalled,
     );
   }
 });
-
 // Helper function for simultaneous calling
 async function callInterpretersSimultaneously(
   interpreters: any[],
@@ -751,25 +727,30 @@ async function callNextInterpreterInSequence(originCallId: string) {
   const credits = await redisClient.get(`${originCallId}:credits`);
 
   if (!nextInterpreterData) {
+    const settings = JSON.parse(
+      (await redisClient.get(`${originCallId}:settings`)) || '{}',
+    );
+    const fallbackEnabled = Boolean(settings?.enableFallback);
+    const fallbackNumber = settings?.fallbackNumber;
     const queueLength = await redisClient.lLen(`${originCallId}:queue`);
 
     if (queueLength === 0) {
-      // Try retry first if available
-      if (await handleRetryAttempt(originCallId)) {
-        return;
-      }
-
-      // Then try fallback
-      const settings = JSON.parse(
-        (await redisClient.get(`${originCallId}:settings`)) || '{}',
-      );
-      const fallbackEnabled = Boolean(settings?.enableFallback);
-
-      if (fallbackEnabled) {
+      // Try fallback if enabled and available
+      if (fallbackEnabled && fallbackNumber) {
         logger.info(
-          `Sequential queue empty, trying fallback for ${originCallId}`,
+          `Sequential queue empty, trying fallback for ${originCallId}: ${fallbackNumber}`,
         );
-        await handleFallbackCall(originCallId);
+
+        await redisClient.rPush(
+          `${originCallId}:queue`,
+          JSON.stringify({
+            phone: fallbackNumber,
+            priority: 6, // Use priority 6 to indicate fallback
+            fallbackCalled: true,
+          }),
+        );
+
+        await callNextInterpreterInSequence(originCallId);
         return;
       } else {
         // No fallback available, call noAnswer
@@ -809,7 +790,6 @@ async function callNextInterpreterInSequence(originCallId: string) {
     timeout: 15,
   });
 
-  // Store only the current call SID
   await redisClient.set(`${originCallId}:currentCall`, call.sid);
 }
 
@@ -888,7 +868,7 @@ export const machineDetectionResult = convertMiddlewareToAsync(
         // Check if there are any more calls pending
         const remainingCalls = await redisClient.lLen(originCallId);
         if (remainingCalls === 0) {
-          // No more calls, try next priority, retry, or fallback
+          // No more calls, try next priority or fallback
           const sourceLanguage = await redisClient.get(
             `${originCallId}:sourceLanguage`,
           );
@@ -912,7 +892,6 @@ export const machineDetectionResult = convertMiddlewareToAsync(
     }
   },
 );
-
 export const callStatusResult = convertMiddlewareToAsync(async (req) => {
   const { CallSid: targetCallId, CallStatus } = req.body;
   const originCallId = String(req.query.originCallId ?? '');
@@ -947,7 +926,7 @@ export const callStatusResult = convertMiddlewareToAsync(async (req) => {
       // Check if there are any more calls pending
       const remainingCalls = await redisClient.lLen(originCallId);
       if (remainingCalls === 0) {
-        // No more calls, try next priority, retry, or fallback
+        // No more calls, try next priority or fallback
         const sourceLanguage = await redisClient.get(
           `${originCallId}:sourceLanguage`,
         );
@@ -966,62 +945,6 @@ export const callStatusResult = convertMiddlewareToAsync(async (req) => {
         });
       }
     }
-  }
-});
-
-// New endpoint to handle fallback call results
-export const fallbackResult = convertMiddlewareToAsync(async (req, res) => {
-  const { AnsweredBy } = req.body;
-  const originCallId = String(req.query.originCallId ?? '');
-  const twiml = new VoiceResponse();
-
-  logger.info(`Fallback call result: ${AnsweredBy} for ${originCallId}`);
-
-  if (AnsweredBy === 'unknown' || AnsweredBy === 'human') {
-    // Fallback answered, connect to conference but don't save to call reports
-    logger.info(`Fallback connected for ${originCallId}, joining conference`);
-    twiml.dial().conference(originCallId);
-  } else {
-    // Fallback didn't answer or machine detected, go to noAnswer
-    logger.info(`Fallback failed for ${originCallId}, calling noAnswer`);
-    await twilioClient.calls(originCallId).update({
-      url: `${TWILIO_WEBHOOK}/noAnswer?originCallId=${originCallId}`,
-      method: 'POST',
-    });
-    res.status(200).send('OK');
-    return;
-  }
-
-  res.type('text/xml');
-  res.send(twiml.toString());
-});
-
-// New endpoint to handle fallback call status
-export const fallbackStatusResult = convertMiddlewareToAsync(async (req) => {
-  const { CallStatus } = req.body;
-  const originCallId = String(req.query.originCallId ?? '');
-
-  logger.info(`Fallback call status: ${CallStatus} for ${originCallId}`);
-
-  if (
-    CallStatus === 'failed' ||
-    CallStatus === 'no-answer' ||
-    CallStatus === 'canceled' ||
-    CallStatus === 'busy'
-  ) {
-    // Fallback failed, try retry or go to noAnswer
-    if (await handleRetryAttempt(originCallId)) {
-      return; // Retry initiated
-    }
-
-    // No more retries, go to noAnswer
-    logger.info(
-      `Fallback failed and no retries left for ${originCallId}, calling noAnswer`,
-    );
-    await twilioClient.calls(originCallId).update({
-      url: `${TWILIO_WEBHOOK}/noAnswer?originCallId=${originCallId}`,
-      method: 'POST',
-    });
   }
 });
 
