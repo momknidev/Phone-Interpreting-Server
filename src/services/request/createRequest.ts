@@ -87,7 +87,7 @@ export async function updateRequestInformation(id: string, data: any) {
     logger.info(`Interpreter found: ${JSON.stringify(interpreterResult[0])}`);
     let obj = {
       expectedDuration: callDetails?.duration
-        ? String(Math.ceil(Math.max(Number(callDetails.duration), 60) / 60))
+        ? String(callDetails.duration)
         : '0',
       used_credits: Number(calculateCredit(Number(callDetails.duration))),
     };
