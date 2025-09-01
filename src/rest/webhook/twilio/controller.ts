@@ -84,7 +84,7 @@ const removeAndCallNewTargets = async ({
   if (fallbackCalled) {
     logger.info(`Fallback number failed for ${originCallId}, calling noAnswer`);
     twilioClient.calls(originCallId).update({
-      url: `${TWILIO_WEBHOOK}/noAnswer`,
+      url: `${TWILIO_WEBHOOK}/noAnswer?originCallId=${originCallId}`,
       method: 'POST',
     });
 
@@ -134,7 +134,7 @@ const removeAndCallNewTargets = async ({
         `No interpreters or fallback available for ${originCallId}, calling noAnswer`,
       );
       twilioClient.calls(originCallId).update({
-        url: `${TWILIO_WEBHOOK}/noAnswer`,
+        url: `${TWILIO_WEBHOOK}/noAnswer?originCallId=${originCallId}`,
         method: 'POST',
       });
       return;
@@ -147,7 +147,7 @@ const removeAndCallNewTargets = async ({
       `No interpreters available for ${originCallId}, calling noAnswer`,
     );
     twilioClient.calls(originCallId).update({
-      url: `${TWILIO_WEBHOOK}/noAnswer`,
+      url: `${TWILIO_WEBHOOK}/noAnswer?originCallId=${originCallId}`,
       method: 'POST',
     });
     return;
@@ -569,7 +569,7 @@ export const callInterpreter = convertMiddlewareToAsync(async (req, res) => {
         `No interpreters available for ${originCallId} and fallback disabled, calling noAnswer`,
       );
       await twilioClient.calls(originCallId).update({
-        url: `${TWILIO_WEBHOOK}/noAnswer`,
+        url: `${TWILIO_WEBHOOK}/noAnswer?originCallId=${originCallId}`,
         method: 'POST',
       });
       return;
@@ -707,7 +707,7 @@ async function callNextInterpreterInSequence(originCallId: string) {
         );
         await redisClient.del(`${originCallId}:callType`);
         await twilioClient.calls(originCallId).update({
-          url: `${TWILIO_WEBHOOK}/noAnswer`,
+          url: `${TWILIO_WEBHOOK}/noAnswer?originCallId=${originCallId}`,
           method: 'POST',
         });
         logger.info(`Called noAnswer for ${originCallId}`);
