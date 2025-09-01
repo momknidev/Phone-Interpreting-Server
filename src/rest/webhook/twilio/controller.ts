@@ -39,6 +39,7 @@ async function saveCallStep(id: string, data: any) {
   }
 }
 const saveCallStepAsync = (id: string, data: any) => {
+  logger.info(`Background saveCallStep: ${id} ${data}`);
   setImmediate(async () => {
     try {
       await saveCallStep(id, data);
@@ -86,6 +87,7 @@ const removeAndCallNewTargets = async ({
       url: `${TWILIO_WEBHOOK}/noAnswer`,
       method: 'POST',
     });
+
     return;
   }
 
@@ -708,6 +710,7 @@ async function callNextInterpreterInSequence(originCallId: string) {
           url: `${TWILIO_WEBHOOK}/noAnswer`,
           method: 'POST',
         });
+        logger.info(`Called noAnswer for ${originCallId}`);
         return;
       }
     }
@@ -940,6 +943,7 @@ export const noAnswer = convertMiddlewareToAsync(async (req, res) => {
   const originCallId = String(req.query.originCallId ?? '');
 
   const uuid = await redisClient.get(`${originCallId}:uuid`);
+  logger.info(`No answer handler for call ${originCallId}, uuid: ${uuid}`);
   saveCallStepAsync(uuid || '', { status: 'No-Answer' });
 
   twiml.say(
