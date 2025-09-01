@@ -1,7 +1,7 @@
 import { logger } from '../../config/logger';
 import { twilioClient } from '../../config/twilio';
 import { and, eq } from 'drizzle-orm';
-import { CallReports, ClientCode, Languages, interpreter } from '../../models';
+import { CallReports, ClientCode, interpreter } from '../../models';
 import { db } from '../../config/postgres';
 import uuidv4 from '../../utils/uuidv4';
 const calculateCredit = (seconds: number) => {
