@@ -48,6 +48,7 @@ const saveCallStepAsync = (id: string, data: any) => {
     }
   });
 };
+
 const removeAndCallNewTargets = async ({
   originCallId,
   targetCallId,
@@ -65,8 +66,12 @@ const removeAndCallNewTargets = async ({
   fallbackCalled: boolean;
   phone_number: string;
 }) => {
+  logger.info(
+    `Handling call status for targetCallId: ${targetCallId}, originCallId: ${originCallId} /removeAndCallNewTargets`,
+  );
   const originCall = await twilioClient.calls(originCallId).fetch();
   const credits = await redisClient.get(`${originCallId}:credits`);
+  logger.info(`Origin call status: ${originCall.status}`);
 
   if (
     originCall.status === 'completed' ||
@@ -75,7 +80,7 @@ const removeAndCallNewTargets = async ({
     originCall.status === 'failed' ||
     originCall.status === 'no-answer'
   ) {
-    twilioClient.calls(targetCallId).update({
+    await twilioClient.calls(targetCallId).update({
       status: 'completed',
     });
     return;
@@ -84,7 +89,7 @@ const removeAndCallNewTargets = async ({
   // If we were already using fallback, go to noAnswer
   if (fallbackCalled) {
     logger.info(`Fallback number failed for ${originCallId}, calling noAnswer`);
-    twilioClient.calls(originCallId).update({
+    await twilioClient.calls(originCallId).update({
       url: `${TWILIO_WEBHOOK}/noAnswer?originCallId=${originCallId}`,
       method: 'POST',
     });
@@ -106,13 +111,13 @@ const removeAndCallNewTargets = async ({
   // Get current retry count for this priority
   const retryKey = `${originCallId}:retry:${priority}`;
   const currentRetries = Number((await redisClient.get(retryKey)) || 0);
+
   logger.info(
-    `Current retries for ${retryAttempts} ${originCallId} priority ${priority}: ${currentRetries}`,
+    `Current retries for priority ${priority}: ${currentRetries}/${retryAttempts} for ${originCallId}`,
   );
-  // If retry attempts is 0, don't retry
-  if (retryAttempts === 0) {
-    logger.info(`Retry attempts is 0 for ${originCallId}, skipping retry`);
-  } else if (currentRetries < retryAttempts) {
+
+  // If retry attempts > 0 and we haven't exhausted retries for this priority
+  if (retryAttempts > 0 && currentRetries < retryAttempts) {
     // Increment retry counter and try again with same priority
     await redisClient.set(retryKey, currentRetries + 1);
     logger.info(
@@ -129,6 +134,12 @@ const removeAndCallNewTargets = async ({
     });
 
     if (interpreters.length > 0) {
+      logger.info(
+        `Found ${interpreters.length} interpreters for retry attempt ${
+          currentRetries + 1
+        }`,
+      );
+
       const createdCalls = await Promise.all(
         interpreters.map(({ phone }: { phone: any }) =>
           twilioClient.calls.create({
@@ -153,24 +164,44 @@ const removeAndCallNewTargets = async ({
         createdCalls.map(({ sid }) => redisClient.lPush(originCallId, sid)),
       );
       return;
+    } else {
+      logger.info(
+        `No interpreters found for retry attempt ${
+          currentRetries + 1
+        }, moving to next priority`,
+      );
     }
+  } else if (retryAttempts > 0) {
+    logger.info(
+      `Exhausted ${retryAttempts} retry attempts for priority ${priority}, moving to next priority`,
+    );
+  } else {
+    logger.info(
+      `Retry attempts is 0 for ${originCallId}, skipping retry for priority ${priority}`,
+    );
   }
 
   let interpreters: any = [];
-  let currentPriority = priority;
+  let currentPriority = priority + 1; // Start from next priority
   let currentFallbackCalled: boolean = fallbackCalled;
 
   // Continue checking higher priorities (only if we haven't reached priority 5 yet)
-  if (currentPriority <= 5) {
-    do {
-      interpreters = await getInterpreters({
-        phone_number,
-        priority: Number(currentPriority),
-        source_language_id: sourceLanguageID,
-        target_language_id: targetLanguageID,
-      });
-      currentPriority++;
-    } while (interpreters.length === 0 && currentPriority <= 5);
+  while (currentPriority <= 5 && interpreters.length === 0) {
+    logger.info(`Checking priority ${currentPriority} for ${originCallId}`);
+    interpreters = await getInterpreters({
+      phone_number,
+      priority: Number(currentPriority),
+      source_language_id: sourceLanguageID,
+      target_language_id: targetLanguageID,
+    });
+
+    if (interpreters.length > 0) {
+      logger.info(
+        `Found ${interpreters.length} interpreters at priority ${currentPriority}`,
+      );
+      break;
+    }
+    currentPriority++;
   }
 
   // After checking all priorities (1-5), try fallback if enabled
@@ -189,7 +220,7 @@ const removeAndCallNewTargets = async ({
       logger.info(
         `No interpreters or fallback available for ${originCallId}, calling noAnswer`,
       );
-      twilioClient.calls(originCallId).update({
+      await twilioClient.calls(originCallId).update({
         url: `${TWILIO_WEBHOOK}/noAnswer?originCallId=${originCallId}`,
         method: 'POST',
       });
@@ -202,7 +233,7 @@ const removeAndCallNewTargets = async ({
     logger.info(
       `No interpreters available for ${originCallId}, calling noAnswer`,
     );
-    twilioClient.calls(originCallId).update({
+    await twilioClient.calls(originCallId).update({
       url: `${TWILIO_WEBHOOK}/noAnswer?originCallId=${originCallId}`,
       method: 'POST',
     });
@@ -724,19 +755,72 @@ async function callInterpretersSequentially(
 }
 
 // Function to call the next interpreter in sequence
+// Function to call the next interpreter in sequence
 async function callNextInterpreterInSequence(originCallId: string) {
   const nextInterpreterData = await redisClient.lPop(`${originCallId}:queue`);
   const credits = await redisClient.get(`${originCallId}:credits`);
+  const settings = JSON.parse(
+    (await redisClient.get(`${originCallId}:settings`)) || '{}',
+  );
 
   if (!nextInterpreterData) {
-    const settings = JSON.parse(
-      (await redisClient.get(`${originCallId}:settings`)) || '{}',
-    );
     const fallbackEnabled = Boolean(settings?.enableFallback);
     const fallbackNumber = settings?.fallbackNumber;
     const queueLength = await redisClient.lLen(`${originCallId}:queue`);
 
     if (queueLength === 0) {
+      // Check if we need to retry current priority or move to next
+      const currentPriority = Number(
+        (await redisClient.get(`${originCallId}:currentPriority`)) || 1,
+      );
+      const retryAttempts = Number(settings?.retryAttempts || 0);
+      const retryKey = `${originCallId}:retry:${currentPriority}`;
+      const currentRetries = Number((await redisClient.get(retryKey)) || 0);
+
+      // Try retry if available
+      if (retryAttempts > 0 && currentRetries < retryAttempts) {
+        await redisClient.set(retryKey, currentRetries + 1);
+        logger.info(
+          `Sequential retry attempt ${
+            currentRetries + 1
+          }/${retryAttempts} for priority ${currentPriority}`,
+        );
+
+        const sourceLanguage = await redisClient.get(
+          `${originCallId}:sourceLanguage`,
+        );
+        const targetLanguage = await redisClient.get(
+          `${originCallId}:targetLanguage`,
+        );
+        const calledNumber = settings.phone_number;
+
+        const interpreters = await getInterpreters({
+          phone_number: calledNumber,
+          priority: currentPriority,
+          source_language_id: sourceLanguage || '',
+          target_language_id: targetLanguage || '',
+        });
+
+        if (interpreters.length > 0) {
+          // Re-populate queue with interpreters for retry
+          const shuffledInterpreters = [...interpreters].sort(
+            () => Math.random() - 0.5,
+          );
+          for (const interpreter of shuffledInterpreters) {
+            await redisClient.rPush(
+              `${originCallId}:queue`,
+              JSON.stringify({
+                phone: interpreter.phone,
+                priority: currentPriority,
+                fallbackCalled: false,
+              }),
+            );
+          }
+          await callNextInterpreterInSequence(originCallId);
+          return;
+        }
+      }
+
       // Try fallback if enabled and available
       if (fallbackEnabled && fallbackNumber) {
         logger.info(
@@ -760,6 +844,7 @@ async function callNextInterpreterInSequence(originCallId: string) {
           `No more interpreters in sequential queue for ${originCallId}, calling noAnswer`,
         );
         await redisClient.del(`${originCallId}:callType`);
+        await redisClient.del(`${originCallId}:currentPriority`);
         await twilioClient.calls(originCallId).update({
           url: `${TWILIO_WEBHOOK}/noAnswer?originCallId=${originCallId}`,
           method: 'POST',
@@ -771,6 +856,9 @@ async function callNextInterpreterInSequence(originCallId: string) {
   }
 
   const { phone, priority, fallbackCalled } = JSON.parse(nextInterpreterData);
+
+  // Store current priority for retry logic
+  await redisClient.set(`${originCallId}:currentPriority`, priority);
 
   logger.info(
     `Sequential call to ${phone} for ${originCallId} (priority: ${priority}, fallback: ${fallbackCalled})`,
@@ -894,6 +982,8 @@ export const machineDetectionResult = convertMiddlewareToAsync(
     }
   },
 );
+
+// Also, ensure the retry logic is properly triggered in callStatusResult:
 export const callStatusResult = convertMiddlewareToAsync(async (req) => {
   const { CallSid: targetCallId, CallStatus } = req.body;
   const originCallId = String(req.query.originCallId ?? '');
@@ -906,9 +996,7 @@ export const callStatusResult = convertMiddlewareToAsync(async (req) => {
   const calledNumber = settings.phone_number;
 
   logger.info(
-    `Call status result: ${CallStatus} for call ${targetCallId}, type: ${callType} ${JSON.stringify(
-      req.body,
-    )}`,
+    `Call status result: ${CallStatus} for call ${targetCallId}, type: ${callType}`,
   );
 
   if (
@@ -928,7 +1016,7 @@ export const callStatusResult = convertMiddlewareToAsync(async (req) => {
       // Check if there are any more calls pending
       const remainingCalls = await redisClient.lLen(originCallId);
       if (remainingCalls === 0) {
-        // No more calls, try next priority or fallback
+        // No more calls, try retry or next priority or fallback
         const sourceLanguage = await redisClient.get(
           `${originCallId}:sourceLanguage`,
         );
@@ -943,13 +1031,12 @@ export const callStatusResult = convertMiddlewareToAsync(async (req) => {
           targetLanguageID: targetLanguage || '',
           priority,
           fallbackCalled,
-          phone_number: calledNumber,
+          phone_number: calledNumber, // Make sure this is passed correctly
         });
       }
     }
   }
 });
-
 export const conferenceStatusResult = convertMiddlewareToAsync(async (req) => {
   const { StatusCallbackEvent, EndConferenceOnExit } = req.body;
   const originCallId = String(req.query.originCallId ?? '');
