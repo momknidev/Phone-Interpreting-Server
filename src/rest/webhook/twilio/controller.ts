@@ -106,7 +106,9 @@ const removeAndCallNewTargets = async ({
   // Get current retry count for this priority
   const retryKey = `${originCallId}:retry:${priority}`;
   const currentRetries = Number((await redisClient.get(retryKey)) || 0);
-
+  logger.info(
+    `Current retries for ${retryAttempts} ${originCallId} priority ${priority}: ${currentRetries}`,
+  );
   // If retry attempts is 0, don't retry
   if (retryAttempts === 0) {
     logger.info(`Retry attempts is 0 for ${originCallId}, skipping retry`);
