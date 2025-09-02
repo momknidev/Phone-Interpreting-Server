@@ -297,6 +297,8 @@ export const call = convertMiddlewareToAsync(async (req, res) => {
         creditError: callRoutingSettings.creditError,
         digitsTimeOut: callRoutingSettings.digitsTimeOut,
         noAnswerMessage: callRoutingSettings.noAnswerMessage,
+        language: callRoutingSettings.language,
+        welcomeMessage: callRoutingSettings.welcomeMessage,
       })
       .from(callRoutingSettings)
       .where(eq(callRoutingSettings.phone_number, calledNumber))
@@ -311,9 +313,12 @@ export const call = convertMiddlewareToAsync(async (req, res) => {
       return;
     }
 
-    twiml.say({ language: 'en-GB' }, 'Welcome to Phone mediation.');
-
+    twiml.say(
+      { language: (routeSettings[0]?.language || 'en-GB') as any },
+      routeSettings[0]?.welcomeMessage || 'Welcome to Phone mediation.',
+    );
     const settings = routeSettings[0];
+
     let uuid = uuidv4();
     await Promise.all([
       redisClient.set(`${originCallId}:settings`, JSON.stringify(settings)),
@@ -359,7 +364,7 @@ export const requestCode = convertMiddlewareToAsync(async (req, res) => {
 
   if (retriesAmount >= 2 || errorsAmount >= 3) {
     twiml.say(
-      { language: 'en-GB' },
+      { language: settings.language || 'en-GB' },
       'Too many attempts. Please try again later.',
     );
     res.type('text/xml').send(twiml.toString());
@@ -377,7 +382,7 @@ export const requestCode = convertMiddlewareToAsync(async (req, res) => {
   if (req.query.actionError) {
     phraseToSay = settings.callingCodeError;
   }
-  gather.say({ language: 'en-GB' }, phraseToSay);
+  gather.say({ language: settings.language || 'en-GB' }, phraseToSay);
 
   twiml.redirect(
     `./requestCode?originCallId=${originCallId}&retriesAmount=${
@@ -410,7 +415,7 @@ export const validateCode = convertMiddlewareToAsync(async (req, res) => {
   });
   if (department?.credits <= 0) {
     twiml.say(
-      { language: 'en-GB' },
+      { language: settings.language || 'en-GB' },
       settings?.creditError ||
         'No Credits are available please contact administrator.',
     );
@@ -450,7 +455,7 @@ export const requestSourceLanguage = convertMiddlewareToAsync(
 
     if (!languages || languages.length === 0) {
       twiml.say(
-        { language: 'en-GB' },
+        { language: settings.language || 'en-GB' },
         'No language available for this number.',
       );
       res.type('text/xml').send(twiml.toString());
@@ -477,7 +482,7 @@ export const requestSourceLanguage = convertMiddlewareToAsync(
       action: `./validateSourceLanguage?originCallId=${originCallId}`,
     });
     gather.say(
-      { language: 'en-GB' },
+      { language: settings.language || 'en-GB' },
       settings.sourceLanguagePrompt || 'Select the source language',
     );
     twiml.redirect(`./requestSourceLanguage?originCallId=${originCallId}`);
@@ -506,7 +511,7 @@ export const validateSourceLanguage = convertMiddlewareToAsync(
       twiml.redirect(`./requestTargetLanguage?originCallId=${originCallId}`);
     } else {
       twiml.say(
-        { language: 'en-GB' },
+        { language: settings.language || 'en-GB' },
         settings?.sourceLanguageError || 'Invalid language code. Try again',
       );
       twiml.redirect(`./requestSourceLanguage?originCallId=${originCallId}`);
@@ -530,7 +535,10 @@ export const requestTargetLanguage = convertMiddlewareToAsync(
     });
 
     if (!languages || languages.length === 0) {
-      twiml.say({ language: 'en-GB' }, 'No language available for this number');
+      twiml.say(
+        { language: settings.language || 'en-GB' },
+        'No language available for this number',
+      );
       res.type('text/xml').send(twiml.toString());
       twiml.hangup();
       return;
@@ -555,7 +563,7 @@ export const requestTargetLanguage = convertMiddlewareToAsync(
       action: `./validateTargetLanguage?originCallId=${originCallId}`,
     });
     gather.say(
-      { language: 'en-GB' },
+      { language: settings.language || 'en-GB' },
       settings.targetLanguagePrompt || 'Please enter code of target language',
     );
     twiml.redirect(`./requestTargetLanguage?originCallId=${originCallId}`);
@@ -585,7 +593,7 @@ export const validateTargetLanguage = convertMiddlewareToAsync(
       twiml.redirect(`./callInterpreter?originCallId=${originCallId}`);
     } else {
       twiml.say(
-        { language: 'en-GB' },
+        { language: settings.language || 'en-GB' },
         settings?.targetLanguageError || 'Invalid language code. Try again.',
       );
       twiml.redirect(`./requestTargetLanguage?originCallId=${originCallId}`);
@@ -1088,7 +1096,7 @@ export const noAnswer = convertMiddlewareToAsync(async (req, res) => {
 
   twiml.say(
     {
-      language: 'en-GB',
+      language: settings.language || 'en-GB',
     },
     settings.noAnswerMessage || 'No Answer.',
   );

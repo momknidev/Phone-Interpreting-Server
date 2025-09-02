@@ -24,16 +24,16 @@ export const typeDefs = gql`
     fallbackMessage: String
     targetLanguagePrompt: String
     targetLanguagePromptURL: String
-
     interpreterCallType: CallAlgorithm
     retryAttempts: Int
-
     enableFallback: Boolean
     fallbackNumber: String
     fallbackPrompt: String
     digitsTimeOut: Int
     creditError: String
     noAnswerMessage: String
+    language: String
+    welcomeMessage: String
     createdAt: String
     updatedAt: String
   }
@@ -59,7 +59,8 @@ export const typeDefs = gql`
     interpreterCallType: CallAlgorithm
     retryAttempts: Int
     noAnswerMessage: String
-
+    language: String
+    welcomeMessage: String
     enableFallback: Boolean
     fallbackNumber: String
     fallbackPromptTTS: String

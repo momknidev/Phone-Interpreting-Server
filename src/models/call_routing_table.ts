@@ -49,6 +49,10 @@ export const callRoutingSettings = pgTable('call_routing_settings', {
     'Siamo spiacenti, ma non siamo riusciti a connetterti con un interprete. Per favore riprova più tardi.',
   ),
   digitsTimeOut: integer('digits_time_out').default(5),
+  welcomeMessage: text('welcome_message').default(
+    'Welcome To Phone Mediation.',
+  ),
+  language: varchar('language').default('en-GB'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
