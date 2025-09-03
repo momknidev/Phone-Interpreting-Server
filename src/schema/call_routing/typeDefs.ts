@@ -38,7 +38,6 @@ export const typeDefs = gql`
     retryAttempts: Int
     enableFallback: Boolean
     fallbackNumber: String
-    fallbackPrompt: String
     digitsTimeOut: Int
     creditErrorText: String
     creditErrorFile: String

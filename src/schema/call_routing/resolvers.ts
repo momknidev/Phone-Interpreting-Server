@@ -92,7 +92,6 @@ const resolvers = {
       const baseData = {
         ...rest,
         ...fileUploads,
-        fallbackPrompt: fallbackPromptTTS,
         updatedAt: new Date(),
         client_id: context.user.id,
       };
