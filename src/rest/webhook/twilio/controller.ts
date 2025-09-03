@@ -1019,8 +1019,8 @@ export const machineDetectionResult = convertMiddlewareToAsync(
 );
 
 // Also, ensure the retry logic is properly triggered in callStatusResult:
-export const callStatusResult = convertMiddlewareToAsync(async (req) => {
-  const { CallSid: targetCallId, CallStatus } = req.body;
+export const callStatusResult = convertMiddlewareToAsync(async (req, res) => {
+  const { CallSid: targetCallId, CallStatus, CallDuration } = req.body;
   const originCallId = String(req.query.originCallId ?? '');
   const priority = Number(req.query.priority);
   const callType = req.query.callType || 'simultaneous';
@@ -1029,11 +1029,44 @@ export const callStatusResult = convertMiddlewareToAsync(async (req) => {
     (await redisClient.get(`${originCallId}:settings`)) || '{}',
   );
   const calledNumber = settings.phone_number;
-
+  const credits = await redisClient.get(`${originCallId}:credits`);
+  const timeLimitInSeconds = Number(credits) * 60;
+  logger.info(`req.body: ${req.body}`);
   logger.info(
-    `Call status result: ${CallStatus} for call ${targetCallId}, type: ${callType}`,
+    `Call status result: ${CallStatus} for call ${targetCallId}, type: ${callType}, duration: ${CallDuration}`,
   );
 
+  // Check if call was disconnected due to credit limit
+  if (
+    CallStatus === 'completed' &&
+    CallDuration &&
+    Number(CallDuration) >= timeLimitInSeconds - 10 // 10 second buffer for accuracy
+  ) {
+    logger.info(`Call ${targetCallId} disconnected due to credit limit`);
+
+    // Redirect origin call to credit exhausted message endpoint
+    try {
+      await twilioClient.calls(originCallId).update({
+        url: `${TWILIO_WEBHOOK}/creditExhausted?originCallId=${originCallId}`,
+        method: 'POST',
+      });
+
+      // Update call record
+      const uuid = await redisClient.get(`${originCallId}:uuid`);
+      saveCallStepAsync(uuid || '', {
+        status: 'Credit Exhausted',
+        duration: CallDuration,
+        credits_used: credits,
+      });
+    } catch (error) {
+      logger.error(`Failed to redirect to creditExhausted: ${error}`);
+    }
+
+    res.status(200).send('OK');
+    return;
+  }
+
+  // Handle other call status scenarios (existing logic)
   if (
     CallStatus === 'failed' ||
     CallStatus === 'no-answer' ||
@@ -1066,49 +1099,97 @@ export const callStatusResult = convertMiddlewareToAsync(async (req) => {
           targetLanguageID: targetLanguage || '',
           priority,
           fallbackCalled,
-          phone_number: calledNumber, // Make sure this is passed correctly
+          phone_number: calledNumber,
         });
       }
     }
   }
+
+  res.status(200).send('OK');
 });
-export const conferenceStatusResult = convertMiddlewareToAsync(async (req) => {
-  const { StatusCallbackEvent, EndConferenceOnExit } = req.body;
+// New handler for credit exhausted scenario
+export const creditExhausted = convertMiddlewareToAsync(async (req, res) => {
+  const twiml = new VoiceResponse();
   const originCallId = String(req.query.originCallId ?? '');
-  const uuid = await redisClient.get(`${originCallId}:uuid`);
   const settings = JSON.parse(
     (await redisClient.get(`${originCallId}:settings`)) || '{}',
   );
-  const phone_number = settings.phone_number;
-  if (StatusCallbackEvent !== 'participant-leave') {
-    return;
-  }
 
-  const participants = await twilioClient
-    .conferences(req.body.ConferenceSid)
-    .participants.list();
-
-  const data = await Promise.all(
-    participants.map(({ callSid }) =>
-      twilioClient.calls(callSid).update({
-        status: 'completed',
-      }),
-    ),
+  const uuid = await redisClient.get(`${originCallId}:uuid`);
+  logger.info(
+    `Credit exhausted handler for call ${originCallId}, uuid: ${uuid}`,
   );
-  await redisClient.del(originCallId);
 
-  try {
-    await updateRequestInformation(uuid || '', {
-      request: req.body,
-      EndConferenceOnExit,
-      originCallId: req.body?.CallSid,
-      conferenceSid: req.body?.ConferenceSid,
-      phone_number: phone_number,
-    });
-  } catch (error) {
-    logger.error(`Failed to create call record: ${error}`);
+  // Play credit exhausted message using your existing pattern
+  if (
+    settings.creditExhaustedMessageMode === 'audio' &&
+    settings.creditExhaustedMessageFile
+  ) {
+    twiml.play(settings.creditExhaustedMessageFile);
+  } else {
+    twiml.say(
+      {
+        language: settings.language || 'en-GB',
+      },
+      settings.creditExhaustedMessageText ||
+        'Your session has ended due to insufficient credits. Thank you for using our service.',
+    );
   }
+
+  twiml.hangup();
+  res.type('text/xml');
+  res.send(twiml.toString());
 });
+export const conferenceStatusResult = convertMiddlewareToAsync(
+  async (req, res) => {
+    const { StatusCallbackEvent, EndConferenceOnExit } = req.body;
+    const originCallId = String(req.query.originCallId ?? '');
+    const uuid = await redisClient.get(`${originCallId}:uuid`);
+    const settings = JSON.parse(
+      (await redisClient.get(`${originCallId}:settings`)) || '{}',
+    );
+    logger.info(`settings for ${originCallId}: ${JSON.stringify(settings)}`);
+    logger.info(`body : ${JSON.stringify(req.body)}`);
+    const phone_number = settings.phone_number;
+    logger.info(
+      `Conference event: ${StatusCallbackEvent} for conference ${req?.body?.ConferenceSid}`,
+    );
+    if (StatusCallbackEvent !== 'participant-leave') {
+      logger.info(`Conference ended due to credit limit for ${originCallId}`);
+
+      return;
+    }
+
+    // Clean up remaining participants
+    const participants = await twilioClient
+      .conferences(req.body.ConferenceSid)
+      .participants.list();
+
+    await Promise.all(
+      participants.map(({ callSid }) =>
+        twilioClient.calls(callSid).update({
+          status: 'completed',
+        }),
+      ),
+    );
+
+    await redisClient.del(originCallId);
+
+    try {
+      await updateRequestInformation(uuid || '', {
+        request: req.body,
+        EndConferenceOnExit,
+        originCallId: req.body?.CallSid,
+        conferenceSid: req.body?.ConferenceSid,
+        phone_number: phone_number,
+      });
+    } catch (error) {
+      logger.error(`Failed to create call record: ${error}`);
+    }
+
+    res.status(200).send('OK');
+  },
+);
 
 export const noAnswer = convertMiddlewareToAsync(async (req, res) => {
   const twiml = new VoiceResponse();
