@@ -18,8 +18,7 @@ export const typeDefs = gql`
     askSourceLanguage: Boolean
     askTargetLanguage: Boolean
     sourceLanguagePromptText: String
-    sourceLanguagePromptFile: 
-    
+    sourceLanguagePromptFile: String
     sourceLanguagePromptMode: String
     sourceLanguageErrorText: String
     sourceLanguageErrorFile: String
