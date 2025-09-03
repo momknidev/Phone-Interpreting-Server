@@ -1,6 +1,7 @@
 import { gql } from 'apollo-server';
 
 export const typeDefs = gql`
+  scalar Upload
   enum CallAlgorithm {
     simultaneous
     sequential
@@ -11,29 +12,43 @@ export const typeDefs = gql`
     client_id: ID!
     phone_number: String!
     enable_code: Boolean
-    callingCodePrompt: String
-    callingCodePromptURL: String
+    callingCodePromptText: String
+    callingCodePromptFile: String
+    callingCodePromptMode: String
     askSourceLanguage: Boolean
     askTargetLanguage: Boolean
-    sourceLanguagePrompt: String
-    sourceLanguagePromptURL: String
-    sourceLanguageError: String
-    callingCodeError: String
-    targetLanguageError: String
+    sourceLanguagePromptText: String
+    sourceLanguagePromptFile: 
+    
+    sourceLanguagePromptMode: String
+    sourceLanguageErrorText: String
+    sourceLanguageErrorFile: String
+    sourceLanguageErrorMode: String
+    callingCodeErrorText: String
+    callingCodeErrorFile: String
+    callingCodeErrorMode: String
+    targetLanguageErrorText: String
+    targetLanguageErrorFile: String
+    targetLanguageErrorMode: String
     fallbackType: String
     fallbackMessage: String
-    targetLanguagePrompt: String
-    targetLanguagePromptURL: String
+    targetLanguagePromptText: String
+    targetLanguagePromptFile: String
+    targetLanguagePromptMode: String
     interpreterCallType: CallAlgorithm
     retryAttempts: Int
     enableFallback: Boolean
     fallbackNumber: String
     fallbackPrompt: String
     digitsTimeOut: Int
-    creditError: String
-    noAnswerMessage: String
+    creditErrorText: String
+    noAnswerMessageText: String
+    noAnswerMessageFile: String
+    noAnswerMessageMode: String
     language: String
-    welcomeMessage: String
+    welcomeMessageText: String
+    welcomeMessageFile: String
+    welcomeMessageMode: String
     createdAt: String
     updatedAt: String
   }
@@ -43,27 +58,53 @@ export const typeDefs = gql`
     fallbackType: String
     fallbackMessage: String
     enable_code: Boolean
-    callingCodePrompt: String
+
+    callingCodePromptText: String
     callingCodePromptFile: Upload
-    sourceLanguageError: String
-    callingCodeError: String
-    targetLanguageError: String
+    callingCodePromptMode: String
+
+    callingCodeErrorText: String
+    callingCodeErrorFile: Upload
+    callingCodeErrorMode: String
+
     askSourceLanguage: Boolean
     askTargetLanguage: Boolean
-    sourceLanguagePrompt: String
+
+    sourceLanguagePromptText: String
     sourceLanguagePromptFile: Upload
-    targetLanguagePrompt: String
+    sourceLanguagePromptMode: String
+
+    sourceLanguageErrorText: String
+    sourceLanguageErrorFile: Upload
+    sourceLanguageErrorMode: String
+
+    targetLanguagePromptText: String
     targetLanguagePromptFile: Upload
+    targetLanguagePromptMode: String
+
+    targetLanguageErrorText: String
+    targetLanguageErrorFile: Upload
+    targetLanguageErrorMode: String
+
     digitsTimeOut: Int
-    creditError: String
+    creditErrorText: String
+    creditErrorFile: Upload
+    creditErrorMode: String
     interpreterCallType: CallAlgorithm
     retryAttempts: Int
-    noAnswerMessage: String
+
+    noAnswerMessageText: String
+    noAnswerMessageFile: Upload
+    noAnswerMessageMode: String
+
     language: String
-    welcomeMessage: String
+
+    welcomeMessageText: String
+    welcomeMessageFile: Upload
+    welcomeMessageMode: String
+
     enableFallback: Boolean
     fallbackNumber: String
-    fallbackPromptTTS: String
   }
 
   type Query {

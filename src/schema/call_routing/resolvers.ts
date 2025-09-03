@@ -6,9 +6,14 @@ import { callRoutingSettings } from '../../models';
 // import { uploadObjectToS3 } from '../../utils/s3Uploader';
 import { uploadObjectToS3 } from '../../utils/uploadObjectToS3';
 
+const bucketName = process.env.AWS_S3_BUCKET_NAME;
 const resolvers = {
   Query: {
-    getCallRoutingSettings: async (_: any, { phone_number }: { phone_number: string }, context: any) => {
+    getCallRoutingSettings: async (
+      _: any,
+      { phone_number }: { phone_number: string },
+      context: any,
+    ) => {
       if (!context?.user) throw new AuthenticationError('Unauthenticated');
 
       const result = await db
@@ -25,62 +30,63 @@ const resolvers = {
   },
 
   Mutation: {
-    createOrUpdateCallRoutingSettings: async (_: any, { input }: { input: any }, context: any) => {
+    createOrUpdateCallRoutingSettings: async (
+      _: any,
+      { input }: { input: any },
+      context: any,
+    ) => {
       if (!context?.user) throw new AuthenticationError('Unauthenticated');
-
       const {
-        callingCodePromptFile,
+        welcomeMessageFile,
+        noAnswerMessageFile,
+        callingCodeErrorFile,
+        sourceLanguageErrorFile,
         sourceLanguagePromptFile,
         targetLanguagePromptFile,
+        targetLanguageErrorFile,
+        creditErrorFile,
         fallbackPromptTTS,
         ...rest
       } = input;
 
       const fileUploads: {
-        callingCodePromptURL?: string;
-        sourceLanguagePromptURL?: string;
-        targetLanguagePromptURL?: string;
+        welcomeMessageFile?: string;
+        noAnswerMessageFile?: string;
+        callingCodeErrorFile?: string;
+        sourceLanguageErrorFile?: string;
+        sourceLanguagePromptFile?: string;
+        targetLanguagePromptFile?: string;
+        targetLanguageErrorFile?: string;
+        creditErrorFile?: string;
       } = {};
-      const bucketName = 'lingoyouniverselinguistcv';
 
       // Upload files and get URLs
-      if (callingCodePromptFile) {
-        const { createReadStream, filename, mimetype } = await callingCodePromptFile
-        const stream = createReadStream();
-        const params = {
-          Bucket: bucketName,
-          Key: `${Date.now()}-${filename}`,
-          Body: stream,
-          ContentType: mimetype,
-        };
-        const url = await uploadObjectToS3(params);
-        fileUploads.callingCodePromptURL = url
-      }
+      const fileFields = [
+        'welcomeMessageFile',
+        'noAnswerMessageFile',
+        'callingCodeErrorFile',
+        'sourceLanguageErrorFile',
+        'sourceLanguagePromptFile',
+        'targetLanguagePromptFile',
+        'targetLanguageErrorFile',
+        'creditErrorFile',
+        'callingCodePromptFile',
+      ];
 
-      if (sourceLanguagePromptFile) {
-        const { createReadStream, filename, mimetype } = await sourceLanguagePromptFile
-        const stream = createReadStream();
-        const params = {
-          Bucket: bucketName,
-          Key: `${Date.now()}-${filename}`,
-          Body: stream,
-          ContentType: mimetype,
-        };
-        const url = await uploadObjectToS3(params);
-        fileUploads.sourceLanguagePromptURL = url
-      }
-
-      if (targetLanguagePromptFile) {
-        const { createReadStream, filename, mimetype } = await targetLanguagePromptFile;
-        const stream = createReadStream();
-        const params = {
-          Bucket: bucketName,
-          Key: `${Date.now()}-${filename}`,
-          Body: stream,
-          ContentType: mimetype,
-        };
-        const url = await uploadObjectToS3(params);
-        fileUploads.targetLanguagePromptURL = url
+      for (const field of fileFields) {
+        const file = input[field];
+        if (file) {
+          const { createReadStream, filename, mimetype } = await file;
+          const stream = createReadStream();
+          const params = {
+            Bucket: bucketName,
+            Key: `${Date.now()}-${filename.replace(/\s+/g, '_')}`,
+            Body: stream,
+            ContentType: mimetype,
+          };
+          const url = await uploadObjectToS3(params);
+          fileUploads[field as keyof typeof fileUploads] = url;
+        }
       }
 
       const baseData = {
@@ -90,7 +96,7 @@ const resolvers = {
         updatedAt: new Date(),
         client_id: context.user.id,
       };
-
+      console.log('baseData', baseData);
       const existing = await db
         .select()
         .from(callRoutingSettings)
@@ -123,7 +129,7 @@ const resolvers = {
     deleteCallRoutingSettings: async (
       _: any,
       { client_id, phone_number }: { client_id: string; phone_number: string },
-      context: any
+      context: any,
     ) => {
       if (!context?.user) throw new AuthenticationError('Unauthenticated');
 

@@ -3,16 +3,19 @@ import { and, asc, desc, eq, ilike, or, sql } from 'drizzle-orm';
 import { AuthenticationError, UserInputError } from 'apollo-server';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import axios from 'axios'
+import axios from 'axios';
 import { callRoutingSettings, Client, clientPhones } from '../../models';
 import { db } from '../../config/postgres';
-import { Client as ClientUser } from '../../../types/user'
+import { Client as ClientUser } from '../../../types/user';
 import { uploadObjectToS3 } from '../../utils/uploadObjectToS3';
 import uuidv4 from '../../utils/uuidv4';
 import { FileUpload } from 'graphql-upload-ts';
 import mailer from '@sendgrid/mail';
-import { emailFooter, emailHeader, newPhoneRequest } from '../../mail_templates';
-
+import {
+  emailFooter,
+  emailHeader,
+  newPhoneRequest,
+} from '../../mail_templates';
 
 interface ClientDetails {
   email: string;
@@ -21,12 +24,11 @@ interface ClientDetails {
   first_name?: string;
   last_name?: string;
   phone?: string;
-  status?: string,
+  status?: string;
   type?: string;
   phoneList?: { phone: string; label: string }[];
   avatar_url?: string | FileUpload;
 }
-
 
 const generateToken = (user: {
   id: string;
@@ -36,7 +38,7 @@ const generateToken = (user: {
   avatar_url: string | null;
   role: string | null;
   type: string | null;
-  client_phones?: { phone: string, label: string }[];
+  client_phones?: { phone: string; label: string }[];
 }) => {
   const secretKey = process.env.SECRET_KEY;
   if (!secretKey) {
@@ -55,7 +57,7 @@ const generateToken = (user: {
       client_phones: user.client_phones,
     },
     secretKey,
-    { expiresIn: '24h' }
+    { expiresIn: '24h' },
   );
 };
 
@@ -64,19 +66,22 @@ const resolvers = {
   Query: {
     login: async (
       _: any,
-      { email, password, recaptcha }: { email: string; password: string; recaptcha?: string }
+      {
+        email,
+        password,
+        recaptcha,
+      }: { email: string; password: string; recaptcha?: string },
     ): Promise<ClientUser> => {
       try {
         if (recaptcha) {
           const recaptchaResponse = await axios.post(
-            `https://www.google.com/recaptcha/api/siteverify?secret=${process.env.RECAPTCHA_SECRET_KEY}&response=${recaptcha}`
+            `https://www.google.com/recaptcha/api/siteverify?secret=${process.env.RECAPTCHA_SECRET_KEY}&response=${recaptcha}`,
           );
 
           if (!recaptchaResponse.data.success) {
             throw new Error('reCAPTCHA validation failed.');
           }
         }
-
 
         const user = await db.query.Client.findFirst({
           where: and(ilike(Client.email, email), eq(Client.status, 'active')),
@@ -99,11 +104,11 @@ const resolvers = {
         }
         const obj = {
           ...user,
-          client_phones: user.client_phones.map(phone => ({
+          client_phones: user.client_phones.map((phone) => ({
             phone: phone.phone ?? '',
             label: phone.label ?? '',
           })),
-        }
+        };
         // Generate token and return user data
         const token = generateToken(obj);
         return {
@@ -125,7 +130,11 @@ const resolvers = {
         throw new Error(error.message || 'Internal server error.');
       }
     },
-    clientByID: async (_: any, { id }: { id: string }, context: any): Promise<any> => {
+    clientByID: async (
+      _: any,
+      { id }: { id: string },
+      context: any,
+    ): Promise<any> => {
       // if (!context?.user) {
       //   throw new AuthenticationError('Unauthenticated');
       // }
@@ -137,14 +146,14 @@ const resolvers = {
           },
         });
 
-        console.log("result", result);
-        const user = result
+        console.log('result', result);
+        const user = result;
 
         if (!user) {
           throw new UserInputError('ClientUser not found!');
         }
 
-        return result
+        return result;
       } catch (error: any) {
         console.error('Error:', error.message);
         throw new Error(error.message || 'Internal server error.');
@@ -159,7 +168,7 @@ const resolvers = {
         order = 'DESC',
         orderBy = 'created_at',
         name = '',
-        type = ''
+        type = '',
       }: {
         offset?: number;
         limit?: number;
@@ -167,7 +176,8 @@ const resolvers = {
         orderBy?: string;
         name?: string;
         type?: string;
-      }, context: any
+      },
+      context: any,
     ) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
@@ -184,8 +194,7 @@ const resolvers = {
               ilike(Client.last_name, '%' + name + '%'),
               ilike(Client.phone, '%' + name + '%'),
               ilike(Client.email, '%' + name + '%'),
-
-            )
+            ),
           );
         }
 
@@ -199,15 +208,23 @@ const resolvers = {
 
         // Apply sorting
         if (orderBy && order) {
-          const isValidColumn = orderBy in Client && typeof Client[orderBy as keyof typeof Client] === 'object';
+          const isValidColumn =
+            orderBy in Client &&
+            typeof Client[orderBy as keyof typeof Client] === 'object';
           if (isValidColumn) {
             const sortColumn = Client[orderBy as keyof typeof Client] as any;
             query.orderBy(
-              order.toUpperCase() === 'ASC' ? asc(sortColumn) : desc(sortColumn)
+              order.toUpperCase() === 'ASC'
+                ? asc(sortColumn)
+                : desc(sortColumn),
             );
           } else {
             // Default to created_at if invalid column provided
-            query.orderBy(order.toUpperCase() === 'ASC' ? asc(Client.created_at) : desc(Client.created_at));
+            query.orderBy(
+              order.toUpperCase() === 'ASC'
+                ? asc(Client.created_at)
+                : desc(Client.created_at),
+            );
           }
         }
 
@@ -223,7 +240,7 @@ const resolvers = {
         const users = await query.limit(limit).offset(offset);
 
         // Map users to remove sensitive data
-        const mappedUsers = users.map(user => ({
+        const mappedUsers = users.map((user) => ({
           ...user,
           first_name: user.first_name || '',
           last_name: user.last_name || '',
@@ -247,12 +264,15 @@ const resolvers = {
     },
   },
   Mutation: {
-    addClient: async (_: any, { clientDetails, file }: { clientDetails: ClientDetails, file?: any }, context: any) => {
+    addClient: async (
+      _: any,
+      { clientDetails, file }: { clientDetails: ClientDetails; file?: any },
+      context: any,
+    ) => {
       if (!context?.user) {
-
         throw new UserInputError('Unauthenticated');
       }
-      console.log("clientDetails", clientDetails);
+      console.log('clientDetails', clientDetails);
       try {
         if (!clientDetails.password) {
           throw new UserInputError('Password is required');
@@ -283,47 +303,51 @@ const resolvers = {
           type: clientDetails.type,
           avatar_url: s3URL,
         };
-        console.log("result", userData);
+        console.log('result', userData);
         const result = await db.insert(Client).values(userData).returning();
         const phoneNumbers = clientDetails.phoneList || [];
         if (phoneNumbers.length > 0) {
-          const phoneData = phoneNumbers.map((phone: { phone: string; label: string }) => ({
-            client_id: userData.id,
-            id: uuidv4(),
-            phone: phone.phone,
-            label: phone.label,
-
-          }));
-          const phones = await db.insert(clientPhones).values(phoneData).returning();
-          console.log("phones", phones);
-          let settings = phones.map(item => {
-            return ({
+          const phoneData = phoneNumbers.map(
+            (phone: { phone: string; label: string }) => ({
+              client_id: userData.id,
+              id: uuidv4(),
+              phone: phone.phone,
+              label: phone.label,
+            }),
+          );
+          const phones = await db
+            .insert(clientPhones)
+            .values(phoneData)
+            .returning();
+          console.log('phones', phones);
+          let settings = phones.map((item) => {
+            return {
               id: uuidv4(),
               phone_number: item.phone,
               client_id: userData.id,
               enable_code: true,
-              callingCodePrompt: "Inserisci il codice identificativo fornito",
-              callingCodePromptURL: null,
+              callingCodePromptText:
+                'Inserisci il codice identificativo fornito',
+              callingCodePromptFile: null,
               askSourceLanguage: true,
               askTargetLanguage: true,
-              sourceLanguagePrompt: "Seleziona la lingua di partenza",
-              sourceLanguagePromptURL: null,
-              sourceLanguageError: "Source Language not found",
-              callingCodeError: "Calling code Error",
-              targetLanguageError: "Target Language not found",
-              fallbackType: "message",
-              fallbackMessage: "Call back message is being played",
-              targetLanguagePrompt: null,
-              targetLanguagePromptURL: null,
+              sourceLanguagePromptText: 'Seleziona la lingua di partenza',
+              sourceLanguagePromptFile: null,
+              sourceLanguageErrorText: 'Source Language not found',
+              callingCodeErrorText: 'Calling code Error',
+              targetLanguageErrorText: 'Target Language not found',
+              fallbackType: 'message',
+              fallbackMessage: 'Call back message is being played',
+              targetLanguagePromptText: null,
+              targetLanguagePromptFile: null,
               retryAttempts: 0,
               enableFallback: true,
               fallbackNumber: '',
               createdAt: new Date(),
-              updatedAt: new Date()
-            })
-          })
+              updatedAt: new Date(),
+            };
+          });
           await db.insert(callRoutingSettings).values(settings);
-
         }
         if (result) {
           console.log(JSON.stringify(result));
@@ -339,20 +363,24 @@ const resolvers = {
 
     editClient: async (
       _: any,
-      { id, clientDetails, file }: { id: string; clientDetails: ClientDetails; file?: any },
-      context: any
+      {
+        id,
+        clientDetails,
+        file,
+      }: { id: string; clientDetails: ClientDetails; file?: any },
+      context: any,
     ) => {
       if (!context?.user) {
-        throw new AuthenticationError("Unauthenticated");
+        throw new AuthenticationError('Unauthenticated');
       }
       try {
-        let s3URL = "";
+        let s3URL = '';
 
         if (file) {
           const { createReadStream, filename } = await file;
           const stream = createReadStream();
           const params = {
-            Bucket: "lingoyouniverselinguistimage",
+            Bucket: 'lingoyouniverselinguistimage',
             Key: filename,
             Body: stream,
           };
@@ -372,7 +400,7 @@ const resolvers = {
         const existingUser = users[0];
 
         if (!existingUser) {
-          throw new UserInputError("ClientUser not found");
+          throw new UserInputError('ClientUser not found');
         }
 
         // Prepare the updated user data
@@ -391,7 +419,10 @@ const resolvers = {
         await db.update(Client).set(updatedData).where(eq(Client.id, id));
 
         // Fetch the updated user details
-        const updatedUsers = await db.select().from(Client).where(eq(Client.id, id));
+        const updatedUsers = await db
+          .select()
+          .from(Client)
+          .where(eq(Client.id, id));
         const updatedUser = updatedUsers[0];
 
         const phoneNumbers = clientDetails.phoneList || [];
@@ -405,18 +436,22 @@ const resolvers = {
           const existingPhoneSet = new Set(existingPhones.map((p) => p.phone));
 
           // Separate new phone numbers
-          const newPhones = phoneNumbers.filter((p) => !existingPhoneSet.has(p.phone));
+          const newPhones = phoneNumbers.filter(
+            (p) => !existingPhoneSet.has(p.phone),
+          );
 
           // Delete all phone numbers (old behavior)
           await db.delete(clientPhones).where(eq(clientPhones.client_id, id));
 
           // Insert all phone numbers
-          const phoneData = phoneNumbers.map((phone: { phone: string; label: string }) => ({
-            client_id: id,
-            id: uuidv4(),
-            phone: phone.phone,
-            label: phone.label,
-          }));
+          const phoneData = phoneNumbers.map(
+            (phone: { phone: string; label: string }) => ({
+              client_id: id,
+              id: uuidv4(),
+              phone: phone.phone,
+              label: phone.label,
+            }),
+          );
           await db.insert(clientPhones).values(phoneData);
 
           // Insert default settings only for newly added numbers
@@ -426,22 +461,23 @@ const resolvers = {
               phone_number: item.phone,
               client_id: id,
               enable_code: true,
-              callingCodePrompt: "Inserisci il codice identificativo fornito",
-              callingCodePromptURL: null,
+              callingCodePromptText:
+                'Inserisci il codice identificativo fornito',
+              callingCodePromptFile: null,
               askSourceLanguage: true,
               askTargetLanguage: true,
-              sourceLanguagePrompt: "Seleziona la lingua di partenza",
-              sourceLanguagePromptURL: null,
-              sourceLanguageError: "Source Language not found",
-              callingCodeError: "Calling code Error",
-              targetLanguageError: "Target Language not found",
-              fallbackType: "message",
-              fallbackMessage: "Call back message is being played",
-              targetLanguagePrompt: "Seleziona la lingua di partenza",
-              targetLanguagePromptURL: null,
+              sourceLanguagePromptText: 'Seleziona la lingua di partenza',
+              sourceLanguagePromptFile: null,
+              sourceLanguageErrorText: 'Source Language not found',
+              callingCodeErrorText: 'Calling code Error',
+              targetLanguageErrorText: 'Target Language not found',
+              fallbackType: 'message',
+              fallbackMessage: 'Call back message is being played',
+              targetLanguagePromptText: 'Seleziona la lingua di partenza',
+              targetLanguagePromptFile: null,
               retryAttempts: 0,
               enableFallback: true,
-              fallbackNumber: "",
+              fallbackNumber: '',
               createdAt: new Date(),
               updatedAt: new Date(),
             }));
@@ -454,15 +490,25 @@ const resolvers = {
           const token = generateToken(updatedUser);
           return { ...updatedUser, token };
         } else {
-          throw new Error("ClientUser update failed. No updated user returned.");
+          throw new Error(
+            'ClientUser update failed. No updated user returned.',
+          );
         }
       } catch (error: any) {
-        console.error("Error updating user:", error.message);
-        throw new Error("Error: " + error.message);
+        console.error('Error updating user:', error.message);
+        throw new Error('Error: ' + error.message);
       }
     },
 
-    updateClientPassword: async (_: any, { id, newPassword, oldPassword }: { id: string, newPassword: string, oldPassword?: string }, context: any) => {
+    updateClientPassword: async (
+      _: any,
+      {
+        id,
+        newPassword,
+        oldPassword,
+      }: { id: string; newPassword: string; oldPassword?: string },
+      context: any,
+    ) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
@@ -485,7 +531,10 @@ const resolvers = {
             if (!existingUser.password) {
               throw new UserInputError('Password not set for this user');
             }
-            const isCorrectPassword = await bcrypt.compare(oldPassword, existingUser.password);
+            const isCorrectPassword = await bcrypt.compare(
+              oldPassword,
+              existingUser.password,
+            );
             if (!isCorrectPassword) {
               throw new UserInputError('Wrong old password');
             }
@@ -493,15 +542,15 @@ const resolvers = {
           updateData['password'] = await bcrypt.hash(newPassword, 10);
         }
 
-
-
-
         // Only perform update if there are fields to update
         if (Object.keys(updateData).length > 0) {
           await db.update(Client).set(updateData).where(eq(Client.id, id));
 
           // Fetch the updated user details
-          const updatedUsers = await db.select().from(Client).where(eq(Client.id, id));
+          const updatedUsers = await db
+            .select()
+            .from(Client)
+            .where(eq(Client.id, id));
           const updatedUser = updatedUsers[0];
 
           // Generate token with updated user info
@@ -510,7 +559,9 @@ const resolvers = {
           return {
             ...updatedUser,
             token,
-            displayName: `${updatedUser.first_name || ''} ${updatedUser.last_name || ''}`,
+            displayName: `${updatedUser.first_name || ''} ${
+              updatedUser.last_name || ''
+            }`,
           };
         } else {
           throw new UserInputError('No password updates provided');
@@ -520,7 +571,11 @@ const resolvers = {
         throw new Error('Error: ' + error.message);
       }
     },
-    changeStatus: async (_: any, { id, status }: { id: string, status: string }, context: any) => {
+    changeStatus: async (
+      _: any,
+      { id, status }: { id: string; status: string },
+      context: any,
+    ) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
@@ -538,7 +593,10 @@ const resolvers = {
         await db.update(Client).set({ status }).where(eq(Client.id, id));
 
         // Fetch the updated user details
-        const updatedUsers = await db.select().from(Client).where(eq(Client.id, id));
+        const updatedUsers = await db
+          .select()
+          .from(Client)
+          .where(eq(Client.id, id));
         const updatedUser = updatedUsers[0];
 
         if (updatedUser) {
@@ -558,23 +616,30 @@ const resolvers = {
             status: updatedUser.status || '',
           };
         } else {
-          throw new Error('ClientUser status update failed. No updated user returned.');
+          throw new Error(
+            'ClientUser status update failed. No updated user returned.',
+          );
         }
       } catch (error: any) {
         console.error('Error updating user status:', error.message);
         throw new Error('Error: ' + error.message);
       }
     },
-    requestNewPhone: async (_: any, { description, }: { description: string, }, context: any) => {
+    requestNewPhone: async (
+      _: any,
+      { description }: { description: string },
+      context: any,
+    ) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
       try {
-
-
-
         const user = await db.query.Client.findFirst({
-          where: and(eq(Client.id, context.user?.id), eq(Client.status, 'active'), eq(Client.role, 'client')),
+          where: and(
+            eq(Client.id, context.user?.id),
+            eq(Client.status, 'active'),
+            eq(Client.role, 'client'),
+          ),
           with: {
             client_phones: true,
           },
@@ -589,21 +654,16 @@ const resolvers = {
             html: `${emailHeader}${newPhoneRequest({
               name: user?.first_name || '',
               description: description,
-
             })}${emailFooter}`,
           };
 
           await mailer.send(msgObject);
-          return true
+          return true;
         }
-
       } catch (err) {
-        throw new Error(`error in sending email : ${err}`)
-
+        throw new Error(`error in sending email : ${err}`);
       }
-    }
-
-
+    },
   },
 };
 

@@ -282,23 +282,23 @@ export const call = convertMiddlewareToAsync(async (req, res) => {
         client_id: callRoutingSettings.client_id,
         phone_number: callRoutingSettings.phone_number,
         enable_code: callRoutingSettings.enable_code,
-        callingCodePrompt: callRoutingSettings.callingCodePrompt,
-        callingCodeError: callRoutingSettings.callingCodeError,
+        callingCodePromptText: callRoutingSettings.callingCodePromptText,
+        callingCodeErrorText: callRoutingSettings.callingCodeErrorText,
         askSourceLanguage: callRoutingSettings.askSourceLanguage,
-        sourceLanguagePrompt: callRoutingSettings.sourceLanguagePrompt,
-        sourceLanguageError: callRoutingSettings.sourceLanguageError,
+        sourceLanguagePromptText: callRoutingSettings.sourceLanguagePromptText,
+        sourceLanguageErrorText: callRoutingSettings.sourceLanguageErrorText,
         askTargetLanguage: callRoutingSettings.askTargetLanguage,
-        targetLanguagePrompt: callRoutingSettings.targetLanguagePrompt,
-        targetLanguageError: callRoutingSettings.targetLanguageError,
+        targetLanguagePromptText: callRoutingSettings.targetLanguagePromptText,
+        targetLanguageErrorText: callRoutingSettings.targetLanguageErrorText,
         interpreterCallType: callRoutingSettings.interpreterCallType,
         enableFallback: callRoutingSettings.enableFallback,
         fallbackNumber: callRoutingSettings.fallbackNumber,
         retryAttempts: callRoutingSettings.retryAttempts,
-        creditError: callRoutingSettings.creditError,
+        creditErrorText: callRoutingSettings.creditErrorText,
         digitsTimeOut: callRoutingSettings.digitsTimeOut,
-        noAnswerMessage: callRoutingSettings.noAnswerMessage,
+        noAnswerMessageText: callRoutingSettings.noAnswerMessageText,
         language: callRoutingSettings.language,
-        welcomeMessage: callRoutingSettings.welcomeMessage,
+        welcomeMessageText: callRoutingSettings.welcomeMessageText,
       })
       .from(callRoutingSettings)
       .where(eq(callRoutingSettings.phone_number, calledNumber))
@@ -315,7 +315,7 @@ export const call = convertMiddlewareToAsync(async (req, res) => {
 
     twiml.say(
       { language: (routeSettings[0]?.language || 'en-GB') as any },
-      routeSettings[0]?.welcomeMessage || 'Welcome to Phone mediation.',
+      routeSettings[0]?.welcomeMessageText || 'Welcome to Phone mediation.',
     );
     const settings = routeSettings[0];
 
@@ -377,10 +377,10 @@ export const requestCode = convertMiddlewareToAsync(async (req, res) => {
     action: `./validateCode?originCallId=${originCallId}&retriesAmount=${retriesAmount}&errorsAmount=${errorsAmount}`,
   });
 
-  let phraseToSay = settings.callingCodePrompt;
+  let phraseToSay = settings.callingCodePromptText;
 
   if (req.query.actionError) {
-    phraseToSay = settings.callingCodeError;
+    phraseToSay = settings.callingCodeErrorText;
   }
   gather.say({ language: settings.language || 'en-GB' }, phraseToSay);
 
@@ -416,7 +416,7 @@ export const validateCode = convertMiddlewareToAsync(async (req, res) => {
   if (department?.credits <= 0) {
     twiml.say(
       { language: settings.language || 'en-GB' },
-      settings?.creditError ||
+      settings?.creditErrorText ||
         'No Credits are available please contact administrator.',
     );
     twiml.hangup();
@@ -483,7 +483,7 @@ export const requestSourceLanguage = convertMiddlewareToAsync(
     });
     gather.say(
       { language: settings.language || 'en-GB' },
-      settings.sourceLanguagePrompt || 'Select the source language',
+      settings.sourceLanguagePromptText || 'Select the source language',
     );
     twiml.redirect(`./requestSourceLanguage?originCallId=${originCallId}`);
     res.type('text/xml').send(twiml.toString());
@@ -512,7 +512,7 @@ export const validateSourceLanguage = convertMiddlewareToAsync(
     } else {
       twiml.say(
         { language: settings.language || 'en-GB' },
-        settings?.sourceLanguageError || 'Invalid language code. Try again',
+        settings?.sourceLanguageErrorText || 'Invalid language code. Try again',
       );
       twiml.redirect(`./requestSourceLanguage?originCallId=${originCallId}`);
     }
@@ -564,7 +564,8 @@ export const requestTargetLanguage = convertMiddlewareToAsync(
     });
     gather.say(
       { language: settings.language || 'en-GB' },
-      settings.targetLanguagePrompt || 'Please enter code of target language',
+      settings.targetLanguagePromptText ||
+        'Please enter code of target language',
     );
     twiml.redirect(`./requestTargetLanguage?originCallId=${originCallId}`);
     res.type('text/xml').send(twiml.toString());
@@ -594,7 +595,8 @@ export const validateTargetLanguage = convertMiddlewareToAsync(
     } else {
       twiml.say(
         { language: settings.language || 'en-GB' },
-        settings?.targetLanguageError || 'Invalid language code. Try again.',
+        settings?.targetLanguageErrorText ||
+          'Invalid language code. Try again.',
       );
       twiml.redirect(`./requestTargetLanguage?originCallId=${originCallId}`);
     }
@@ -1098,7 +1100,7 @@ export const noAnswer = convertMiddlewareToAsync(async (req, res) => {
     {
       language: settings.language || 'en-GB',
     },
-    settings.noAnswerMessage || 'No Answer.',
+    settings.noAnswerMessageText || 'No Answer.',
   );
 
   twiml.hangup();
