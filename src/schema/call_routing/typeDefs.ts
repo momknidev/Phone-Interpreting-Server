@@ -41,6 +41,8 @@ export const typeDefs = gql`
     fallbackPrompt: String
     digitsTimeOut: Int
     creditErrorText: String
+    creditErrorFile: String
+    creditErrorMode: String
     noAnswerMessageText: String
     noAnswerMessageFile: String
     noAnswerMessageMode: String

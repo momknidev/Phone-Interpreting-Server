@@ -20,11 +20,14 @@ export const callRoutingSettings = pgTable('call_routing_settings', {
   client_id: uuid('client_id').notNull(),
   phone_number: varchar('phone_number').notNull(),
   enable_code: boolean('enable_code').default(true),
-  callingCodePromptText: text('calling_code_prompt').default(
+  callingCodePromptText: text('calling_code_prompt_text').default(
     'Inserisci il codice identificativo fornito',
   ),
   callingCodePromptFile: text('calling_code_prompt_file'),
+  callingCodePromptMode: text('calling_code_prompt_mode'),
   callingCodeErrorText: text('calling_code_error'),
+  callingCodeErrorFile: text('calling_code_error_file'),
+  callingCodeErrorMode: text('calling_code_error_mode'),
 
   askSourceLanguage: boolean('ask_source_language').default(true),
   askTargetLanguage: boolean('ask_target_language').default(true),
@@ -54,7 +57,7 @@ export const callRoutingSettings = pgTable('call_routing_settings', {
   enableFallback: boolean('enable_fallback').default(false),
   fallbackNumber: varchar('fallback_number'),
 
-  creditErrorText: text('credit_error').default(
+  creditErrorText: text('credit_error_text').default(
     'Siamo spiacenti, ma non hai abbastanza credito per effettuare questa chiamata. Per favore ricarica il tuo account e riprova.',
   ),
   creditErrorFile: text('credit_error_file'),
