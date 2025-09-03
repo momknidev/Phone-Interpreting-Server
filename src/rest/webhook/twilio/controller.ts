@@ -278,28 +278,7 @@ export const call = convertMiddlewareToAsync(async (req, res) => {
   );
   try {
     const routeSettings = await db
-      .select({
-        client_id: callRoutingSettings.client_id,
-        phone_number: callRoutingSettings.phone_number,
-        enable_code: callRoutingSettings.enable_code,
-        callingCodePromptText: callRoutingSettings.callingCodePromptText,
-        callingCodeErrorText: callRoutingSettings.callingCodeErrorText,
-        askSourceLanguage: callRoutingSettings.askSourceLanguage,
-        sourceLanguagePromptText: callRoutingSettings.sourceLanguagePromptText,
-        sourceLanguageErrorText: callRoutingSettings.sourceLanguageErrorText,
-        askTargetLanguage: callRoutingSettings.askTargetLanguage,
-        targetLanguagePromptText: callRoutingSettings.targetLanguagePromptText,
-        targetLanguageErrorText: callRoutingSettings.targetLanguageErrorText,
-        interpreterCallType: callRoutingSettings.interpreterCallType,
-        enableFallback: callRoutingSettings.enableFallback,
-        fallbackNumber: callRoutingSettings.fallbackNumber,
-        retryAttempts: callRoutingSettings.retryAttempts,
-        creditErrorText: callRoutingSettings.creditErrorText,
-        digitsTimeOut: callRoutingSettings.digitsTimeOut,
-        noAnswerMessageText: callRoutingSettings.noAnswerMessageText,
-        language: callRoutingSettings.language,
-        welcomeMessageText: callRoutingSettings.welcomeMessageText,
-      })
+      .select()
       .from(callRoutingSettings)
       .where(eq(callRoutingSettings.phone_number, calledNumber))
       .limit(1);
@@ -312,11 +291,17 @@ export const call = convertMiddlewareToAsync(async (req, res) => {
       twiml.hangup();
       return;
     }
-
-    twiml.say(
-      { language: (routeSettings[0]?.language || 'en-GB') as any },
-      routeSettings[0]?.welcomeMessageText || 'Welcome to Phone mediation.',
-    );
+    if (
+      routeSettings[0].welcomeMessageMode === 'audio' &&
+      routeSettings[0]?.welcomeMessageFile
+    ) {
+      twiml.play(routeSettings[0].welcomeMessageFile);
+    } else {
+      twiml.say(
+        { language: (routeSettings[0]?.language || 'en-GB') as any },
+        routeSettings[0]?.welcomeMessageText || 'Welcome to Phone mediation.',
+      );
+    }
     const settings = routeSettings[0];
 
     let uuid = uuidv4();
@@ -378,11 +363,18 @@ export const requestCode = convertMiddlewareToAsync(async (req, res) => {
   });
 
   let phraseToSay = settings.callingCodePromptText;
+  let audioFile = settings.callingCodePromptAudio;
 
   if (req.query.actionError) {
     phraseToSay = settings.callingCodeErrorText;
+    audioFile = settings.callingCodeErrorAudio;
   }
-  gather.say({ language: settings.language || 'en-GB' }, phraseToSay);
+
+  if (settings.callingCodePromptMode === 'audio' && audioFile) {
+    gather.play(audioFile);
+  } else {
+    gather.say({ language: settings.language || 'en-GB' }, phraseToSay);
+  }
 
   twiml.redirect(
     `./requestCode?originCallId=${originCallId}&retriesAmount=${
@@ -414,11 +406,15 @@ export const validateCode = convertMiddlewareToAsync(async (req, res) => {
     phone_number: phoneNumber || '',
   });
   if (department?.credits <= 0) {
-    twiml.say(
-      { language: settings.language || 'en-GB' },
-      settings?.creditErrorText ||
-        'No Credits are available please contact administrator.',
-    );
+    if (settings.creditErrorMode === 'audio' && settings.creditErrorFile) {
+      twiml.play(settings.creditErrorFile);
+    } else {
+      twiml.say(
+        { language: settings.language || 'en-GB' },
+        settings?.creditErrorText ||
+          'No Credits are available please contact administrator.',
+      );
+    }
     twiml.hangup();
     res.type('text/xml').send(twiml.toString());
     return;
@@ -481,10 +477,17 @@ export const requestSourceLanguage = convertMiddlewareToAsync(
       timeout: Number(settings.digitsTimeOut) || 5,
       action: `./validateSourceLanguage?originCallId=${originCallId}`,
     });
-    gather.say(
-      { language: settings.language || 'en-GB' },
-      settings.sourceLanguagePromptText || 'Select the source language',
-    );
+    if (
+      settings.sourceLanguagePromptMode === 'audio' &&
+      settings.sourceLanguagePromptFile
+    ) {
+      gather.play(settings.sourceLanguagePromptFile);
+    } else {
+      gather.say(
+        { language: settings.language || 'en-GB' },
+        settings.sourceLanguagePromptText || 'Select the source language',
+      );
+    }
     twiml.redirect(`./requestSourceLanguage?originCallId=${originCallId}`);
     res.type('text/xml').send(twiml.toString());
   },
@@ -510,10 +513,18 @@ export const validateSourceLanguage = convertMiddlewareToAsync(
       saveCallStepAsync(uuid || '', { source_language_id: languages[0].id });
       twiml.redirect(`./requestTargetLanguage?originCallId=${originCallId}`);
     } else {
-      twiml.say(
-        { language: settings.language || 'en-GB' },
-        settings?.sourceLanguageErrorText || 'Invalid language code. Try again',
-      );
+      if (
+        settings.sourceLanguageErrorMode === 'audio' &&
+        settings.sourceLanguageErrorFile
+      ) {
+        twiml.play(settings.sourceLanguageErrorFile);
+      } else {
+        twiml.say(
+          { language: settings.language || 'en-GB' },
+          settings?.sourceLanguageErrorText ||
+            'Invalid language code. Try again',
+        );
+      }
       twiml.redirect(`./requestSourceLanguage?originCallId=${originCallId}`);
     }
     res.type('text/xml').send(twiml.toString());
@@ -562,11 +573,18 @@ export const requestTargetLanguage = convertMiddlewareToAsync(
       timeout: Number(settings.digitsTimeOut) || 5,
       action: `./validateTargetLanguage?originCallId=${originCallId}`,
     });
-    gather.say(
-      { language: settings.language || 'en-GB' },
-      settings.targetLanguagePromptText ||
-        'Please enter code of target language',
-    );
+    if (
+      settings.targetLanguagePromptMode === 'audio' &&
+      settings.targetLanguagePromptFile
+    ) {
+      gather.play(settings.targetLanguagePromptFile);
+    } else {
+      gather.say(
+        { language: settings.language || 'en-GB' },
+        settings.targetLanguagePromptText ||
+          'Please enter code of target language',
+      );
+    }
     twiml.redirect(`./requestTargetLanguage?originCallId=${originCallId}`);
     res.type('text/xml').send(twiml.toString());
   },
@@ -593,11 +611,18 @@ export const validateTargetLanguage = convertMiddlewareToAsync(
       saveCallStepAsync(uuid || '', { target_language_id: languages[0].id });
       twiml.redirect(`./callInterpreter?originCallId=${originCallId}`);
     } else {
-      twiml.say(
-        { language: settings.language || 'en-GB' },
-        settings?.targetLanguageErrorText ||
-          'Invalid language code. Try again.',
-      );
+      if (
+        settings.targetLanguageErrorMode === 'audio' &&
+        settings.targetLanguageErrorFile
+      ) {
+        twiml.play(settings.targetLanguageErrorFile);
+      } else {
+        twiml.say(
+          { language: settings.language || 'en-GB' },
+          settings?.targetLanguageErrorText ||
+            'Invalid language code. Try again.',
+        );
+      }
       twiml.redirect(`./requestTargetLanguage?originCallId=${originCallId}`);
     }
     res.type('text/xml').send(twiml.toString());
@@ -1096,12 +1121,19 @@ export const noAnswer = convertMiddlewareToAsync(async (req, res) => {
   logger.info(`No answer handler for call ${originCallId}, uuid: ${uuid}`);
   saveCallStepAsync(uuid || '', { status: 'No Answer' });
 
-  twiml.say(
-    {
-      language: settings.language || 'en-GB',
-    },
-    settings.noAnswerMessageText || 'No Answer.',
-  );
+  if (
+    settings.noAnswerMessageMode === 'audio' &&
+    settings.noAnswerMessageFile
+  ) {
+    twiml.play(settings.noAnswerMessageFile);
+  } else {
+    twiml.say(
+      {
+        language: settings.language || 'en-GB',
+      },
+      settings.noAnswerMessageText || 'No Answer.',
+    );
+  }
 
   twiml.hangup();
   res.type('text/xml');
