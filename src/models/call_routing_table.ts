@@ -53,7 +53,12 @@ export const callRoutingSettings = pgTable('call_routing_settings', {
     'simultaneous',
   ),
   retryAttempts: integer('retry_attempts').default(0),
-
+  inputAttemptsCount: integer('input_attempts').default(3),
+  inputAttemptsMode: text('input_attempts_mode').default('text'),
+  inputAttemptsText: text('input_attempts_text').default(
+    'Input non valido. Per favore riprova.',
+  ),
+  inputAttemptsFile: text('input_attempts_file'),
   enableFallback: boolean('enable_fallback').default(false),
   fallbackNumber: varchar('fallback_number'),
 

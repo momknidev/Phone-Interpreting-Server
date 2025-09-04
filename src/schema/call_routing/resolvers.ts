@@ -46,6 +46,7 @@ const resolvers = {
         targetLanguageErrorFile,
         creditErrorFile,
         fallbackPromptTTS,
+        inputAttemptsFile,
         ...rest
       } = input;
 
@@ -58,6 +59,7 @@ const resolvers = {
         targetLanguagePromptFile?: string;
         targetLanguageErrorFile?: string;
         creditErrorFile?: string;
+        inputAttemptsFile?: string;
       } = {};
 
       // Upload files and get URLs
@@ -71,6 +73,7 @@ const resolvers = {
         'targetLanguageErrorFile',
         'creditErrorFile',
         'callingCodePromptFile',
+        'inputAttemptsFile',
       ];
 
       for (const field of fileFields) {

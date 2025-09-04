@@ -36,6 +36,10 @@ export const typeDefs = gql`
     targetLanguagePromptMode: String
     interpreterCallType: CallAlgorithm
     retryAttempts: Int
+    inputAttemptsCount: Int
+    inputAttemptsMode: String
+    inputAttemptsText: String
+    inputAttemptsFile: Upload
     enableFallback: Boolean
     fallbackNumber: String
     digitsTimeOut: Int
@@ -92,6 +96,11 @@ export const typeDefs = gql`
     creditErrorMode: String
     interpreterCallType: CallAlgorithm
     retryAttempts: Int
+
+    inputAttemptsCount: Int
+    inputAttemptsMode: String
+    inputAttemptsText: String
+    inputAttemptsFile: Upload
 
     noAnswerMessageText: String
     noAnswerMessageFile: Upload

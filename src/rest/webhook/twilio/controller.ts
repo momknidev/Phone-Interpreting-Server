@@ -347,14 +347,22 @@ export const requestCode = convertMiddlewareToAsync(async (req, res) => {
     return;
   }
 
-  if (retriesAmount >= 2 || errorsAmount >= 3) {
-    twiml.say(
-      { language: settings.language || 'en-GB' },
-      'Too many attempts. Please try again later.',
-    );
-    res.type('text/xml').send(twiml.toString());
-    twiml.hangup();
-    return;
+  if (
+    retriesAmount >= Number(settings.inputAttemptsCount) ||
+    errorsAmount >= 3
+  ) {
+    if (settings.inputAttemptsMode === 'audio' && settings.inputAttemptsFile) {
+      twiml.play(settings.inputAttemptsFile);
+    } else {
+      twiml.say(
+        { language: settings.language || 'en-GB' },
+        settings.inputAttemptsText ||
+          'Too many attempts. Please try again later.',
+      );
+      res.type('text/xml').send(twiml.toString());
+      twiml.hangup();
+      return;
+    }
   }
 
   const gather = twiml.gather({
