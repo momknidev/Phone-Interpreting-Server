@@ -19,6 +19,7 @@ export const callStatusEnum = pgEnum('status', [
   'Error',
   'No Answer',
   'Completed',
+  'No Credit',
 ]);
 
 export const CallReports = pgTable('call_reports', {
