@@ -39,7 +39,7 @@ export const typeDefs = gql`
     inputAttemptsCount: Int
     inputAttemptsMode: String
     inputAttemptsText: String
-    inputAttemptsFile: Upload
+    inputAttemptsFile: String
     enableFallback: Boolean
     fallbackNumber: String
     digitsTimeOut: Int
