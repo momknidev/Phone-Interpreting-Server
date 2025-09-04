@@ -24,6 +24,7 @@ export const callRoutingSettings = pgTable('call_routing_settings', {
     'Inserisci il codice identificativo fornito',
   ),
   callingCodePromptMode: text('calling_code_prompt_mode'),
+  callingCodePromptFile: text('calling_code_prompt_file'),
   callingCodeErrorText: text('calling_code_error_text'),
   callingCodeErrorFile: text('calling_code_error_file'),
   callingCodeErrorMode: text('calling_code_error_mode'),
