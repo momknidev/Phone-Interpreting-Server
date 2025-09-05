@@ -347,11 +347,11 @@ export const requestCode = convertMiddlewareToAsync(async (req, res) => {
     return;
   }
   logger.info(
-    `Max attempts reached for ${originCallId}, hanging up. retriesAmount:${retriesAmount} errorsAmount:${errorsAmount}`,
+    `${settings?.inputAttemptsMode} Max attempts reached for ${originCallId}, hanging up. retriesAmount:${retriesAmount} errorsAmount:${errorsAmount}`,
   );
   if (
-    retriesAmount >= Number(settings.inputAttemptsCount) ||
-    errorsAmount >= Number(settings.inputAttemptsCount)
+    retriesAmount > Number(settings.inputAttemptsCount) ||
+    errorsAmount > Number(settings.inputAttemptsCount)
   ) {
     if (settings.inputAttemptsMode === 'audio' && settings.inputAttemptsFile) {
       twiml.play(settings.inputAttemptsFile);
