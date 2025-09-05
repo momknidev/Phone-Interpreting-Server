@@ -355,6 +355,7 @@ export const requestCode = convertMiddlewareToAsync(async (req, res) => {
   ) {
     if (settings.inputAttemptsMode === 'audio' && settings.inputAttemptsFile) {
       twiml.play(settings.inputAttemptsFile);
+      twiml.hangup();
     } else {
       twiml.say(
         { language: settings.language || 'en-GB' },
