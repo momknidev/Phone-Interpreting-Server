@@ -346,10 +346,12 @@ export const requestCode = convertMiddlewareToAsync(async (req, res) => {
     res.type('text/xml').send(twiml.toString());
     return;
   }
-
+  logger.info(
+    `Max attempts reached for ${originCallId}, hanging up. retriesAmount:${retriesAmount} errorsAmount:${errorsAmount}`,
+  );
   if (
     retriesAmount >= Number(settings.inputAttemptsCount) ||
-    errorsAmount >= 3
+    errorsAmount >= Number(settings.inputAttemptsCount)
   ) {
     if (settings.inputAttemptsMode === 'audio' && settings.inputAttemptsFile) {
       twiml.play(settings.inputAttemptsFile);
