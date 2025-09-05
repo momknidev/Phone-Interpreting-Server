@@ -418,6 +418,7 @@ export const validateCode = convertMiddlewareToAsync(async (req, res) => {
   if (department?.credits <= 0) {
     if (settings.creditErrorMode === 'audio' && settings.creditErrorFile) {
       twiml.play(settings.creditErrorFile);
+      twiml.hangup();
     } else {
       twiml.say(
         { language: settings.language || 'en-GB' },
@@ -1180,6 +1181,7 @@ export const noAnswer = convertMiddlewareToAsync(async (req, res) => {
     settings.noAnswerMessageFile
   ) {
     twiml.play(settings.noAnswerMessageFile);
+    twiml.hangup();
   } else {
     twiml.say(
       {
