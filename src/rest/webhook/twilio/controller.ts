@@ -341,14 +341,33 @@ export const requestCode = convertMiddlewareToAsync(async (req, res) => {
   const retriesAmount = Number(req.query.retriesAmount ?? 0);
   const errorsAmount = Number(req.query.errorsAmount ?? 0);
   logger.info(`requesting code /requestCode `);
+
   if (!settings.enable_code) {
     twiml.redirect(`./requestSourceLanguage?originCallId=${originCallId}`);
     res.type('text/xml').send(twiml.toString());
     return;
   }
-  logger.info(
-    `${settings?.inputAttemptsMode} Max attempts reached for ${originCallId}, hanging up. retriesAmount:${retriesAmount} errorsAmount:${errorsAmount}`,
-  );
+
+  // Check if maximum attempts exceeded BEFORE setting up gather
+  const maxAttempts = Number(settings.inputAttemptsCount) || 3;
+  if (retriesAmount >= maxAttempts || errorsAmount >= maxAttempts) {
+    logger.info(
+      `Max attempts reached for ${originCallId}, hanging up. retriesAmount:${retriesAmount} errorsAmount:${errorsAmount} maxAttempts:${maxAttempts}`,
+    );
+
+    if (settings.inputAttemptsMode === 'audio' && settings.inputAttemptsFile) {
+      twiml.play(settings.inputAttemptsFile);
+    } else {
+      twiml.say(
+        { language: settings.language || 'en-GB' },
+        settings.inputAttemptsText ||
+          'Too many attempts. Please try again later.',
+      );
+    }
+    twiml.hangup();
+    res.type('text/xml').send(twiml.toString());
+    return;
+  }
 
   const gather = twiml.gather({
     timeout: Number(settings.digitsTimeOut) || 5,
@@ -368,24 +387,7 @@ export const requestCode = convertMiddlewareToAsync(async (req, res) => {
   } else {
     gather.say({ language: settings.language || 'en-GB' }, phraseToSay);
   }
-  if (
-    retriesAmount > Number(settings.inputAttemptsCount) ||
-    errorsAmount > Number(settings.inputAttemptsCount)
-  ) {
-    if (settings.inputAttemptsMode === 'audio' && settings.inputAttemptsFile) {
-      twiml.play(settings.inputAttemptsFile);
-      twiml.hangup();
-    } else {
-      twiml.say(
-        { language: settings.language || 'en-GB' },
-        settings.inputAttemptsText ||
-          'Too many attempts. Please try again later.',
-      );
-      res.type('text/xml').send(twiml.toString());
-      twiml.hangup();
-      return;
-    }
-  }
+
   twiml.redirect(
     `./requestCode?originCallId=${originCallId}&retriesAmount=${
       retriesAmount + 1
@@ -455,6 +457,7 @@ export const requestSourceLanguage = convertMiddlewareToAsync(
     );
     const calledNumber = settings.phone_number;
     const uuid = await redisClient.get(`${originCallId}:uuid`);
+    const errorsAmount = Number(req.query.errorsAmount ?? 0);
 
     const languages = await getSourceLanguageByNumber({
       phone_number: calledNumber,
@@ -484,9 +487,33 @@ export const requestSourceLanguage = convertMiddlewareToAsync(
       return;
     }
 
+    // Check if maximum attempts exceeded BEFORE setting up gather
+    const maxAttempts = Number(settings.inputAttemptsCount) || 3;
+    if (errorsAmount >= maxAttempts) {
+      logger.info(
+        `Max source language attempts reached for ${originCallId}, hanging up. errorsAmount:${errorsAmount} maxAttempts:${maxAttempts}`,
+      );
+
+      if (
+        settings.inputAttemptsMode === 'audio' &&
+        settings.inputAttemptsFile
+      ) {
+        twiml.play(settings.inputAttemptsFile);
+      } else {
+        twiml.say(
+          { language: settings.language || 'en-GB' },
+          settings.inputAttemptsText ||
+            'Too many attempts. Please try again later.',
+        );
+      }
+      twiml.hangup();
+      res.type('text/xml').send(twiml.toString());
+      return;
+    }
+
     const gather = twiml.gather({
       timeout: Number(settings.digitsTimeOut) || 5,
-      action: `./validateSourceLanguage?originCallId=${originCallId}`,
+      action: `./validateSourceLanguage?originCallId=${originCallId}&errorsAmount=${errorsAmount}`,
     });
     if (
       settings.sourceLanguagePromptMode === 'audio' &&
@@ -499,7 +526,9 @@ export const requestSourceLanguage = convertMiddlewareToAsync(
         settings.sourceLanguagePromptText || 'Select the source language',
       );
     }
-    twiml.redirect(`./requestSourceLanguage?originCallId=${originCallId}`);
+    twiml.redirect(
+      `./requestSourceLanguage?originCallId=${originCallId}&errorsAmount=${errorsAmount}`,
+    );
     res.type('text/xml').send(twiml.toString());
   },
 );
@@ -509,6 +538,7 @@ export const validateSourceLanguage = convertMiddlewareToAsync(
     const twiml = new VoiceResponse();
     const originCallId = req.query.originCallId as string;
     const languageCode = Number(req.body.Digits);
+    const errorsAmount = Number(req.query.errorsAmount ?? 0);
     const settings = JSON.parse(
       (await redisClient.get(`${originCallId}:settings`)) || '{}',
     );
@@ -536,7 +566,11 @@ export const validateSourceLanguage = convertMiddlewareToAsync(
             'Invalid language code. Try again',
         );
       }
-      twiml.redirect(`./requestSourceLanguage?originCallId=${originCallId}`);
+      twiml.redirect(
+        `./requestSourceLanguage?originCallId=${originCallId}&errorsAmount=${
+          errorsAmount + 1
+        }`,
+      );
     }
     res.type('text/xml').send(twiml.toString());
   },
@@ -552,6 +586,8 @@ export const requestTargetLanguage = convertMiddlewareToAsync(
     );
     const calledNumber = settings.phone_number;
     const uuid = await redisClient.get(`${originCallId}:uuid`);
+    const errorsAmount = Number(req.query.errorsAmount ?? 0);
+
     const languages = await getTargetLanguageByNumber({
       phone_number: calledNumber,
     });
@@ -580,9 +616,33 @@ export const requestTargetLanguage = convertMiddlewareToAsync(
       return;
     }
 
+    // Check if maximum attempts exceeded BEFORE setting up gather
+    const maxAttempts = Number(settings.inputAttemptsCount) || 3;
+    if (errorsAmount >= maxAttempts) {
+      logger.info(
+        `Max target language attempts reached for ${originCallId}, hanging up. errorsAmount:${errorsAmount} maxAttempts:${maxAttempts}`,
+      );
+
+      if (
+        settings.inputAttemptsMode === 'audio' &&
+        settings.inputAttemptsFile
+      ) {
+        twiml.play(settings.inputAttemptsFile);
+      } else {
+        twiml.say(
+          { language: settings.language || 'en-GB' },
+          settings.inputAttemptsText ||
+            'Too many attempts. Please try again later.',
+        );
+      }
+      twiml.hangup();
+      res.type('text/xml').send(twiml.toString());
+      return;
+    }
+
     const gather = twiml.gather({
       timeout: Number(settings.digitsTimeOut) || 5,
-      action: `./validateTargetLanguage?originCallId=${originCallId}`,
+      action: `./validateTargetLanguage?originCallId=${originCallId}&errorsAmount=${errorsAmount}`,
     });
     if (
       settings.targetLanguagePromptMode === 'audio' &&
@@ -596,7 +656,9 @@ export const requestTargetLanguage = convertMiddlewareToAsync(
           'Please enter code of target language',
       );
     }
-    twiml.redirect(`./requestTargetLanguage?originCallId=${originCallId}`);
+    twiml.redirect(
+      `./requestTargetLanguage?originCallId=${originCallId}&errorsAmount=${errorsAmount}`,
+    );
     res.type('text/xml').send(twiml.toString());
   },
 );
@@ -606,6 +668,7 @@ export const validateTargetLanguage = convertMiddlewareToAsync(
     const twiml = new VoiceResponse();
     const originCallId = req.query.originCallId as string;
     const languageCode = Number(req.body.Digits);
+    const errorsAmount = Number(req.query.errorsAmount ?? 0);
     const settings = JSON.parse(
       (await redisClient.get(`${originCallId}:settings`)) || '{}',
     );
@@ -634,7 +697,11 @@ export const validateTargetLanguage = convertMiddlewareToAsync(
             'Invalid language code. Try again.',
         );
       }
-      twiml.redirect(`./requestTargetLanguage?originCallId=${originCallId}`);
+      twiml.redirect(
+        `./requestTargetLanguage?originCallId=${originCallId}&errorsAmount=${
+          errorsAmount + 1
+        }`,
+      );
     }
     res.type('text/xml').send(twiml.toString());
   },
