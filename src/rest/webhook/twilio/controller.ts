@@ -349,24 +349,6 @@ export const requestCode = convertMiddlewareToAsync(async (req, res) => {
   logger.info(
     `${settings?.inputAttemptsMode} Max attempts reached for ${originCallId}, hanging up. retriesAmount:${retriesAmount} errorsAmount:${errorsAmount}`,
   );
-  if (
-    retriesAmount > Number(settings.inputAttemptsCount) ||
-    errorsAmount > Number(settings.inputAttemptsCount)
-  ) {
-    if (settings.inputAttemptsMode === 'audio' && settings.inputAttemptsFile) {
-      twiml.play(settings.inputAttemptsFile);
-      twiml.hangup();
-    } else {
-      twiml.say(
-        { language: settings.language || 'en-GB' },
-        settings.inputAttemptsText ||
-          'Too many attempts. Please try again later.',
-      );
-      res.type('text/xml').send(twiml.toString());
-      twiml.hangup();
-      return;
-    }
-  }
 
   const gather = twiml.gather({
     timeout: Number(settings.digitsTimeOut) || 5,
@@ -386,7 +368,24 @@ export const requestCode = convertMiddlewareToAsync(async (req, res) => {
   } else {
     gather.say({ language: settings.language || 'en-GB' }, phraseToSay);
   }
-
+  if (
+    retriesAmount > Number(settings.inputAttemptsCount) ||
+    errorsAmount > Number(settings.inputAttemptsCount)
+  ) {
+    if (settings.inputAttemptsMode === 'audio' && settings.inputAttemptsFile) {
+      twiml.play(settings.inputAttemptsFile);
+      twiml.hangup();
+    } else {
+      twiml.say(
+        { language: settings.language || 'en-GB' },
+        settings.inputAttemptsText ||
+          'Too many attempts. Please try again later.',
+      );
+      res.type('text/xml').send(twiml.toString());
+      twiml.hangup();
+      return;
+    }
+  }
   twiml.redirect(
     `./requestCode?originCallId=${originCallId}&retriesAmount=${
       retriesAmount + 1
