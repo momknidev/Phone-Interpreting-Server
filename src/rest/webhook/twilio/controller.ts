@@ -23,6 +23,46 @@ import { CallReports, callRoutingSettings } from '../../../models';
 import { eq } from 'drizzle-orm';
 import uuidv4 from '../../../utils/uuidv4';
 
+// Helper function to clean up all Redis data for a call
+async function cleanupCallRedisData(originCallId: string) {
+  try {
+    // Get all retry keys for cleanup
+    const settings = JSON.parse(
+      (await redisClient.get(`${originCallId}:settings`)) || '{}',
+    );
+
+    // Clean up all possible keys for this call
+    const keysToDelete = [
+      `${originCallId}:settings`,
+      `${originCallId}:uuid`,
+      `${originCallId}:phone_number`,
+      `${originCallId}:caller_phone`,
+      `${originCallId}:client_id`,
+      `${originCallId}:clientCode`,
+      `${originCallId}:credits`,
+      `${originCallId}:sourceLanguage`,
+      `${originCallId}:targetLanguage`,
+      `${originCallId}:queue`,
+      `${originCallId}:callType`,
+      `${originCallId}:currentPriority`,
+      `${originCallId}:currentCall`,
+      originCallId, // Main list of interpreter calls
+    ];
+
+    // Clean up retry counters for all priorities (1-5)
+    for (let priority = 1; priority <= 5; priority++) {
+      keysToDelete.push(`${originCallId}:retry:${priority}`);
+    }
+
+    // Delete all keys at once
+    await Promise.all(keysToDelete.map((key) => redisClient.del(key)));
+
+    logger.info(`Cleaned up Redis data for call ${originCallId}`);
+  } catch (error) {
+    logger.error(`Failed to cleanup Redis data for ${originCallId}: ${error}`);
+  }
+}
+
 // Helper to save/update call history in DB
 async function saveCallStep(id: string, data: any) {
   const existing = await db
@@ -366,6 +406,9 @@ export const requestCode = convertMiddlewareToAsync(async (req, res) => {
     }
     twiml.hangup();
     res.type('text/xml').send(twiml.toString());
+
+    // Clean up Redis data when call ends due to max attempts
+    cleanupCallRedisData(originCallId);
     return;
   }
 
@@ -430,6 +473,9 @@ export const validateCode = convertMiddlewareToAsync(async (req, res) => {
     }
     twiml.hangup();
     res.type('text/xml').send(twiml.toString());
+
+    // Clean up Redis data when call ends due to no credits
+    cleanupCallRedisData(originCallId);
     return;
   }
   if (department) {
@@ -470,6 +516,9 @@ export const requestSourceLanguage = convertMiddlewareToAsync(
       );
       res.type('text/xml').send(twiml.toString());
       twiml.hangup();
+
+      // Clean up Redis data when call ends due to no languages
+      cleanupCallRedisData(originCallId);
       return;
     }
 
@@ -508,9 +557,11 @@ export const requestSourceLanguage = convertMiddlewareToAsync(
       }
       twiml.hangup();
       res.type('text/xml').send(twiml.toString());
+
+      // Clean up Redis data when call ends due to max attempts
+      cleanupCallRedisData(originCallId);
       return;
     }
-
     const gather = twiml.gather({
       timeout: Number(settings.digitsTimeOut) || 5,
       action: `./validateSourceLanguage?originCallId=${originCallId}&errorsAmount=${errorsAmount}`,
@@ -599,6 +650,9 @@ export const requestTargetLanguage = convertMiddlewareToAsync(
       );
       res.type('text/xml').send(twiml.toString());
       twiml.hangup();
+
+      // Clean up Redis data when call ends due to no languages
+      cleanupCallRedisData(originCallId);
       return;
     }
 
@@ -637,6 +691,9 @@ export const requestTargetLanguage = convertMiddlewareToAsync(
       }
       twiml.hangup();
       res.type('text/xml').send(twiml.toString());
+
+      // Clean up Redis data when call ends due to max attempts
+      cleanupCallRedisData(originCallId);
       return;
     }
 
@@ -1135,6 +1192,9 @@ export const callStatusResult = convertMiddlewareToAsync(async (req, res) => {
       logger.error(`Failed to redirect to creditExhausted: ${error}`);
     }
 
+    // Clean up Redis data when call ends due to credit exhaustion
+    cleanupCallRedisData(originCallId);
+
     res.status(200).send('OK');
     return;
   }
@@ -1228,6 +1288,9 @@ export const conferenceStatusResult = convertMiddlewareToAsync(
       logger.error(`Failed to create call record: ${error}`);
     }
 
+    // Clean up all Redis data when conference ends
+    cleanupCallRedisData(originCallId);
+
     res.status(200).send('OK');
   },
 );
@@ -1261,4 +1324,7 @@ export const noAnswer = convertMiddlewareToAsync(async (req, res) => {
   twiml.hangup();
   res.type('text/xml');
   res.send(twiml.toString());
+
+  // Clean up Redis data when call ends with no answer
+  cleanupCallRedisData(originCallId);
 });
