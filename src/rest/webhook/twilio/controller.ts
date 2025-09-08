@@ -503,6 +503,7 @@ export const requestSourceLanguage = convertMiddlewareToAsync(
     );
     const calledNumber = settings.phone_number;
     const uuid = await redisClient.get(`${originCallId}:uuid`);
+    const retriesAmount = Number(req.query.retriesAmount ?? 0);
     const errorsAmount = Number(req.query.errorsAmount ?? 0);
 
     const languages = await getSourceLanguageByNumber({
@@ -538,10 +539,10 @@ export const requestSourceLanguage = convertMiddlewareToAsync(
 
     // Check if maximum attempts exceeded BEFORE setting up gather
     const maxAttempts = Number(settings.inputAttemptsCount) || 3;
-    if (errorsAmount >= maxAttempts) {
-      // logger.info(
-      //   `Max source language attempts reached for ${originCallId}, hanging up. errorsAmount:${errorsAmount} maxAttempts:${maxAttempts}`,
-      // );
+    if (retriesAmount >= maxAttempts || errorsAmount >= maxAttempts) {
+      logger.info(
+        `Max source language attempts reached for ${originCallId}, hanging up. retriesAmount:${retriesAmount} errorsAmount:${errorsAmount} maxAttempts:${maxAttempts}`,
+      );
 
       if (
         settings.inputAttemptsMode === 'audio' &&
@@ -564,7 +565,7 @@ export const requestSourceLanguage = convertMiddlewareToAsync(
     }
     const gather = twiml.gather({
       timeout: Number(settings.digitsTimeOut) || 5,
-      action: `./validateSourceLanguage?originCallId=${originCallId}&errorsAmount=${errorsAmount}`,
+      action: `./validateSourceLanguage?originCallId=${originCallId}&retriesAmount=${retriesAmount}&errorsAmount=${errorsAmount}`,
     });
     if (
       settings.sourceLanguagePromptMode === 'audio' &&
@@ -578,7 +579,9 @@ export const requestSourceLanguage = convertMiddlewareToAsync(
       );
     }
     twiml.redirect(
-      `./requestSourceLanguage?originCallId=${originCallId}&errorsAmount=${errorsAmount}`,
+      `./requestSourceLanguage?originCallId=${originCallId}&retriesAmount=${
+        retriesAmount + 1
+      }&errorsAmount=${errorsAmount}`,
     );
     res.type('text/xml').send(twiml.toString());
   },
@@ -589,6 +592,7 @@ export const validateSourceLanguage = convertMiddlewareToAsync(
     const twiml = new VoiceResponse();
     const originCallId = req.query.originCallId as string;
     const languageCode = Number(req.body.Digits);
+    const retriesAmount = Number(req.query.retriesAmount ?? 0);
     const errorsAmount = Number(req.query.errorsAmount ?? 0);
     const settings = JSON.parse(
       (await redisClient.get(`${originCallId}:settings`)) || '{}',
@@ -618,7 +622,7 @@ export const validateSourceLanguage = convertMiddlewareToAsync(
         );
       }
       twiml.redirect(
-        `./requestSourceLanguage?originCallId=${originCallId}&errorsAmount=${
+        `./requestSourceLanguage?originCallId=${originCallId}&retriesAmount=${retriesAmount}&errorsAmount=${
           errorsAmount + 1
         }`,
       );
@@ -637,6 +641,7 @@ export const requestTargetLanguage = convertMiddlewareToAsync(
     );
     const calledNumber = settings.phone_number;
     const uuid = await redisClient.get(`${originCallId}:uuid`);
+    const retriesAmount = Number(req.query.retriesAmount ?? 0);
     const errorsAmount = Number(req.query.errorsAmount ?? 0);
 
     const languages = await getTargetLanguageByNumber({
@@ -672,10 +677,10 @@ export const requestTargetLanguage = convertMiddlewareToAsync(
 
     // Check if maximum attempts exceeded BEFORE setting up gather
     const maxAttempts = Number(settings.inputAttemptsCount) || 3;
-    if (errorsAmount >= maxAttempts) {
-      // logger.info(
-      //   `Max target language attempts reached for ${originCallId}, hanging up. errorsAmount:${errorsAmount} maxAttempts:${maxAttempts}`,
-      // );
+    if (retriesAmount >= maxAttempts || errorsAmount >= maxAttempts) {
+      logger.info(
+        `Max target language attempts reached for ${originCallId}, hanging up. retriesAmount:${retriesAmount} errorsAmount:${errorsAmount} maxAttempts:${maxAttempts}`,
+      );
 
       if (
         settings.inputAttemptsMode === 'audio' &&
@@ -699,7 +704,7 @@ export const requestTargetLanguage = convertMiddlewareToAsync(
 
     const gather = twiml.gather({
       timeout: Number(settings.digitsTimeOut) || 5,
-      action: `./validateTargetLanguage?originCallId=${originCallId}&errorsAmount=${errorsAmount}`,
+      action: `./validateTargetLanguage?originCallId=${originCallId}&retriesAmount=${retriesAmount}&errorsAmount=${errorsAmount}`,
     });
     if (
       settings.targetLanguagePromptMode === 'audio' &&
@@ -714,7 +719,9 @@ export const requestTargetLanguage = convertMiddlewareToAsync(
       );
     }
     twiml.redirect(
-      `./requestTargetLanguage?originCallId=${originCallId}&errorsAmount=${errorsAmount}`,
+      `./requestTargetLanguage?originCallId=${originCallId}&retriesAmount=${
+        retriesAmount + 1
+      }&errorsAmount=${errorsAmount}`,
     );
     res.type('text/xml').send(twiml.toString());
   },
@@ -725,6 +732,7 @@ export const validateTargetLanguage = convertMiddlewareToAsync(
     const twiml = new VoiceResponse();
     const originCallId = req.query.originCallId as string;
     const languageCode = Number(req.body.Digits);
+    const retriesAmount = Number(req.query.retriesAmount ?? 0);
     const errorsAmount = Number(req.query.errorsAmount ?? 0);
     const settings = JSON.parse(
       (await redisClient.get(`${originCallId}:settings`)) || '{}',
@@ -755,7 +763,7 @@ export const validateTargetLanguage = convertMiddlewareToAsync(
         );
       }
       twiml.redirect(
-        `./requestTargetLanguage?originCallId=${originCallId}&errorsAmount=${
+        `./requestTargetLanguage?originCallId=${originCallId}&retriesAmount=${retriesAmount}&errorsAmount=${
           errorsAmount + 1
         }`,
       );
