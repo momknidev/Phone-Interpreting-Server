@@ -46,6 +46,7 @@ async function cleanupCallRedisData(originCallId: string) {
       `${originCallId}:callType`,
       `${originCallId}:currentPriority`,
       `${originCallId}:currentCall`,
+      `${originCallId}:callStartTime`,
       originCallId, // Main list of interpreter calls
     ];
 
@@ -129,6 +130,27 @@ const removeAndCallNewTargets = async ({
   // If we were already using fallback, go to noAnswer
   if (fallbackCalled) {
     // logger.info(`Fallback number failed for ${originCallId}, calling noAnswer`);
+
+    // Calculate response time before calling noAnswer
+    const callStartTime = await redisClient.get(
+      `${originCallId}:callStartTime`,
+    );
+    if (callStartTime) {
+      const responseTimeMs = Date.now() - Number(callStartTime);
+      const responseTimeSeconds = Math.round(responseTimeMs / 1000);
+
+      logger.info(
+        `Fallback failed for ${originCallId} with response time: ${responseTimeSeconds} seconds`,
+      );
+
+      // Save response time to database
+      const uuid = await redisClient.get(`${originCallId}:uuid`);
+      saveCallStepAsync(uuid || '', {
+        response_time: responseTimeSeconds,
+        status: 'No Answer',
+      });
+    }
+
     await twilioClient.calls(originCallId).update({
       url: `${TWILIO_WEBHOOK}/noAnswer?originCallId=${originCallId}`,
       method: 'POST',
@@ -260,6 +282,27 @@ const removeAndCallNewTargets = async ({
       // logger.info(
       //   `No interpreters or fallback available for ${originCallId}, calling noAnswer`,
       // );
+
+      // Calculate response time before calling noAnswer
+      const callStartTime = await redisClient.get(
+        `${originCallId}:callStartTime`,
+      );
+      if (callStartTime) {
+        const responseTimeMs = Date.now() - Number(callStartTime);
+        const responseTimeSeconds = Math.round(responseTimeMs / 1000);
+
+        logger.info(
+          `No interpreters or fallback available for ${originCallId} with response time: ${responseTimeSeconds} seconds`,
+        );
+
+        // Save response time to database
+        const uuid = await redisClient.get(`${originCallId}:uuid`);
+        saveCallStepAsync(uuid || '', {
+          response_time: responseTimeSeconds,
+          status: 'No Answer',
+        });
+      }
+
       await twilioClient.calls(originCallId).update({
         url: `${TWILIO_WEBHOOK}/noAnswer?originCallId=${originCallId}`,
         method: 'POST',
@@ -273,6 +316,27 @@ const removeAndCallNewTargets = async ({
     // logger.info(
     //   `No interpreters available for ${originCallId}, calling noAnswer`,
     // );
+
+    // Calculate response time before calling noAnswer
+    const callStartTime = await redisClient.get(
+      `${originCallId}:callStartTime`,
+    );
+    if (callStartTime) {
+      const responseTimeMs = Date.now() - Number(callStartTime);
+      const responseTimeSeconds = Math.round(responseTimeMs / 1000);
+
+      logger.info(
+        `No interpreters available for ${originCallId} with response time: ${responseTimeSeconds} seconds`,
+      );
+
+      // Save response time to database
+      const uuid = await redisClient.get(`${originCallId}:uuid`);
+      saveCallStepAsync(uuid || '', {
+        response_time: responseTimeSeconds,
+        status: 'No Answer',
+      });
+    }
+
     await twilioClient.calls(originCallId).update({
       url: `${TWILIO_WEBHOOK}/noAnswer?originCallId=${originCallId}`,
       method: 'POST',
@@ -835,6 +899,12 @@ export const callInterpreter = convertMiddlewareToAsync(async (req, res) => {
       // logger.info(
       //   `No interpreters available for ${originCallId} and fallback not available, calling noAnswer`,
       // );
+      // Record the start time before going to noAnswer
+      const callStartTime = Date.now();
+      await redisClient.set(`${originCallId}:callStartTime`, callStartTime);
+      logger.info(
+        `No interpreters available immediately for ${originCallId}, redirecting to noAnswer`,
+      );
       await twilioClient.calls(originCallId).update({
         url: `${TWILIO_WEBHOOK}/noAnswer?originCallId=${originCallId}`,
         method: 'POST',
@@ -846,6 +916,13 @@ export const callInterpreter = convertMiddlewareToAsync(async (req, res) => {
   // logger.info(
   //   `Found ${interpreters.length} interpreters for priority ${priority}, callType: ${callType}, fallbackCalled: ${fallbackCalled}`,
   // );
+
+  // Record the start time for response time tracking
+  const callStartTime = Date.now();
+  await redisClient.set(`${originCallId}:callStartTime`, callStartTime);
+  logger.info(
+    `Starting interpreter calls for ${originCallId} at ${callStartTime}`,
+  );
 
   if (callType === 'sequential') {
     await callInterpretersSequentially(
@@ -1021,6 +1098,27 @@ async function callNextInterpreterInSequence(originCallId: string) {
         // logger.info(
         //   `No more interpreters in sequential queue for ${originCallId}, calling noAnswer`,
         // );
+
+        // Calculate response time before calling noAnswer
+        const callStartTime = await redisClient.get(
+          `${originCallId}:callStartTime`,
+        );
+        if (callStartTime) {
+          const responseTimeMs = Date.now() - Number(callStartTime);
+          const responseTimeSeconds = Math.round(responseTimeMs / 1000);
+
+          logger.info(
+            `No more interpreters in sequential queue for ${originCallId} with response time: ${responseTimeSeconds} seconds`,
+          );
+
+          // Save response time to database
+          const uuid = await redisClient.get(`${originCallId}:uuid`);
+          saveCallStepAsync(uuid || '', {
+            response_time: responseTimeSeconds,
+            status: 'No Answer',
+          });
+        }
+
         await redisClient.del(`${originCallId}:callType`);
         await redisClient.del(`${originCallId}:currentPriority`);
         await twilioClient.calls(originCallId).update({
@@ -1079,6 +1177,25 @@ export const machineDetectionResult = convertMiddlewareToAsync(
 
     if (AnsweredBy === 'unknown' || AnsweredBy === 'human') {
       const twiml = new VoiceResponse();
+
+      // Calculate response time for successful interpreter connection
+      const callStartTime = await redisClient.get(
+        `${originCallId}:callStartTime`,
+      );
+      if (callStartTime) {
+        const responseTimeMs = Date.now() - Number(callStartTime);
+        const responseTimeSeconds = Math.round(responseTimeMs / 1000);
+
+        logger.info(
+          `Interpreter connected for ${originCallId} with response time: ${responseTimeSeconds} seconds`,
+        );
+
+        // Save response time to database
+        const uuid = await redisClient.get(`${originCallId}:uuid`);
+        saveCallStepAsync(uuid || '', {
+          response_time: responseTimeSeconds,
+        });
+      }
 
       if (callType === 'sequential') {
         // Clear the queue and current call for sequential
@@ -1311,8 +1428,26 @@ export const noAnswer = convertMiddlewareToAsync(async (req, res) => {
   );
 
   const uuid = await redisClient.get(`${originCallId}:uuid`);
-  // logger.info(`No answer handler for call ${originCallId}, uuid: ${uuid}`);
-  saveCallStepAsync(uuid || '', { status: 'No Answer' });
+
+  // Calculate response time for no answer scenario
+  const callStartTime = await redisClient.get(`${originCallId}:callStartTime`);
+  if (callStartTime) {
+    const responseTimeMs = Date.now() - Number(callStartTime);
+    const responseTimeSeconds = Math.round(responseTimeMs / 1000);
+
+    logger.info(
+      `No answer for ${originCallId} with response time: ${responseTimeSeconds} seconds`,
+    );
+
+    // Save response time to database
+    saveCallStepAsync(uuid || '', {
+      response_time: responseTimeSeconds,
+      status: 'No Answer',
+    });
+  } else {
+    // Fallback if no start time recorded
+    saveCallStepAsync(uuid || '', { status: 'No Answer' });
+  }
 
   if (
     settings.noAnswerMessageMode === 'audio' &&
