@@ -812,6 +812,14 @@ export const validateTargetLanguage = convertMiddlewareToAsync(
     if (languages.length === 1) {
       await redisClient.set(`${originCallId}:targetLanguage`, languages[0].id);
       saveCallStepAsync(uuid || '', { target_language_id: languages[0].id });
+
+      // Record the start time for response time tracking when we have target language
+      const callStartTime = Date.now();
+      await redisClient.set(`${originCallId}:callStartTime`, callStartTime);
+      logger.info(
+        `Starting response time tracking for ${originCallId} at ${callStartTime}`,
+      );
+
       twiml.redirect(`./callInterpreter?originCallId=${originCallId}`);
     } else {
       if (
@@ -899,12 +907,19 @@ export const callInterpreter = convertMiddlewareToAsync(async (req, res) => {
       // logger.info(
       //   `No interpreters available for ${originCallId} and fallback not available, calling noAnswer`,
       // );
-      // Record the start time before going to noAnswer
-      const callStartTime = Date.now();
-      await redisClient.set(`${originCallId}:callStartTime`, callStartTime);
-      logger.info(
-        `No interpreters available immediately for ${originCallId}, redirecting to noAnswer`,
+
+      // Record the start time before going to noAnswer (if not already recorded)
+      const existingCallStartTime = await redisClient.get(
+        `${originCallId}:callStartTime`,
       );
+      if (!existingCallStartTime) {
+        const callStartTime = Date.now();
+        await redisClient.set(`${originCallId}:callStartTime`, callStartTime);
+        logger.info(
+          `Recording late start time for ${originCallId} before noAnswer`,
+        );
+      }
+
       await twilioClient.calls(originCallId).update({
         url: `${TWILIO_WEBHOOK}/noAnswer?originCallId=${originCallId}`,
         method: 'POST',
@@ -916,13 +931,6 @@ export const callInterpreter = convertMiddlewareToAsync(async (req, res) => {
   // logger.info(
   //   `Found ${interpreters.length} interpreters for priority ${priority}, callType: ${callType}, fallbackCalled: ${fallbackCalled}`,
   // );
-
-  // Record the start time for response time tracking
-  const callStartTime = Date.now();
-  await redisClient.set(`${originCallId}:callStartTime`, callStartTime);
-  logger.info(
-    `Starting interpreter calls for ${originCallId} at ${callStartTime}`,
-  );
 
   if (callType === 'sequential') {
     await callInterpretersSequentially(
@@ -1102,6 +1110,9 @@ async function callNextInterpreterInSequence(originCallId: string) {
         // Calculate response time before calling noAnswer
         const callStartTime = await redisClient.get(
           `${originCallId}:callStartTime`,
+        );
+        logger.info(
+          `No more interpreters in sequential queue for callStartTime:${callStartTime}, redirecting to noAnswer`,
         );
         if (callStartTime) {
           const responseTimeMs = Date.now() - Number(callStartTime);
