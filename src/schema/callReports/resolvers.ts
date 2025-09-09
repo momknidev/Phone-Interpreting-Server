@@ -60,6 +60,7 @@ const resolvers = {
             created_at: CallReports.created_at,
             updated_at: CallReports.updated_at,
             used_credits: CallReports.used_credits,
+            response_time: CallReports.response_time,
             mediatorFirstName: interpreter.first_name ?? null,
             mediatorLastName: interpreter.last_name ?? null,
             source_language: sourceLang.language_name ?? null,
@@ -133,6 +134,7 @@ const resolvers = {
             created_at: row.created_at?.toISOString() || '',
             updated_at: row.updated_at?.toISOString() || '',
             used_credits: row.used_credits,
+            response_time: row.response_time,
             interpreter:
               row.mediatorFirstName && row.mediatorLastName
                 ? `${row.mediatorFirstName} ${row.mediatorLastName}`

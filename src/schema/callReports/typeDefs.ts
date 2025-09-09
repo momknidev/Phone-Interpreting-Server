@@ -20,6 +20,7 @@ const typeDefs = gql`
     created_at: String
     updated_at: String
     used_credits: Int
+    response_time: Int
   }
 
   input CreatePhoneMediationInput {
@@ -32,6 +33,7 @@ const typeDefs = gql`
     call_date: String
     call_duration: Float
     amount: Float
+    response_time: Int
   }
 
   type PhoneMediationPaginatedList {
