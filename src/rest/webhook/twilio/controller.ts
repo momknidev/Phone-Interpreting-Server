@@ -211,7 +211,10 @@ const removeAndCallNewTargets = async ({
             from: '+13093321185',
             machineDetection: 'Enable',
             machineDetectionTimeout: 10,
-            timeLimit: Math.max(Number(credits) * 60 || 3600, 60),
+            timeLimit: Math.min(
+              Math.max(Number(credits) * 60 || 3600, 60),
+              3600,
+            ),
             statusCallback:
               `${TWILIO_WEBHOOK}/callStatusResult?originCallId=${originCallId}` +
               `&sourceLanguageID=${sourceLanguageID}&targetLanguageID=${targetLanguageID}&priority=${priority}&fallbackCalled=${fallbackCalled}`,
@@ -343,9 +346,12 @@ const removeAndCallNewTargets = async ({
     return;
   }
   logger.info(
-    `${typeof Math.max(Number(credits) * 60 || 3600, 60)} seconds: ${Math.max(
-      Number(credits) * 60 || 3600,
-      60,
+    `${typeof Math.min(
+      Math.max(Number(credits) * 60 || 3600, 60),
+      3600,
+    )} seconds: ${Math.min(
+      Math.max(Number(credits) * 60 || 3600, 60),
+      3600,
     )} seconds`,
   );
   const createdCalls = await Promise.all(
@@ -358,7 +364,7 @@ const removeAndCallNewTargets = async ({
         from: '+13093321185',
         machineDetection: 'Enable',
         machineDetectionTimeout: 10,
-        timeLimit: Math.max(Number(credits) * 60 || 3600, 60),
+        timeLimit: Math.min(Math.max(Number(credits) * 60 || 3600, 60), 3600),
         statusCallback:
           `${TWILIO_WEBHOOK}/callStatusResult?originCallId=${originCallId}` +
           `&sourceLanguageID=${sourceLanguageID}&targetLanguageID=${targetLanguageID}&priority=${currentPriority}&fallbackCalled=${currentFallbackCalled}`,
@@ -962,9 +968,12 @@ async function callInterpretersSimultaneously(
   // logger.info(`Calling ${interpreters.length} interpreters simultaneously`);
   const credits = await redisClient.get(`${originCallId}:credits`);
   logger.info(
-    `${typeof Math.max(Number(credits) * 60 || 3600, 60)} seconds: ${Math.max(
-      Number(credits) * 60 || 3600,
-      60,
+    `${typeof Math.min(
+      Math.max(Number(credits) * 60 || 3600, 60),
+      3600,
+    )} seconds: ${Math.min(
+      Math.max(Number(credits) * 60 || 3600, 60),
+      3600,
     )} seconds`,
   );
   const createdCalls = await Promise.all(
@@ -977,7 +986,7 @@ async function callInterpretersSimultaneously(
         from: '+13093321185',
         machineDetection: 'Enable',
         machineDetectionTimeout: 10,
-        timeLimit: Math.max(Number(credits) * 60 || 3600, 60),
+        timeLimit: Math.min(Math.max(Number(credits) * 60 || 3600, 60), 3600),
         statusCallback:
           `${TWILIO_WEBHOOK}/callStatusResult?originCallId=${originCallId}` +
           `&priority=${priority}&fallbackCalled=${fallbackCalled}&callType=simultaneous`,
@@ -1161,9 +1170,12 @@ async function callNextInterpreterInSequence(originCallId: string) {
   //   `Sequential call to ${phone} for ${originCallId} (priority: ${priority}, fallback: ${fallbackCalled})`,
   // );
   logger.info(
-    `${typeof Math.max(Number(credits) * 60 || 3600, 60)} seconds: ${Math.max(
-      Number(credits) * 60 || 3600,
-      60,
+    `${typeof Math.min(
+      Math.max(Number(credits) * 60 || 3600, 60),
+      3600,
+    )} seconds: ${Math.min(
+      Math.max(Number(credits) * 60 || 3600, 60),
+      3600,
     )} seconds`,
   );
   const call = await twilioClient.calls.create({
@@ -1174,7 +1186,7 @@ async function callNextInterpreterInSequence(originCallId: string) {
     from: '+13093321185',
     machineDetection: 'Enable',
     machineDetectionTimeout: 10,
-    timeLimit: Math.max(Number(credits) * 60 || 3600, 60),
+    timeLimit: Math.min(Math.max(Number(credits) * 60 || 3600, 60), 3600),
     statusCallback:
       `${TWILIO_WEBHOOK}/callStatusResult?originCallId=${originCallId}` +
       `&priority=${priority}&fallbackCalled=${fallbackCalled}&callType=sequential`,
@@ -1316,7 +1328,10 @@ export const callStatusResult = convertMiddlewareToAsync(async (req, res) => {
   );
   const calledNumber = settings.phone_number;
   const credits = await redisClient.get(`${originCallId}:credits`);
-  const timeLimitInSeconds = Math.max(Number(credits) * 60 || 3600, 60);
+  const timeLimitInSeconds = Math.min(
+    Math.max(Number(credits) * 60 || 3600, 60),
+    3600,
+  );
   // logger.info(`req.body: ${req.body}`);
   // logger.info(
   //   `Call status result: ${CallStatus} for call ${targetCallId}, type: ${callType}, duration: ${CallDuration}`,
