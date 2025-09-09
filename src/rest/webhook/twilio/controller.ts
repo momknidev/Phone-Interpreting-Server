@@ -11,7 +11,6 @@ import { convertMiddlewareToAsync } from '../../../utils/rest/middlewares/conver
 import { TWILIO_WEBHOOK } from '../../../const/http/ApiUrl';
 import { twilioClient } from '../../../config/twilio';
 import { redisClient } from '../../../config/redis';
-import { vars } from '../../../config/vars';
 import { logger } from '../../../config/logger';
 import {
   createRequest,
@@ -343,7 +342,12 @@ const removeAndCallNewTargets = async ({
     });
     return;
   }
-
+  logger.info(
+    `${typeof Math.max(Number(credits) * 60 || 3600, 60)} seconds: ${Math.max(
+      Number(credits) * 60 || 3600,
+      60,
+    )} seconds`,
+  );
   const createdCalls = await Promise.all(
     interpreters.map(({ phone }: { phone: any }) =>
       twilioClient.calls.create({
@@ -957,6 +961,12 @@ async function callInterpretersSimultaneously(
 ) {
   // logger.info(`Calling ${interpreters.length} interpreters simultaneously`);
   const credits = await redisClient.get(`${originCallId}:credits`);
+  logger.info(
+    `${typeof Math.max(Number(credits) * 60 || 3600, 60)} seconds: ${Math.max(
+      Number(credits) * 60 || 3600,
+      60,
+    )} seconds`,
+  );
   const createdCalls = await Promise.all(
     interpreters.map(({ phone }) =>
       twilioClient.calls.create({
@@ -1150,7 +1160,12 @@ async function callNextInterpreterInSequence(originCallId: string) {
   // logger.info(
   //   `Sequential call to ${phone} for ${originCallId} (priority: ${priority}, fallback: ${fallbackCalled})`,
   // );
-
+  logger.info(
+    `${typeof Math.max(Number(credits) * 60 || 3600, 60)} seconds: ${Math.max(
+      Number(credits) * 60 || 3600,
+      60,
+    )} seconds`,
+  );
   const call = await twilioClient.calls.create({
     url:
       `${TWILIO_WEBHOOK}/machineDetectionResult?originCallId=${originCallId}` +
