@@ -285,7 +285,9 @@ const removeAndCallNewTargets = async ({
       responseTimeSeconds = Math.round(
         (noInterpreterTime - Number(callStartTime)) / 1000,
       );
-      // logger.info(`No interpreters found after ${responseTimeSeconds} seconds for call ${originCallId}`);
+      logger.info(
+        `No interpreters found after ${responseTimeSeconds} seconds for call ${originCallId} - Response time logged`,
+      );
 
       // Save response time before redirecting to noAnswer
       const uuid = await redisClient.get(`${originCallId}:uuid`);
@@ -294,6 +296,9 @@ const removeAndCallNewTargets = async ({
           response_time: responseTimeSeconds,
           no_interpreters_at: new Date().toISOString(),
         });
+        logger.info(
+          `Response time ${responseTimeSeconds}s saved to database for call ${originCallId} (No interpreters scenario)`,
+        );
       }
     }
 
@@ -1063,7 +1068,9 @@ async function callNextInterpreterInSequence(originCallId: string) {
           responseTimeSeconds = Math.round(
             (noMoreInterpretersTime - Number(callStartTime)) / 1000,
           );
-          // logger.info(`Sequential queue exhausted after ${responseTimeSeconds} seconds for call ${originCallId}`);
+          logger.info(
+            `Sequential queue exhausted after ${responseTimeSeconds} seconds for call ${originCallId} - Response time logged`,
+          );
 
           // Save response time before redirecting to noAnswer
           const settings = JSON.parse(
@@ -1075,6 +1082,9 @@ async function callNextInterpreterInSequence(originCallId: string) {
               response_time: responseTimeSeconds,
               sequential_queue_exhausted_at: new Date().toISOString(),
             });
+            logger.info(
+              `Response time ${responseTimeSeconds}s saved to database for call ${originCallId} (Sequential queue exhausted scenario)`,
+            );
           }
         }
 
@@ -1145,7 +1155,9 @@ export const machineDetectionResult = convertMiddlewareToAsync(
         responseTimeSeconds = Math.round(
           (connectTime - Number(callStartTime)) / 1000,
         );
-        // logger.info(`Interpreter connected in ${responseTimeSeconds} seconds for call ${originCallId}`);
+        logger.info(
+          `Interpreter connected in ${responseTimeSeconds} seconds for call ${originCallId} - Response time logged`,
+        );
 
         // Save response time to database
         const uuid = await redisClient.get(`${originCallId}:uuid`);
@@ -1153,6 +1165,9 @@ export const machineDetectionResult = convertMiddlewareToAsync(
           saveCallStepAsync(uuid, {
             response_time: responseTimeSeconds,
           });
+          logger.info(
+            `Response time ${responseTimeSeconds}s saved to database for call ${originCallId} (Interpreter connected scenario)`,
+          );
         }
 
         // Clean up the start time from Redis
@@ -1278,7 +1293,9 @@ export const callStatusResult = convertMiddlewareToAsync(async (req, res) => {
       responseTimeSeconds = Math.round(
         (creditExhaustTime - Number(callStartTime)) / 1000,
       );
-      // logger.info(`Credit exhausted after ${responseTimeSeconds} seconds for call ${originCallId}`);
+      logger.info(
+        `Credit exhausted after ${responseTimeSeconds} seconds for call ${originCallId} - Response time logged`,
+      );
     }
 
     // Redirect origin call to credit exhausted message endpoint
@@ -1291,6 +1308,9 @@ export const callStatusResult = convertMiddlewareToAsync(async (req, res) => {
         credits_used: credits,
         response_time: responseTimeSeconds,
       });
+      logger.info(
+        `Response time ${responseTimeSeconds}s saved to database for call ${originCallId} (Credit exhausted scenario)`,
+      );
     } catch (error) {
       logger.error(`Failed to redirect to creditExhausted: ${error}`);
     }
@@ -1416,13 +1436,18 @@ export const noAnswer = convertMiddlewareToAsync(async (req, res) => {
     responseTimeSeconds = Math.round(
       (noAnswerTime - Number(callStartTime)) / 1000,
     );
-    // logger.info(`No answer after ${responseTimeSeconds} seconds for call ${originCallId}`);
+    logger.info(
+      `No answer after ${responseTimeSeconds} seconds for call ${originCallId} - Response time logged`,
+    );
   }
 
   saveCallStepAsync(uuid || '', {
     status: 'No Answer',
     response_time: responseTimeSeconds,
   });
+  logger.info(
+    `Response time ${responseTimeSeconds}s saved to database for call ${originCallId} (No answer scenario)`,
+  );
 
   if (
     settings.noAnswerMessageMode === 'audio' &&
