@@ -212,7 +212,7 @@ const removeAndCallNewTargets = async ({
             from: '+13093321185',
             machineDetection: 'Enable',
             machineDetectionTimeout: 10,
-            timeLimit: Number(credits) * 60 || 0,
+            timeLimit: Math.max(Number(credits) * 60 || 3600, 60),
             statusCallback:
               `${TWILIO_WEBHOOK}/callStatusResult?originCallId=${originCallId}` +
               `&sourceLanguageID=${sourceLanguageID}&targetLanguageID=${targetLanguageID}&priority=${priority}&fallbackCalled=${fallbackCalled}`,
@@ -354,7 +354,7 @@ const removeAndCallNewTargets = async ({
         from: '+13093321185',
         machineDetection: 'Enable',
         machineDetectionTimeout: 10,
-        timeLimit: Number(credits) * 60 || 0,
+        timeLimit: Math.max(Number(credits) * 60 || 3600, 60),
         statusCallback:
           `${TWILIO_WEBHOOK}/callStatusResult?originCallId=${originCallId}` +
           `&sourceLanguageID=${sourceLanguageID}&targetLanguageID=${targetLanguageID}&priority=${currentPriority}&fallbackCalled=${currentFallbackCalled}`,
@@ -967,7 +967,7 @@ async function callInterpretersSimultaneously(
         from: '+13093321185',
         machineDetection: 'Enable',
         machineDetectionTimeout: 10,
-        timeLimit: Number(credits) * 60,
+        timeLimit: Math.max(Number(credits) * 60 || 3600, 60),
         statusCallback:
           `${TWILIO_WEBHOOK}/callStatusResult?originCallId=${originCallId}` +
           `&priority=${priority}&fallbackCalled=${fallbackCalled}&callType=simultaneous`,
@@ -1159,7 +1159,7 @@ async function callNextInterpreterInSequence(originCallId: string) {
     from: '+13093321185',
     machineDetection: 'Enable',
     machineDetectionTimeout: 10,
-    timeLimit: Number(credits) * 60,
+    timeLimit: Math.max(Number(credits) * 60 || 3600, 60),
     statusCallback:
       `${TWILIO_WEBHOOK}/callStatusResult?originCallId=${originCallId}` +
       `&priority=${priority}&fallbackCalled=${fallbackCalled}&callType=sequential`,
@@ -1301,7 +1301,7 @@ export const callStatusResult = convertMiddlewareToAsync(async (req, res) => {
   );
   const calledNumber = settings.phone_number;
   const credits = await redisClient.get(`${originCallId}:credits`);
-  const timeLimitInSeconds = Number(credits) * 60;
+  const timeLimitInSeconds = Math.max(Number(credits) * 60 || 3600, 60);
   // logger.info(`req.body: ${req.body}`);
   // logger.info(
   //   `Call status result: ${CallStatus} for call ${targetCallId}, type: ${callType}, duration: ${CallDuration}`,
