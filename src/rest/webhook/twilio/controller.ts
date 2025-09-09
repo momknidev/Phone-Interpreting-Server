@@ -46,7 +46,6 @@ async function cleanupCallRedisData(originCallId: string) {
       `${originCallId}:callType`,
       `${originCallId}:currentPriority`,
       `${originCallId}:currentCall`,
-      `${originCallId}:callStartTime`, // Add callStartTime to cleanup
       originCallId, // Main list of interpreter calls
     ];
 
@@ -274,29 +273,6 @@ const removeAndCallNewTargets = async ({
     // logger.info(
     //   `No interpreters available for ${originCallId}, calling noAnswer`,
     // );
-
-    // Calculate response time before calling noAnswer
-    const callStartTime = await redisClient.get(
-      `${originCallId}:callStartTime`,
-    );
-    let responseTimeSeconds = 0;
-    if (callStartTime) {
-      const noInterpreterTime = Date.now();
-      responseTimeSeconds = Math.round(
-        (noInterpreterTime - Number(callStartTime)) / 1000,
-      );
-      // logger.info(`No interpreters found after ${responseTimeSeconds} seconds for call ${originCallId}`);
-
-      // Save response time before redirecting to noAnswer
-      const uuid = await redisClient.get(`${originCallId}:uuid`);
-      if (uuid) {
-        saveCallStepAsync(uuid, {
-          response_time: responseTimeSeconds,
-          no_interpreters_at: new Date().toISOString(),
-        });
-      }
-    }
-
     await twilioClient.calls(originCallId).update({
       url: `${TWILIO_WEBHOOK}/noAnswer?originCallId=${originCallId}`,
       method: 'POST',
@@ -815,13 +791,6 @@ export const callInterpreter = convertMiddlewareToAsync(async (req, res) => {
   const fallbackEnabled = Boolean(settings?.enableFallback);
   const fallbackNumber = settings?.fallbackNumber;
 
-  // Record the start time for response time calculation
-  const callStartTime = Date.now();
-  await redisClient.set(
-    `${originCallId}:callStartTime`,
-    callStartTime.toString(),
-  );
-
   twiml.dial().conference(
     {
       statusCallback: `${TWILIO_WEBHOOK}/conferenceStatusResult?originCallId=${originCallId}`,
@@ -1052,32 +1021,6 @@ async function callNextInterpreterInSequence(originCallId: string) {
         // logger.info(
         //   `No more interpreters in sequential queue for ${originCallId}, calling noAnswer`,
         // );
-
-        // Calculate response time before calling noAnswer in sequential mode
-        const callStartTime = await redisClient.get(
-          `${originCallId}:callStartTime`,
-        );
-        let responseTimeSeconds = 0;
-        if (callStartTime) {
-          const noMoreInterpretersTime = Date.now();
-          responseTimeSeconds = Math.round(
-            (noMoreInterpretersTime - Number(callStartTime)) / 1000,
-          );
-          // logger.info(`Sequential queue exhausted after ${responseTimeSeconds} seconds for call ${originCallId}`);
-
-          // Save response time before redirecting to noAnswer
-          const settings = JSON.parse(
-            (await redisClient.get(`${originCallId}:settings`)) || '{}',
-          );
-          const uuid = await redisClient.get(`${originCallId}:uuid`);
-          if (uuid) {
-            saveCallStepAsync(uuid, {
-              response_time: responseTimeSeconds,
-              sequential_queue_exhausted_at: new Date().toISOString(),
-            });
-          }
-        }
-
         await redisClient.del(`${originCallId}:callType`);
         await redisClient.del(`${originCallId}:currentPriority`);
         await twilioClient.calls(originCallId).update({
@@ -1135,30 +1078,6 @@ export const machineDetectionResult = convertMiddlewareToAsync(
     // );
 
     if (AnsweredBy === 'unknown' || AnsweredBy === 'human') {
-      // Calculate response time when interpreter successfully connects
-      const callStartTime = await redisClient.get(
-        `${originCallId}:callStartTime`,
-      );
-      let responseTimeSeconds = 0;
-      if (callStartTime) {
-        const connectTime = Date.now();
-        responseTimeSeconds = Math.round(
-          (connectTime - Number(callStartTime)) / 1000,
-        );
-        // logger.info(`Interpreter connected in ${responseTimeSeconds} seconds for call ${originCallId}`);
-
-        // Save response time to database
-        const uuid = await redisClient.get(`${originCallId}:uuid`);
-        if (uuid) {
-          saveCallStepAsync(uuid, {
-            response_time: responseTimeSeconds,
-          });
-        }
-
-        // Clean up the start time from Redis
-        await redisClient.del(`${originCallId}:callStartTime`);
-      }
-
       const twiml = new VoiceResponse();
 
       if (callType === 'sequential') {
@@ -1268,19 +1187,6 @@ export const callStatusResult = convertMiddlewareToAsync(async (req, res) => {
   ) {
     // logger.info(`Call ${targetCallId} disconnected due to credit limit`);
 
-    // Calculate response time for credit exhaustion
-    const callStartTime = await redisClient.get(
-      `${originCallId}:callStartTime`,
-    );
-    let responseTimeSeconds = 0;
-    if (callStartTime) {
-      const creditExhaustTime = Date.now();
-      responseTimeSeconds = Math.round(
-        (creditExhaustTime - Number(callStartTime)) / 1000,
-      );
-      // logger.info(`Credit exhausted after ${responseTimeSeconds} seconds for call ${originCallId}`);
-    }
-
     // Redirect origin call to credit exhausted message endpoint
     try {
       // Update call record
@@ -1289,7 +1195,6 @@ export const callStatusResult = convertMiddlewareToAsync(async (req, res) => {
         status: 'No Credit',
         duration: CallDuration,
         credits_used: credits,
-        response_time: responseTimeSeconds,
       });
     } catch (error) {
       logger.error(`Failed to redirect to creditExhausted: ${error}`);
@@ -1407,22 +1312,7 @@ export const noAnswer = convertMiddlewareToAsync(async (req, res) => {
 
   const uuid = await redisClient.get(`${originCallId}:uuid`);
   // logger.info(`No answer handler for call ${originCallId}, uuid: ${uuid}`);
-
-  // Calculate response time even for no answer cases
-  const callStartTime = await redisClient.get(`${originCallId}:callStartTime`);
-  let responseTimeSeconds = 0;
-  if (callStartTime) {
-    const noAnswerTime = Date.now();
-    responseTimeSeconds = Math.round(
-      (noAnswerTime - Number(callStartTime)) / 1000,
-    );
-    // logger.info(`No answer after ${responseTimeSeconds} seconds for call ${originCallId}`);
-  }
-
-  saveCallStepAsync(uuid || '', {
-    status: 'No Answer',
-    response_time: responseTimeSeconds,
-  });
+  saveCallStepAsync(uuid || '', { status: 'No Answer' });
 
   if (
     settings.noAnswerMessageMode === 'audio' &&

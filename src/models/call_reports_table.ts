@@ -41,7 +41,6 @@ export const CallReports = pgTable('call_reports', {
   call_duration: decimal('call_duration', { precision: 5, scale: 2 }),
   amount: decimal('amount', { precision: 10, scale: 2 }),
   used_credits: integer('used_credits').default(0),
-  response_time: integer('response_time'),
   created_at: timestamp('created_at').notNull().defaultNow(),
   updated_at: timestamp('updated_at').notNull().defaultNow(),
 });
