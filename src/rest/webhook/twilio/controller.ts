@@ -18,9 +18,20 @@ import {
   updateRequestInformation,
 } from '../../../services/request/createRequest';
 import { db } from '../../../config/postgres';
-import { CallReports, callRoutingSettings } from '../../../models';
+import {
+  CallReports,
+  callRoutingSettings,
+  Client,
+  interpreter,
+} from '../../../models';
 import { eq } from 'drizzle-orm';
 import uuidv4 from '../../../utils/uuidv4';
+import mailer from '@sendgrid/mail';
+import { emailHeader, emailFooter } from '../../../mail_templates';
+import {
+  creditLimitClientNotification,
+  creditLimitInterpreterNotification,
+} from '../../../mail_templates/creditLimitNotification';
 
 // Helper function to clean up all Redis data for a call
 async function cleanupCallRedisData(originCallId: string) {
@@ -1341,11 +1352,11 @@ export const callStatusResult = convertMiddlewareToAsync(async (req, res) => {
   if (
     CallStatus === 'completed' &&
     CallDuration &&
-    Number(CallDuration) === timeLimitInSeconds // 10 second buffer for accuracy
+    Number(CallDuration) === timeLimitInSeconds && // Call disconnected due to time limit
+    timeLimitInSeconds !== 3600 // Not the maximum 3600 second limit, so it's due to insufficient credits
   ) {
     // logger.info(`Call ${targetCallId} disconnected due to credit limit`);
 
-    // Redirect origin call to credit exhausted message endpoint
     try {
       // Update call record
       const uuid = await redisClient.get(`${originCallId}:uuid`);
@@ -1354,8 +1365,84 @@ export const callStatusResult = convertMiddlewareToAsync(async (req, res) => {
         duration: CallDuration,
         credits_used: credits,
       });
+
+      // Send email notifications to both client and interpreter
+      const clientData = await db
+        .select()
+        .from(Client)
+        .where(eq(Client.id, settings?.client_id))
+        .limit(1);
+
+      const interpreterPhone = await redisClient.get(
+        `${originCallId}:targetPhone`,
+      );
+      const interpreterData = interpreterPhone
+        ? await db
+            .select()
+            .from(interpreter)
+            .where(eq(interpreter.phone, interpreterPhone))
+            .limit(1)
+        : [];
+
+      // Send email to client
+      if (clientData.length > 0 && clientData[0].email) {
+        const clientEmailContent =
+          emailHeader +
+          creditLimitClientNotification({
+            clientName:
+              `${clientData[0].first_name || ''} ${
+                clientData[0].last_name || ''
+              }`.trim() || 'Valued Client',
+            callDuration: CallDuration,
+            interpreterPhone: interpreterPhone || 'N/A',
+          }) +
+          emailFooter;
+
+        await mailer.send({
+          to: 'abdul.waqar@lingoyou.com',
+          from: 'portal@lingoyou.com',
+          // to: clientData[0].email,
+          // from: 'noreply@lingoyou.com', // Replace with your sender email
+          subject: 'Call Disconnected - Credit Limit Reached',
+          html: clientEmailContent,
+        });
+
+        logger.info(
+          `Credit limit email sent to client: ${clientData[0].email}`,
+        );
+      }
+
+      // Send email to interpreter
+      if (interpreterData.length > 0 && interpreterData[0].email) {
+        const interpreterEmailContent =
+          emailHeader +
+          creditLimitInterpreterNotification({
+            interpreterName:
+              `${interpreterData[0].first_name || ''} ${
+                interpreterData[0].last_name || ''
+              }`.trim() || 'Dear Interpreter',
+            clientPhone: calledNumber,
+            callDuration: CallDuration,
+          }) +
+          emailFooter;
+
+        await mailer.send({
+          to: 'abdul.waqar@lingoyou.com',
+          from: 'portal@lingoyou.com',
+          // to: interpreterData[0].email,
+          // from: 'noreply@lingoyou.com', // Replace with your sender email
+          subject: 'Call Disconnected - Client Credit Limit Reached',
+          html: interpreterEmailContent,
+        });
+
+        logger.info(
+          `Credit limit email sent to interpreter: ${interpreterData[0].email}`,
+        );
+      }
     } catch (error) {
-      logger.error(`Failed to redirect to creditExhausted: ${error}`);
+      logger.error(
+        `Failed to process credit exhaustion or send emails: ${error}`,
+      );
     }
 
     // Clean up Redis data when call ends due to credit exhaustion
