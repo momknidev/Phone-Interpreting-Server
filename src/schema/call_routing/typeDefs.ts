@@ -17,6 +17,8 @@ export const typeDefs = gql`
     callingCodePromptMode: String
     askSourceLanguage: Boolean
     askTargetLanguage: Boolean
+    sourceLanguageId: ID
+    targetLanguageId: ID
     sourceLanguagePromptText: String
     sourceLanguagePromptFile: String
     sourceLanguagePromptMode: String
@@ -73,6 +75,8 @@ export const typeDefs = gql`
 
     askSourceLanguage: Boolean
     askTargetLanguage: Boolean
+    sourceLanguageId: ID
+    targetLanguageId: ID
 
     sourceLanguagePromptText: String
     sourceLanguagePromptFile: Upload
@@ -101,7 +105,6 @@ export const typeDefs = gql`
     inputAttemptsMode: String
     inputAttemptsText: String
     inputAttemptsFile: Upload
-
     noAnswerMessageText: String
     noAnswerMessageFile: Upload
     noAnswerMessageMode: String

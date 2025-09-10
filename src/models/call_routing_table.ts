@@ -9,6 +9,7 @@ import {
   integer,
   pgEnum,
 } from 'drizzle-orm/pg-core';
+import { Languages, LanguagesTarget } from './language_table';
 
 export const callAlgorithmEnum = pgEnum('call_algorithm', [
   'simultaneous',
@@ -31,6 +32,10 @@ export const callRoutingSettings = pgTable('call_routing_settings', {
 
   askSourceLanguage: boolean('ask_source_language').default(true),
   askTargetLanguage: boolean('ask_target_language').default(true),
+  sourceLanguageId: uuid('source_language_id').references(() => Languages.id),
+  targetLanguageId: uuid('target_language_id').references(
+    () => LanguagesTarget.id,
+  ),
   sourceLanguagePromptText: text('source_language_prompt').default(
     'Seleziona la lingua di partenza',
   ),

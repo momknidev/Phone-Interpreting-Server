@@ -39,6 +39,7 @@ const resolvers = {
       const {
         welcomeMessageFile,
         noAnswerMessageFile,
+        callingCodePromptFile,
         callingCodeErrorFile,
         sourceLanguageErrorFile,
         sourceLanguagePromptFile,
@@ -53,6 +54,7 @@ const resolvers = {
       const fileUploads: {
         welcomeMessageFile?: string;
         noAnswerMessageFile?: string;
+        callingCodePromptFile?: string;
         callingCodeErrorFile?: string;
         sourceLanguageErrorFile?: string;
         sourceLanguagePromptFile?: string;
