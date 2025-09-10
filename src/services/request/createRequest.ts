@@ -85,19 +85,34 @@ export async function updateRequestInformation(id: string, data: any) {
       return;
     }
     logger.info(`Interpreter found: ${JSON.stringify(interpreterResult[0])}`);
+
+    // Get current request to check status
+    const currentRequest = await db
+      .select()
+      .from(CallReports)
+      .where(eq(CallReports.id, id))
+      .limit(1);
+
     let obj = {
       expectedDuration: callDetails?.duration
         ? String(callDetails.duration)
         : '0',
       used_credits: Number(calculateCredit(Number(callDetails.duration))),
     };
+
     const newBooking = {
       interpreter_id: interpreterResult[0].id,
-      status: 'Completed' as 'Completed',
+      status:
+        currentRequest[0]?.status === 'No Credit'
+          ? ('No Credit' as 'No Credit')
+          : ('Completed' as 'Completed'),
       call_date: new Date(callDetails?.startTime),
       call_duration: String(obj?.expectedDuration ?? 0),
       used_credits: Number(obj?.used_credits ?? 0),
     };
+    logger.info(`New booking data: ${JSON.stringify(newBooking)}`);
+    logger.info(`Updating request with ID: ${id}`);
+    logger.info(`Request update data: ${newBooking.status}`);
     const result = await db
       .update(CallReports)
       .set(newBooking)

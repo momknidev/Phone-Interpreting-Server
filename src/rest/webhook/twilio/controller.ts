@@ -1365,7 +1365,9 @@ export const callStatusResult = convertMiddlewareToAsync(async (req, res) => {
         duration: CallDuration,
         credits_used: credits,
       });
-
+      logger.info(
+        `Call record updated for ${originCallId} with No Credit status and duration ${CallDuration}`,
+      );
       // Send email notifications to both client and interpreter
       const clientData = await db
         .select()
