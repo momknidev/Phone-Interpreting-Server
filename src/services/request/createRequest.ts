@@ -86,18 +86,39 @@ export async function updateRequestInformation(id: string, data: any) {
     }
     logger.info(`Interpreter found: ${JSON.stringify(interpreterResult[0])}`);
 
-    // Get current request to check status
+    // Get current request to check status and available credits
     const currentRequest = await db
       .select()
       .from(CallReports)
       .where(eq(CallReports.id, id))
       .limit(1);
 
+    // Get client code to check available credits
+    const availableCredits = currentRequest[0]?.client_code
+      ? await db
+          .select()
+          .from(ClientCode)
+          .where(eq(ClientCode.id, currentRequest[0].client_code))
+          .limit(1)
+      : [];
+
+    const totalAvailableCredits =
+      availableCredits.length > 0 ? availableCredits[0]?.credits ?? 0 : 0;
+    const callDurationCredits = Number(
+      calculateCredit(Number(callDetails.duration)),
+    );
+
+    // Ensure used credits don't exceed available credits
+    const actualUsedCredits = Math.min(
+      callDurationCredits,
+      totalAvailableCredits,
+    );
+
     let obj = {
       expectedDuration: callDetails?.duration
         ? String(callDetails.duration)
         : '0',
-      used_credits: Number(calculateCredit(Number(callDetails.duration))),
+      used_credits: actualUsedCredits,
     };
 
     const newBooking = {
@@ -128,14 +149,22 @@ export async function updateRequestInformation(id: string, data: any) {
       logger.info(`Used credits: ${obj?.used_credits ?? 0}`);
       logger.info(`Current credits: ${clientCode[0]?.credits ?? 0}`);
       if (clientCode.length > 0) {
+        const currentCredits = clientCode[0]?.credits ?? 0;
+        const usedCredits = obj?.used_credits ?? 0;
+        // Ensure credits never go below 0
+        const newCredits = Math.max(0, currentCredits - usedCredits);
+
         let data = await db
           .update(ClientCode)
           .set({
-            credits: (clientCode[0]?.credits ?? 0) - (obj?.used_credits ?? 0),
+            credits: newCredits,
           })
           .where(eq(ClientCode.id, result[0]?.client_code))
           .returning();
         logger.info(`Client code updated: ${JSON.stringify(data[0])}`);
+        logger.info(
+          `Credits calculation: ${currentCredits} - ${usedCredits} = ${newCredits} (capped at 0)`,
+        );
       }
     }
     return result[0];

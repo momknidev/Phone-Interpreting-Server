@@ -1360,10 +1360,16 @@ export const callStatusResult = convertMiddlewareToAsync(async (req, res) => {
     try {
       // Update call record
       const uuid = await redisClient.get(`${originCallId}:uuid`);
+
+      // Calculate credits used (should not exceed available credits)
+      const callDurationMinutes = Math.ceil(Number(CallDuration) / 60);
+      const availableCredits = Number(credits) || 0;
+      const creditsUsed = Math.min(callDurationMinutes, availableCredits);
+
       saveCallStepAsync(uuid || '', {
         status: 'No Credit',
         duration: CallDuration,
-        credits_used: credits,
+        credits_used: creditsUsed,
       });
       logger.info(
         `Call record updated for ${originCallId} with No Credit status and duration ${CallDuration}`,
