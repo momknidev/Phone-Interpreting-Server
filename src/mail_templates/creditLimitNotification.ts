@@ -40,9 +40,7 @@ export const creditLimitInterpreterNotification = ({
 <p style="font-family: sans-serif; font-size: 14px; font-weight: normal; margin: 0; margin-bottom: 2px;">
   <strong>Call Duration:</strong> ${callDuration} seconds
 </p>
-<p style="font-family: sans-serif; font-size: 14px; font-weight: normal; margin: 0; margin-bottom: 2px;">
-  <strong>Client Phone:</strong> ${clientPhone}
-</p>
+
 <p style="font-family: sans-serif; font-size: 14px; font-weight: normal; margin: 0; margin-bottom: 15px;">
   This is not due to any issue on your end. The client has been notified about the credit shortage and will contact you again if needed once they have topped up their account.
 </p>

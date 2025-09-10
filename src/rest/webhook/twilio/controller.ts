@@ -1329,7 +1329,7 @@ export const machineDetectionResult = convertMiddlewareToAsync(
 
 // Also, ensure the retry logic is properly triggered in callStatusResult:
 export const callStatusResult = convertMiddlewareToAsync(async (req, res) => {
-  const { CallSid: targetCallId, CallStatus, CallDuration } = req.body;
+  const { CallSid: targetCallId, CallStatus, CallDuration, Called } = req.body;
   logger.info(`callStatusResult called with body: ${JSON.stringify(req.body)}`);
   const originCallId = String(req.query.originCallId ?? '');
   const priority = Number(req.query.priority);
@@ -1382,20 +1382,15 @@ export const callStatusResult = convertMiddlewareToAsync(async (req, res) => {
         .where(eq(Client.id, settings?.client_id))
         .limit(1);
 
-      const interpreterPhone = await redisClient.get(
-        `${originCallId}:targetPhone`,
-      );
-      const interpreterData = interpreterPhone
+      const interpreterData = Called
         ? await db
             .select()
             .from(interpreter)
-            .where(eq(interpreter.phone, interpreterPhone))
+            .where(eq(interpreter.phone, Called))
             .limit(1)
         : [];
       logger.info(
-        `Interpreter data:${interpreterPhone}: ${JSON.stringify(
-          interpreterData,
-        )}`,
+        `Interpreter data:${Called}: ${JSON.stringify(interpreterData)}`,
       );
       // Send email to client
       if (clientData.length > 0 && clientData[0].email) {
