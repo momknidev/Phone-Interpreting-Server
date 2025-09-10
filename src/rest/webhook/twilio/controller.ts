@@ -1330,6 +1330,7 @@ export const machineDetectionResult = convertMiddlewareToAsync(
 // Also, ensure the retry logic is properly triggered in callStatusResult:
 export const callStatusResult = convertMiddlewareToAsync(async (req, res) => {
   const { CallSid: targetCallId, CallStatus, CallDuration } = req.body;
+  logger.info(`callStatusResult called with body: ${JSON.stringify(req.body)}`);
   const originCallId = String(req.query.originCallId ?? '');
   const priority = Number(req.query.priority);
   const callType = req.query.callType || 'simultaneous';
@@ -1391,7 +1392,11 @@ export const callStatusResult = convertMiddlewareToAsync(async (req, res) => {
             .where(eq(interpreter.phone, interpreterPhone))
             .limit(1)
         : [];
-
+      logger.info(
+        `Interpreter data:${interpreterPhone}: ${JSON.stringify(
+          interpreterData,
+        )}`,
+      );
       // Send email to client
       if (clientData.length > 0 && clientData[0].email) {
         const clientEmailContent =
@@ -1402,7 +1407,6 @@ export const callStatusResult = convertMiddlewareToAsync(async (req, res) => {
                 clientData[0].last_name || ''
               }`.trim() || 'Valued Client',
             callDuration: CallDuration,
-            interpreterPhone: interpreterPhone || 'N/A',
           }) +
           emailFooter;
 

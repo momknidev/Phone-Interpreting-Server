@@ -1,11 +1,9 @@
 export const creditLimitClientNotification = ({
   clientName,
   callDuration,
-  interpreterPhone,
 }: {
   clientName: string;
   callDuration: string;
-  interpreterPhone: string;
 }) => `
 <p style="font-family: sans-serif; font-size: 14px; font-weight: normal; margin: 0; margin-bottom: 15px;">Dear ${clientName},</p>
 <p style="font-family: sans-serif; font-size: 14px; font-weight: normal; margin: 0; margin-bottom: 15px;">
@@ -15,9 +13,7 @@ export const creditLimitClientNotification = ({
 <p style="font-family: sans-serif; font-size: 14px; font-weight: normal; margin: 0; margin-bottom: 2px;">
   <strong>Call Duration:</strong> ${callDuration} seconds
 </p>
-<p style="font-family: sans-serif; font-size: 14px; font-weight: normal; margin: 0; margin-bottom: 2px;">
-  <strong>Interpreter Contact:</strong> ${interpreterPhone}
-</p>
+
 <p style="font-family: sans-serif; font-size: 14px; font-weight: normal; margin: 0; margin-bottom: 15px;">
   To continue using our services without interruption, please top up your account credits. 
   If you need assistance or have any questions, please don't hesitate to contact our support team.
