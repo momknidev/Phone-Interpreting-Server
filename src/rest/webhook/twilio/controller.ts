@@ -608,7 +608,21 @@ export const requestSourceLanguage = convertMiddlewareToAsync(
       return;
     }
 
-    if (!settings.askSourceLanguage || languages.length === 1) {
+    // If askSourceLanguage is false, use sourceLanguageId from settings
+    if (!settings.askSourceLanguage && settings.sourceLanguageId) {
+      await redisClient.set(
+        `${originCallId}:sourceLanguage`,
+        settings.sourceLanguageId,
+      );
+      saveCallStepAsync(uuid || '', {
+        source_language_id: settings.sourceLanguageId,
+      });
+      twiml.redirect(`./requestTargetLanguage?originCallId=${originCallId}`);
+      res.type('text/xml').send(twiml.toString());
+      return;
+    }
+
+    if (settings.askSourceLanguage && languages.length === 1) {
       const selectedLanguage = languages[0];
       await redisClient.set(
         `${originCallId}:sourceLanguage`,
@@ -743,6 +757,20 @@ export const requestTargetLanguage = convertMiddlewareToAsync(
 
       // Clean up Redis data when call ends due to no languages
       cleanupCallRedisData(originCallId);
+      return;
+    }
+
+    // If askTargetLanguage is false, use targetLanguageId from settings
+    if (!settings.askTargetLanguage && settings.targetLanguageId) {
+      await redisClient.set(
+        `${originCallId}:targetLanguage`,
+        settings.targetLanguageId,
+      );
+      saveCallStepAsync(uuid || '', {
+        target_language_id: settings.targetLanguageId,
+      });
+      twiml.redirect(`./callInterpreter?originCallId=${originCallId}`);
+      res.type('text/xml').send(twiml.toString());
       return;
     }
 
