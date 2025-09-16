@@ -15,14 +15,14 @@ const resolvers = {
         order = 'DESC',
         orderBy = 'created_at',
         search = '',
-        phone_number = '',
+        phone_number_id = '',
       }: {
         offset?: number;
         limit?: number;
         order?: string;
         orderBy?: string;
         search?: string;
-        phone_number?: string;
+        phone_number_id?: string;
       },
       context: any,
     ) => {
@@ -35,7 +35,7 @@ const resolvers = {
 
         const filters = [];
         filters.push(eq(ClientCode.client_id, context?.user?.id)); // Ensure only the current user's codes are fetched
-        filters.push(eq(ClientCode.phone_number, phone_number));
+        filters.push(eq(ClientCode.phone_number_id, phone_number_id));
         if (search) {
           filters.push(ilike(ClientCode.code_label, `%${search}%`)); // Search by code_label
         }
@@ -111,7 +111,7 @@ const resolvers = {
 
     clientCode: async (
       _: any,
-      { id, phone_number }: { id: string; phone_number: string },
+      { id, phone_number_id }: { id: string; phone_number_id: string },
       context: any,
     ) => {
       if (!context?.user) {
@@ -126,13 +126,13 @@ const resolvers = {
             and(
               eq(ClientCode.id, id),
               eq(ClientCode.client_id, context.user.id),
-              eq(ClientCode.phone_number, phone_number),
+              eq(ClientCode.phone_number_id, phone_number_id),
             ),
           );
 
         if (!userCode.length) {
           logger.warn(
-            `Client Code not found for ID: ${id} and Phone Number: ${phone_number}`,
+            `Client Code not found for ID: ${id} and Phone Number: ${phone_number_id}`,
           );
           throw new UserInputError('Client Code not found!');
         }
@@ -155,7 +155,7 @@ const resolvers = {
           client_code: number;
           code_label: string;
           status: string;
-          phone_number: string;
+          phone_number_id: string;
           credits: number;
         };
       },
@@ -171,7 +171,7 @@ const resolvers = {
           client_code: Number(input.client_code),
           code_label: input.code_label,
           client_id: context.user.id,
-          phone_number: input.phone_number,
+          phone_number_id: input.phone_number_id,
           status: input.status || 'active', // Default status to 'active'
           credits: input.credits || 0, // Default credits to 0
           created_at: new Date(),
@@ -205,7 +205,7 @@ const resolvers = {
           status: string;
           client_code: number;
           code_label: string;
-          phone_number: string;
+          phone_number_id: string;
           credits: number;
         };
       },
@@ -237,7 +237,7 @@ const resolvers = {
           code_label: input.code_label
             ? input.code_label
             : userCode[0].code_label,
-          phone_number: userCode[0].phone_number,
+          phone_number_id: userCode[0].phone_number_id,
           status: input.status || userCode[0].status,
           updated_at: new Date(),
           credits: !isNaN(input.credits)

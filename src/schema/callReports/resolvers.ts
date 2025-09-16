@@ -35,7 +35,7 @@ const resolvers = {
         order = 'DESC',
         orderBy = 'created_at',
         search = '',
-        phone_number = '',
+        phone_number_id = '',
       }: any,
       context: any,
     ) => {
@@ -52,6 +52,7 @@ const resolvers = {
             user_id: CallReports.client_id,
             interpreter_id: CallReports.interpreter_id,
             caller_phone: CallReports.caller_phone,
+            phone_number_id: CallReports.phone_number_id,
             // client_code: CallReports.client_code,
             status: CallReports.status,
             call_date: CallReports.call_date,
@@ -83,7 +84,7 @@ const resolvers = {
         // Filters
         const filters = [];
         if (search) filters.push(ilike(CallReports.status, `%${search}%`));
-        filters.push(eq(CallReports.phone_number, phone_number));
+        filters.push(eq(CallReports.phone_number_id, phone_number_id));
         if (filters.length > 0) query.where(and(...filters));
 
         // Sorting
@@ -125,6 +126,7 @@ const resolvers = {
             user_id: row.user_id,
             interpreter_id: row.interpreter_id,
             caller_phone: row.caller_phone,
+            phone_number_id: row.phone_number_id,
             serial_no: row.serial_no,
             client_code: row.client_code,
             status: row.status,
@@ -151,15 +153,25 @@ const resolvers = {
 
     phoneMediationByID: async (
       _: any,
-      { id }: { id: string },
+      { id, phone_number_id }: { id?: string; phone_number_id?: string },
       context: any,
     ) => {
       if (!context?.user) throw new AuthenticationError('Unauthenticated');
       try {
-        const rows = await db
-          .select()
-          .from(CallReports)
-          .where(eq(CallReports.id, id));
+        let query = db.select().from(CallReports);
+
+        const filters = [];
+        if (id) filters.push(eq(CallReports.id, id));
+        if (phone_number_id)
+          filters.push(eq(CallReports.phone_number_id, phone_number_id));
+
+        if (filters.length === 0) {
+          throw new UserInputError(
+            'Either id or phone_number_id must be provided',
+          );
+        }
+
+        const rows = await query.where(and(...filters));
         const row = rows[0];
         if (!row) throw new UserInputError('Phone mediation not found');
         return {
@@ -188,10 +200,14 @@ const resolvers = {
           id: uuidv4(),
           call_date: new Date(input.call_date),
           client_id: context.user.id, // Assuming client_id is the user's ID
+          ...(input.phone_number_id && {
+            phone_number_id: input.phone_number_id,
+          }),
           created_at: new Date(),
           updated_at: new Date(),
           serial_no: nextNo,
         };
+        delete data.phone_number_id;
         const result = await db.insert(CallReports).values(data).returning();
         return result[0];
       } catch (error: any) {
@@ -206,13 +222,23 @@ const resolvers = {
           .from(CallReports)
           .where(eq(CallReports.id, id));
         if (!rows[0]) throw new UserInputError('Phone mediation not found');
+
+        const updateData = {
+          ...input,
+          updated_at: new Date(),
+          ...(input.call_date && { call_date: new Date(input.call_date) }),
+          // If phone_number_id is provided in input, use it as phone_number_id
+          ...(input.phone_number_id && {
+            phone_number_id: input.phone_number_id,
+          }),
+        };
+
+        // Remove the phone_number_id field if it exists since we're using phone_number_id
+        delete updateData.phone_number_id;
+
         await db
           .update(CallReports)
-          .set({
-            ...input,
-            updated_at: new Date(),
-            ...(input.call_date && { call_date: new Date(input.call_date) }),
-          })
+          .set(updateData)
           .where(eq(CallReports.id, id));
         const updated = await db
           .select()

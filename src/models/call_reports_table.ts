@@ -10,7 +10,7 @@ import {
   pgEnum,
 } from 'drizzle-orm/pg-core';
 import { interpreter } from './interpreter';
-import { Client } from './client_table';
+import { Client, clientPhones } from './client_table';
 import { Languages, LanguagesTarget } from './language_table';
 import { ClientCode } from './client_codes_table';
 
@@ -29,7 +29,9 @@ export const CallReports = pgTable('call_reports', {
   client_id: uuid('client_id')
     .references(() => Client.id)
     .notNull(),
-  phone_number: varchar('phone_number').notNull(),
+  phone_number_id: uuid('phone_number_id')
+    .notNull()
+    .references(() => clientPhones.id, { onDelete: 'cascade' }),
   caller_phone: varchar('caller_phone').notNull(),
   client_code: uuid('client_code').references(() => ClientCode.id),
   source_language_id: uuid('source_language_id').references(() => Languages.id),

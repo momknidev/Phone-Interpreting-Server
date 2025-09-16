@@ -1,21 +1,20 @@
-import { gql } from "apollo-server";
-
+import { gql } from 'apollo-server';
 
 export const typeDefs = gql`
   scalar JSON
   scalar Upload
   # types =======================>
   type LanguagePair {
-  source_language_id:ID!
-  sourceLanguageName: String!
-  target_language_id:ID!
-  targetLanguageName: String!
+    source_language_id: ID!
+    sourceLanguageName: String!
+    target_language_id: ID!
+    targetLanguageName: String!
   }
-  type Group{
+  type Group {
     id: ID
     group_name: String!
-    }
-  
+  }
+
   type Interpreter {
     id: ID
     client_id: String
@@ -24,8 +23,8 @@ export const typeDefs = gql`
     last_name: String
     email: String
     phone: String!
-     sourceLanguages: JSON,
-    targetLanguages: JSON,
+    sourceLanguages: JSON
+    targetLanguages: JSON
     created_at: String
     updated_at: String
     status: String
@@ -39,7 +38,7 @@ export const typeDefs = gql`
     availableForEmergencies: Boolean
     availableOnHolidays: Boolean
     priority: Int
-    groups:JSON
+    groups: JSON
   }
 
   # Inputs
@@ -48,7 +47,7 @@ export const typeDefs = gql`
     target_language_id: ID!
   }
   input MediatorInput {
-    phone_number: String!
+    phone_number_id: String!
     first_name: String!
     last_name: String!
     email: String
@@ -67,7 +66,7 @@ export const typeDefs = gql`
     availableForEmergencies: Boolean
     availableOnHolidays: Boolean
     priority: Int
-    groupIDs:[String]
+    groupIDs: [String]
   }
 
   type MediatorPaginatedList {
@@ -77,8 +76,8 @@ export const typeDefs = gql`
 
   # Add to Query type
   type Query {
-    mediatorList(phone_number:String!): [Interpreter]
-    mediatorById(id: String!,phone_number:String!): Interpreter
+    mediatorList(phone_number_id: String!): [Interpreter]
+    mediatorById(id: String!, phone_number_id: String!): Interpreter
     mediatorsPaginatedList(
       offset: Int
       limit: Int
@@ -87,17 +86,17 @@ export const typeDefs = gql`
       name: String
       targetLanguage: String
       status: String
-      phone_number:String!
+      phone_number_id: String!
     ): MediatorPaginatedList
   }
 
   # Add to Mutation type
   type Mutation {
     addMediator(mediatorData: MediatorInput): Interpreter
-    updateMediator(id: String!,mediatorData: MediatorInput): Interpreter
+    updateMediator(id: String!, mediatorData: MediatorInput): Interpreter
     deleteMediator(id: String!): Boolean
     updateMediatorStatus(id: String!, status: String!): Interpreter
-    uploadMediatorFile(file: Upload!, phone_number:String!): String
+    uploadMediatorFile(file: Upload!, phone_number_id: String!): String
   }
 `;
 

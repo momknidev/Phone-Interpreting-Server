@@ -38,7 +38,7 @@ const generateToken = (user: {
   avatar_url: string | null;
   role: string | null;
   type: string | null;
-  client_phones?: { phone: string; label: string }[];
+  client_phones?: { phone: string; label: string; id: string }[];
 }) => {
   const secretKey = process.env.SECRET_KEY;
   if (!secretKey) {
@@ -107,6 +107,7 @@ const resolvers = {
           client_phones: user.client_phones.map((phone) => ({
             phone: phone.phone ?? '',
             label: phone.label ?? '',
+            id: phone.id,
           })),
         };
         // Generate token and return user data
@@ -123,7 +124,7 @@ const resolvers = {
           phone: String(user.phone) || undefined,
           password: undefined, // Exclude password from the response
           token,
-        };
+        } as any;
       } catch (error: any) {
         // Handle errors gracefully
         console.error('Error during client login:', error.message);
@@ -153,7 +154,18 @@ const resolvers = {
           throw new UserInputError('ClientUser not found!');
         }
 
-        return result;
+        return {
+          ...result,
+          client_phones:
+            result?.client_phones?.map((phone) => ({
+              id: phone.id,
+              client_id: phone.client_id,
+              phone: phone.phone,
+              label: phone.label,
+              created_at: phone.created_at?.toISOString() || '',
+              updated_at: phone.updated_at?.toISOString() || '',
+            })) || [],
+        };
       } catch (error: any) {
         console.error('Error:', error.message);
         throw new Error(error.message || 'Internal server error.');
@@ -262,6 +274,56 @@ const resolvers = {
         throw new Error(error.message || 'Internal server error.');
       }
     },
+
+    // Client Phone Queries
+    clientPhones: async (
+      _: any,
+      { clientId }: { clientId: string },
+      context: any,
+    ) => {
+      if (!context?.user) {
+        throw new AuthenticationError('Unauthenticated');
+      }
+      try {
+        const phones = await db.query.clientPhones.findMany({
+          where: eq(clientPhones.client_id, clientId),
+          orderBy: desc(clientPhones.created_at),
+        });
+
+        return phones.map((phone) => ({
+          ...phone,
+          created_at: phone.created_at?.toISOString() || '',
+          updated_at: phone.updated_at?.toISOString() || '',
+        }));
+      } catch (error: any) {
+        console.error('Error fetching client phones:', error.message);
+        throw new Error(error.message || 'Internal server error.');
+      }
+    },
+
+    clientPhone: async (_: any, { id }: { id: string }, context: any) => {
+      if (!context?.user) {
+        throw new AuthenticationError('Unauthenticated');
+      }
+      try {
+        const phone = await db.query.clientPhones.findFirst({
+          where: eq(clientPhones.id, id),
+        });
+
+        if (!phone) {
+          throw new UserInputError('Client phone not found');
+        }
+
+        return {
+          ...phone,
+          created_at: phone.created_at?.toISOString() || '',
+          updated_at: phone.updated_at?.toISOString() || '',
+        };
+      } catch (error: any) {
+        console.error('Error fetching client phone:', error.message);
+        throw new Error(error.message || 'Internal server error.');
+      }
+    },
   },
   Mutation: {
     addClient: async (
@@ -323,7 +385,7 @@ const resolvers = {
           let settings = phones.map((item) => {
             return {
               id: uuidv4(),
-              phone_number: item.phone,
+              phone_number_id: item.phone,
               client_id: userData.id,
               enable_code: true,
               callingCodePromptText:
@@ -458,7 +520,7 @@ const resolvers = {
           if (newPhones.length > 0) {
             const settings = newPhones.map((item) => ({
               id: uuidv4(),
-              phone_number: item.phone,
+              phone_number_id: item.phone,
               client_id: id,
               enable_code: true,
               callingCodePromptText:
@@ -662,6 +724,162 @@ const resolvers = {
         }
       } catch (err) {
         throw new Error(`error in sending email : ${err}`);
+      }
+    },
+
+    // Client Phone Management Mutations
+    addClientPhone: async (
+      _: any,
+      {
+        clientId,
+        input,
+      }: { clientId: string; input: { phone: string; label?: string } },
+      context: any,
+    ) => {
+      if (!context?.user) {
+        throw new AuthenticationError('Unauthenticated');
+      }
+      try {
+        // Verify the client exists and user has permission
+        const client = await db.query.Client.findFirst({
+          where: eq(Client.id, clientId),
+        });
+
+        if (!client) {
+          throw new UserInputError('Client not found');
+        }
+
+        // Check if phone number already exists for this client
+        const existingPhone = await db.query.clientPhones.findFirst({
+          where: and(
+            eq(clientPhones.client_id, clientId),
+            eq(clientPhones.phone, input.phone),
+          ),
+        });
+
+        if (existingPhone) {
+          throw new UserInputError(
+            'Phone number already exists for this client',
+          );
+        }
+
+        const phoneData = {
+          id: uuidv4(),
+          client_id: clientId,
+          phone: input.phone,
+          label: input.label || null,
+          created_at: new Date(),
+          updated_at: new Date(),
+        };
+
+        const result = await db
+          .insert(clientPhones)
+          .values(phoneData)
+          .returning();
+
+        if (result && result[0]) {
+          return {
+            ...result[0],
+            created_at: result[0].created_at?.toISOString() || '',
+            updated_at: result[0].updated_at?.toISOString() || '',
+          };
+        } else {
+          throw new Error('Failed to create client phone');
+        }
+      } catch (error: any) {
+        console.error('Error adding client phone:', error.message);
+        throw new Error(error.message || 'Internal server error.');
+      }
+    },
+
+    updateClientPhone: async (
+      _: any,
+      { id, input }: { id: string; input: { phone?: string; label?: string } },
+      context: any,
+    ) => {
+      if (!context?.user) {
+        throw new AuthenticationError('Unauthenticated');
+      }
+      try {
+        // Verify the phone record exists
+        const existingPhone = await db.query.clientPhones.findFirst({
+          where: eq(clientPhones.id, id),
+        });
+
+        if (!existingPhone) {
+          throw new UserInputError('Client phone not found');
+        }
+
+        // Check if new phone number already exists for this client (if phone is being updated)
+        if (input.phone && input.phone !== existingPhone.phone) {
+          const duplicatePhone = await db.query.clientPhones.findFirst({
+            where: and(
+              eq(clientPhones.client_id, existingPhone.client_id),
+              eq(clientPhones.phone, input.phone),
+            ),
+          });
+
+          if (duplicatePhone) {
+            throw new UserInputError(
+              'Phone number already exists for this client',
+            );
+          }
+        }
+
+        const updateData = {
+          ...(input.phone && { phone: input.phone }),
+          ...(input.label !== undefined && { label: input.label }),
+          updated_at: new Date(),
+        };
+
+        await db
+          .update(clientPhones)
+          .set(updateData)
+          .where(eq(clientPhones.id, id));
+
+        const updatedPhone = await db.query.clientPhones.findFirst({
+          where: eq(clientPhones.id, id),
+        });
+
+        if (updatedPhone) {
+          return {
+            ...updatedPhone,
+            created_at: updatedPhone.created_at?.toISOString() || '',
+            updated_at: updatedPhone.updated_at?.toISOString() || '',
+          };
+        } else {
+          throw new Error('Failed to update client phone');
+        }
+      } catch (error: any) {
+        console.error('Error updating client phone:', error.message);
+        throw new Error(error.message || 'Internal server error.');
+      }
+    },
+
+    deleteClientPhone: async (_: any, { id }: { id: string }, context: any) => {
+      if (!context?.user) {
+        throw new AuthenticationError('Unauthenticated');
+      }
+      try {
+        // Verify the phone record exists
+        const existingPhone = await db.query.clientPhones.findFirst({
+          where: eq(clientPhones.id, id),
+        });
+
+        if (!existingPhone) {
+          throw new UserInputError('Client phone not found');
+        }
+
+        // Check if this phone is referenced by other tables
+        // You might want to add checks for related records in other tables
+        // For example, check if it's used in call reports, routing settings, etc.
+
+        await db.delete(clientPhones).where(eq(clientPhones.id, id));
+
+        return true;
+      } catch (error: any) {
+        console.error('Error deleting client phone:', error.message);
+        throw new Error(error.message || 'Internal server error.');
       }
     },
   },

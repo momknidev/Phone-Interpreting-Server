@@ -11,7 +11,7 @@ const resolvers = {
   Query: {
     getCallRoutingSettings: async (
       _: any,
-      { phone_number }: { phone_number: string },
+      { phone_number_id }: { phone_number_id: string },
       context: any,
     ) => {
       if (!context?.user) throw new AuthenticationError('Unauthenticated');
@@ -19,7 +19,7 @@ const resolvers = {
       const result = await db
         .select()
         .from(callRoutingSettings)
-        .where(eq(callRoutingSettings.phone_number, phone_number));
+        .where(eq(callRoutingSettings.phone_number_id, phone_number_id));
 
       return result[0] || null;
     },
@@ -101,38 +101,60 @@ const resolvers = {
         client_id: context.user.id,
       };
       console.log('baseData', baseData);
+      console.log('input', input);
       const existing = await db
         .select()
         .from(callRoutingSettings)
-        .where(eq(callRoutingSettings.phone_number, input.phone_number));
+        .where(eq(callRoutingSettings.phone_number_id, input.phone_number_id));
 
       if (existing.length) {
-        await db
-          .update(callRoutingSettings)
-          .set(baseData)
-          .where(eq(callRoutingSettings.phone_number, input.phone_number));
+        try {
+          await db
+            .update(callRoutingSettings)
+            .set(baseData)
+            .where(
+              eq(callRoutingSettings.phone_number_id, input.phone_number_id),
+            );
 
-        const updated = await db
-          .select()
-          .from(callRoutingSettings)
-          .where(eq(callRoutingSettings.phone_number, input.phone_number));
+          const updated = await db
+            .select()
+            .from(callRoutingSettings)
+            .where(
+              eq(callRoutingSettings.phone_number_id, input.phone_number_id),
+            );
 
-        return updated[0];
+          return updated[0];
+        } catch (error) {
+          console.error('Error updating call routing settings:', error);
+          throw error;
+        }
       } else {
-        const record = {
-          id: uuidv4(),
-          ...baseData,
-          createdAt: new Date(),
-        };
-
-        await db.insert(callRoutingSettings).values(record);
-        return record;
+        try {
+          const record = {
+            id: uuidv4(),
+            ...baseData,
+            createdAt: new Date(),
+          };
+          console.log('Inserting new record:', record);
+          let res = await db
+            .insert(callRoutingSettings)
+            .values(record)
+            .returning();
+          console.log('Insert result:', res);
+          return record;
+        } catch (error) {
+          console.error('Error inserting call routing settings:', error);
+          throw error;
+        }
       }
     },
 
     deleteCallRoutingSettings: async (
       _: any,
-      { client_id, phone_number }: { client_id: string; phone_number: string },
+      {
+        client_id,
+        phone_number_id,
+      }: { client_id: string; phone_number_id: string },
       context: any,
     ) => {
       if (!context?.user) throw new AuthenticationError('Unauthenticated');

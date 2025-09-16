@@ -9,7 +9,9 @@ import {
   integer,
   pgEnum,
 } from 'drizzle-orm/pg-core';
+import { relations } from 'drizzle-orm';
 import { Languages, LanguagesTarget } from './language_table';
+import { clientPhones } from './client_table';
 
 export const callAlgorithmEnum = pgEnum('call_algorithm', [
   'simultaneous',
@@ -19,7 +21,9 @@ export const callAlgorithmEnum = pgEnum('call_algorithm', [
 export const callRoutingSettings = pgTable('call_routing_settings', {
   id: uuid('id').notNull().primaryKey(),
   client_id: uuid('client_id').notNull(),
-  phone_number: varchar('phone_number').notNull(),
+  phone_number_id: uuid('phone_number_id')
+    .notNull()
+    .references(() => clientPhones.id, { onDelete: 'cascade' }),
   enable_code: boolean('enable_code').default(true),
   callingCodePromptText: text('calling_code_prompt_text').default(
     'Inserisci il codice identificativo fornito',
@@ -91,3 +95,21 @@ export const callRoutingSettings = pgTable('call_routing_settings', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
+
+export const callRoutingSettingsRelations = relations(
+  callRoutingSettings,
+  ({ one }) => ({
+    clientPhone: one(clientPhones, {
+      fields: [callRoutingSettings.phone_number_id],
+      references: [clientPhones.id],
+    }),
+    sourceLanguage: one(Languages, {
+      fields: [callRoutingSettings.sourceLanguageId],
+      references: [Languages.id],
+    }),
+    targetLanguage: one(LanguagesTarget, {
+      fields: [callRoutingSettings.targetLanguageId],
+      references: [LanguagesTarget.id],
+    }),
+  }),
+);

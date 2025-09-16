@@ -14,16 +14,16 @@ const resolvers = {
         order = 'DESC',
         orderBy = 'created_at',
         search = '',
-        phone_number = ''
+        phone_number_id = '',
       }: {
         offset?: number;
         limit?: number;
         order?: string;
         orderBy?: string;
         search?: string;
-        phone_number?: string
+        phone_number_id?: string;
       },
-      context: any
+      context: any,
     ) => {
       try {
         let query = db.select().from(Languages);
@@ -32,22 +32,32 @@ const resolvers = {
         if (search) {
           filters.push(ilike(Languages.language_name, '%' + search + '%'));
         }
-        filters.push(eq(Languages.phone_number, phone_number))
+        filters.push(eq(Languages.phone_number_id, phone_number_id));
         if (filters.length > 0) {
           query.where(and(...filters));
         }
 
         // Apply sorting
         if (orderBy && order) {
-          const isValidColumn = orderBy in Languages && typeof Languages[orderBy as keyof typeof Languages] === 'object';
+          const isValidColumn =
+            orderBy in Languages &&
+            typeof Languages[orderBy as keyof typeof Languages] === 'object';
           if (isValidColumn) {
-            const sortColumn = Languages[orderBy as keyof typeof Languages] as any;
+            const sortColumn = Languages[
+              orderBy as keyof typeof Languages
+            ] as any;
             query.orderBy(
-              order.toUpperCase() === 'ASC' ? asc(sortColumn) : desc(sortColumn)
+              order.toUpperCase() === 'ASC'
+                ? asc(sortColumn)
+                : desc(sortColumn),
             );
           } else {
             // Default to created_at if invalid column provided
-            query.orderBy(order.toUpperCase() === 'ASC' ? asc(Languages.created_at) : desc(Languages.created_at));
+            query.orderBy(
+              order.toUpperCase() === 'ASC'
+                ? asc(Languages.created_at)
+                : desc(Languages.created_at),
+            );
           }
         }
 
@@ -65,7 +75,10 @@ const resolvers = {
           filteredCount: totalCount,
         };
       } catch (error: any) {
-        console.error('Error fetching languages paginated list:', error.message);
+        console.error(
+          'Error fetching languages paginated list:',
+          error.message,
+        );
         throw new Error(error.message || 'Internal server error.');
       }
     },
@@ -77,40 +90,53 @@ const resolvers = {
         order = 'DESC',
         orderBy = 'created_at',
         search = '',
-        phone_number = ''
+        phone_number_id = '',
       }: {
         offset?: number;
         limit?: number;
         order?: string;
         orderBy?: string;
         search?: string;
-        phone_number?: string
+        phone_number_id?: string;
       },
-      context: any
+      context: any,
     ) => {
       try {
         let query = db.select().from(LanguagesTarget);
         const filters = [];
         filters.push(eq(LanguagesTarget.client_id, context?.user?.id));
         if (search) {
-          filters.push(ilike(LanguagesTarget.language_name, '%' + search + '%'));
+          filters.push(
+            ilike(LanguagesTarget.language_name, '%' + search + '%'),
+          );
         }
-        filters.push(eq(LanguagesTarget.phone_number, phone_number))
+        filters.push(eq(LanguagesTarget.phone_number_id, phone_number_id));
         if (filters.length > 0) {
           query.where(and(...filters));
         }
 
         // Apply sorting
         if (orderBy && order) {
-          const isValidColumn = orderBy in LanguagesTarget && typeof LanguagesTarget[orderBy as keyof typeof LanguagesTarget] === 'object';
+          const isValidColumn =
+            orderBy in LanguagesTarget &&
+            typeof LanguagesTarget[orderBy as keyof typeof LanguagesTarget] ===
+              'object';
           if (isValidColumn) {
-            const sortColumn = LanguagesTarget[orderBy as keyof typeof LanguagesTarget] as any;
+            const sortColumn = LanguagesTarget[
+              orderBy as keyof typeof LanguagesTarget
+            ] as any;
             query.orderBy(
-              order.toUpperCase() === 'ASC' ? asc(sortColumn) : desc(sortColumn)
+              order.toUpperCase() === 'ASC'
+                ? asc(sortColumn)
+                : desc(sortColumn),
             );
           } else {
             // Default to created_at if invalid column provided
-            query.orderBy(order.toUpperCase() === 'ASC' ? asc(LanguagesTarget.created_at) : desc(LanguagesTarget.created_at));
+            query.orderBy(
+              order.toUpperCase() === 'ASC'
+                ? asc(LanguagesTarget.created_at)
+                : desc(LanguagesTarget.created_at),
+            );
           }
         }
 
@@ -128,36 +154,60 @@ const resolvers = {
           filteredCount: totalCount,
         };
       } catch (error: any) {
-        console.error('Error fetching languages paginated list:', error.message);
+        console.error(
+          'Error fetching languages paginated list:',
+          error.message,
+        );
         throw new Error(error.message || 'Internal server error.');
       }
     },
-    allSourceLanguages: async (_: any, { phone_number }: any, context: any) => {
+    allSourceLanguages: async (
+      _: any,
+      { phone_number_id }: any,
+      context: any,
+    ) => {
       try {
-        const languages = await db.select().from(Languages).where(eq(Languages.phone_number, phone_number));
+        const languages = await db
+          .select()
+          .from(Languages)
+          .where(eq(Languages.phone_number_id, phone_number_id));
         return languages;
       } catch (error: any) {
         console.error('Error fetching all languages:', error.message);
         throw new Error(error.message || 'Internal server error.');
       }
     },
-    allTargetLanguages: async (_: any, { phone_number }: any, context: any) => {
+    allTargetLanguages: async (
+      _: any,
+      { phone_number_id }: any,
+      context: any,
+    ) => {
       try {
-        const languages = await db.select().from(LanguagesTarget).where(eq(LanguagesTarget.phone_number, phone_number));
+        const languages = await db
+          .select()
+          .from(LanguagesTarget)
+          .where(eq(LanguagesTarget.phone_number_id, phone_number_id));
         return languages;
       } catch (error: any) {
         console.error('Error fetching all languages:', error.message);
         throw new Error(error.message || 'Internal server error.');
       }
     },
-
   },
 
   Mutation: {
     createSourceLanguage: async (
       _: any,
-      { input }: { input: { language_code: number; language_name: string, phone_number: string } },
-      context: any
+      {
+        input,
+      }: {
+        input: {
+          language_code: number;
+          language_name: string;
+          phone_number_id: string;
+        };
+      },
+      context: any,
     ) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
@@ -171,11 +221,14 @@ const resolvers = {
           client_id: context.user.id,
           created_at: new Date(),
           updated_at: new Date(),
-          phone_number: input.phone_number
+          phone_number_id: input.phone_number_id,
         };
 
         console.log('Creating Languages with data:', languageData);
-        const result = await db.insert(Languages).values(languageData).returning();
+        const result = await db
+          .insert(Languages)
+          .values(languageData)
+          .returning();
 
         if (result && result[0]) {
           return result[0];
@@ -190,8 +243,14 @@ const resolvers = {
 
     updateSourceLanguage: async (
       _: any,
-      { id, input }: { id: string; input: { language_code: number; language_name: string } },
-      context: any
+      {
+        id,
+        input,
+      }: {
+        id: string;
+        input: { language_code: number; language_name: string };
+      },
+      context: any,
     ) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
@@ -199,7 +258,12 @@ const resolvers = {
 
       try {
         // Fetch the existing Languages details
-        const languages = await db.select().from(Languages).where(and(eq(Languages.id, id), eq(Languages.client_id, context.user.id)));
+        const languages = await db
+          .select()
+          .from(Languages)
+          .where(
+            and(eq(Languages.id, id), eq(Languages.client_id, context.user.id)),
+          );
         const existingLanguage = languages[0];
 
         if (!existingLanguage) {
@@ -217,13 +281,18 @@ const resolvers = {
         await db.update(Languages).set(updatedData).where(eq(Languages.id, id));
 
         // Fetch the updated Languages details
-        const updatedLanguages = await db.select().from(Languages).where(eq(Languages.id, id));
+        const updatedLanguages = await db
+          .select()
+          .from(Languages)
+          .where(eq(Languages.id, id));
         const updatedLanguage = updatedLanguages[0];
 
         if (updatedLanguage) {
           return updatedLanguage;
         } else {
-          throw new Error('Language update failed. No updated Languages returned.');
+          throw new Error(
+            'Language update failed. No updated Languages returned.',
+          );
         }
       } catch (error: any) {
         console.error('Error updating Languages:', error.message);
@@ -231,17 +300,24 @@ const resolvers = {
       }
     },
 
-    deleteSourceLanguage: async (_: any, { id }: { id: string }, context: any) => {
+    deleteSourceLanguage: async (
+      _: any,
+      { id }: { id: string },
+      context: any,
+    ) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
 
       try {
         // Fetch the existing Languages to verify it exists
-        const languages = await db.select().from(Languages).where(
-          and(eq(Languages.id, id),
-            eq(Languages.client_id, context.user.id)));
-        console.log(languages)
+        const languages = await db
+          .select()
+          .from(Languages)
+          .where(
+            and(eq(Languages.id, id), eq(Languages.client_id, context.user.id)),
+          );
+        console.log(languages);
         if (!languages[0]) {
           throw new UserInputError('Language not found');
         }
@@ -258,8 +334,16 @@ const resolvers = {
 
     createTargetLanguage: async (
       _: any,
-      { input }: { input: { language_code: number; language_name: string, phone_number: string } },
-      context: any
+      {
+        input,
+      }: {
+        input: {
+          language_code: number;
+          language_name: string;
+          phone_number_id: string;
+        };
+      },
+      context: any,
     ) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
@@ -273,11 +357,14 @@ const resolvers = {
           client_id: context.user.id,
           created_at: new Date(),
           updated_at: new Date(),
-          phone_number: input.phone_number
+          phone_number_id: input.phone_number_id,
         };
 
         console.log('Creating Languages with data:', languageData);
-        const result = await db.insert(LanguagesTarget).values(languageData).returning();
+        const result = await db
+          .insert(LanguagesTarget)
+          .values(languageData)
+          .returning();
 
         if (result && result[0]) {
           return result[0];
@@ -292,8 +379,14 @@ const resolvers = {
 
     updateTargetLanguage: async (
       _: any,
-      { id, input }: { id: string; input: { language_code: number; language_name: string } },
-      context: any
+      {
+        id,
+        input,
+      }: {
+        id: string;
+        input: { language_code: number; language_name: string };
+      },
+      context: any,
     ) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
@@ -301,7 +394,15 @@ const resolvers = {
 
       try {
         // Fetch the existing sourceLanguages details
-        const languages = await db.select().from(LanguagesTarget).where(and(eq(LanguagesTarget.id, id), eq(LanguagesTarget.client_id, context.user.id)));
+        const languages = await db
+          .select()
+          .from(LanguagesTarget)
+          .where(
+            and(
+              eq(LanguagesTarget.id, id),
+              eq(LanguagesTarget.client_id, context.user.id),
+            ),
+          );
         const existingLanguage = languages[0];
 
         if (!existingLanguage) {
@@ -316,32 +417,50 @@ const resolvers = {
         };
 
         // Update sourceLanguages details in the database
-        await db.update(LanguagesTarget).set(updatedData).where(eq(LanguagesTarget.id, id));
+        await db
+          .update(LanguagesTarget)
+          .set(updatedData)
+          .where(eq(LanguagesTarget.id, id));
 
         // Fetch the updated sourceLanguages details
-        const updatedLanguages = await db.select().from(LanguagesTarget).where(eq(LanguagesTarget.id, id));
+        const updatedLanguages = await db
+          .select()
+          .from(LanguagesTarget)
+          .where(eq(LanguagesTarget.id, id));
         const updatedLanguage = updatedLanguages[0];
 
         if (updatedLanguage) {
           return updatedLanguage;
         } else {
-          throw new Error('Language update failed. No updated target language returned.');
+          throw new Error(
+            'Language update failed. No updated target language returned.',
+          );
         }
       } catch (error: any) {
         console.error('Error updating target language:', error.message);
         throw new Error('Error: ' + error.message);
       }
     },
-    deleteTargetLanguage: async (_: any, { id }: { id: string }, context: any) => {
+    deleteTargetLanguage: async (
+      _: any,
+      { id }: { id: string },
+      context: any,
+    ) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
 
       try {
         // Fetch the existing sourceLanguages to verify it exists
-        const languages = await db.select().from(LanguagesTarget).where(
-          and(eq(LanguagesTarget.id, id),
-            eq(LanguagesTarget.client_id, context.user.id)));
+        const languages = await db
+          .select()
+          .from(LanguagesTarget)
+          .where(
+            and(
+              eq(LanguagesTarget.id, id),
+              eq(LanguagesTarget.client_id, context.user.id),
+            ),
+          );
 
         if (!languages[0]) {
           throw new UserInputError('Language not found');
@@ -356,21 +475,25 @@ const resolvers = {
         throw new Error('Error: ' + error.message);
       }
     },
-    syncTargetLanguagesData: async (_: any, { phone_number }: { phone_number: string }, context: any) => {
+    syncTargetLanguagesData: async (
+      _: any,
+      { phone_number_id }: { phone_number_id: string },
+      context: any,
+    ) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
 
       try {
-        // Step 1: Fetch all source languages for the given phone_number
+        // Step 1: Fetch all source languages for the given phone_number_id
         const sourceLanguages = await db
           .select()
           .from(Languages)
           .where(
             and(
               eq(Languages.client_id, context.user.id),
-              eq(Languages.phone_number, phone_number)
-            )
+              eq(Languages.phone_number_id, phone_number_id),
+            ),
           );
 
         if (!sourceLanguages.length) {
@@ -386,8 +509,8 @@ const resolvers = {
               and(
                 eq(LanguagesTarget.client_id, context.user.id),
                 eq(LanguagesTarget.language_code, sourceLang.language_code),
-                eq(LanguagesTarget.phone_number, phone_number)
-              )
+                eq(LanguagesTarget.phone_number_id, phone_number_id),
+              ),
             );
 
           const now = new Date();
@@ -408,7 +531,7 @@ const resolvers = {
               language_code: sourceLang.language_code,
               language_name: sourceLang.language_name,
               client_id: context.user.id,
-              phone_number: phone_number,
+              phone_number_id: phone_number_id,
               created_at: now,
               updated_at: now,
             });
@@ -423,8 +546,8 @@ const resolvers = {
     },
     syncSourceLanguagesData: async (
       _: any,
-      { phone_number }: { phone_number: string },
-      context: any
+      { phone_number_id }: { phone_number_id: string },
+      context: any,
     ) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
@@ -438,8 +561,8 @@ const resolvers = {
           .where(
             and(
               eq(LanguagesTarget.client_id, context.user.id),
-              eq(LanguagesTarget.phone_number, phone_number)
-            )
+              eq(LanguagesTarget.phone_number_id, phone_number_id),
+            ),
           );
 
         if (!targetLanguages.length) {
@@ -455,8 +578,8 @@ const resolvers = {
               and(
                 eq(Languages.client_id, context.user.id),
                 eq(Languages.language_code, targetLang.language_code),
-                eq(Languages.phone_number, phone_number)
-              )
+                eq(Languages.phone_number_id, phone_number_id),
+              ),
             );
 
           const now = new Date();
@@ -477,7 +600,7 @@ const resolvers = {
               language_code: targetLang.language_code,
               language_name: targetLang.language_name,
               client_id: context.user.id,
-              phone_number: phone_number,
+              phone_number_id: phone_number_id,
               created_at: now,
               updated_at: now,
             });
@@ -489,10 +612,7 @@ const resolvers = {
         console.error('Error syncing languages:', error.message);
         throw new Error('Error syncing languages: ' + error.message);
       }
-    }
-
-
-
+    },
   },
 };
 

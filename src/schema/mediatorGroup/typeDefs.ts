@@ -1,17 +1,17 @@
-import { gql } from "apollo-server";
+import { gql } from 'apollo-server';
 
 export const typeDefs = gql`
   scalar Upload
   scalar JSON
 
   # types =======================>
-  
+
   type Group {
     id: ID
-    group_name: String     
-    status: String   
+    group_name: String
+    status: String
     user: JSON
-    client_id:String
+    client_id: String
     created_at: String
     updated_at: String
     mediatorCount: Int
@@ -21,24 +21,24 @@ export const typeDefs = gql`
   input groupInput {
     group_name: String
     status: String
-    phone_number: String!
+    phone_number_id: ID!
   }
 
   type GroupPaginatedList {
     filteredCount: Int
-    groups:  [Group]
+    groups: [Group]
   }
   # ==============> QUERIES <================
   type Query {
-    groupByID(id: String,phone_number: String!): Group
-    allGroups(phone_number: String!):[Group]
+    groupByID(id: String, phone_number_id: ID!): Group
+    allGroups(phone_number_id: ID!): [Group]
     groupsPaginatedList(
       offset: Int
       limit: Int
       order: String
       orderBy: String
       name: String
-      phone_number: String!
+      phone_number_id: ID!
     ): GroupPaginatedList
   }
 
@@ -46,7 +46,7 @@ export const typeDefs = gql`
   type Mutation {
     addGroup(groupInput: groupInput): Group
     editGroup(id: String, groupInput: groupInput): Group!
-    changeGroupStatus(id:ID!, status: String): Group
+    changeGroupStatus(id: ID!, status: String): Group
     deleteGroup(id: ID!): String
     addMediatorToGroup(groupID: ID!, mediatorIDs: [ID!]!): String
     removeMediatorFromGroup(groupID: ID!, mediatorID: ID!): String

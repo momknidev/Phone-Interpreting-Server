@@ -3,13 +3,20 @@ import { and, asc, desc, eq, ilike, or, sql } from 'drizzle-orm';
 import { AuthenticationError, UserInputError } from 'apollo-server';
 import { db } from '../../config/postgres';
 import uuidv4 from '../../utils/uuidv4';
-import { interpreter, mediatorGroup, mediatorGroupRelation } from '../../models'; // Make sure this exists in your models folder
+import {
+  interpreter,
+  mediatorGroup,
+  mediatorGroupRelation,
+} from '../../models'; // Make sure this exists in your models folder
 import { logger } from '../../config/logger';
 
 // Add to existing resolvers
 const resolvers = {
   Query: {
-    groupByID: async (_: any, { id, phone_number }: { id: string, phone_number: string }): Promise<any> => {
+    groupByID: async (
+      _: any,
+      { id, phone_number_id }: { id: string; phone_number_id: string },
+    ): Promise<any> => {
       try {
         // Step 1: Fetch group info
         const groups = await db
@@ -22,7 +29,12 @@ const resolvers = {
             updated_at: mediatorGroup.updated_at,
           })
           .from(mediatorGroup)
-          .where(and(eq(mediatorGroup.id, id), eq(mediatorGroup.phone_number, phone_number)));
+          .where(
+            and(
+              eq(mediatorGroup.id, id),
+              eq(mediatorGroup.phone_number_id, phone_number_id),
+            ),
+          );
 
         const group = groups[0];
 
@@ -42,11 +54,14 @@ const resolvers = {
           .from(interpreter)
           .innerJoin(
             mediatorGroupRelation,
-            eq(interpreter.id, mediatorGroupRelation.interpreter_id)
+            eq(interpreter.id, mediatorGroupRelation.interpreter_id),
           )
           .where(eq(mediatorGroupRelation.mediator_group_id, id));
 
-        logger.info(`Fetched group by ID: ${id}`, { group, mediatorCount: mediators.length });
+        logger.info(`Fetched group by ID: ${id}`, {
+          group,
+          mediatorCount: mediators.length,
+        });
 
         // Step 3: Return combined result
         return {
@@ -59,9 +74,7 @@ const resolvers = {
         console.error('Error fetching group by ID:', error.message);
         throw new Error(error.message || 'Internal server error.');
       }
-    }
-    ,
-
+    },
     groupsPaginatedList: async (
       _: any,
       {
@@ -70,16 +83,16 @@ const resolvers = {
         order = 'DESC',
         orderBy = 'created_at',
         name = '',
-        phone_number = ''
+        phone_number_id = '',
       }: {
         offset?: number;
         limit?: number;
         order?: string;
         orderBy?: string;
         name?: string;
-        phone_number?: string
+        phone_number_id?: string;
       },
-      context: any
+      context: any,
     ) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
@@ -97,31 +110,44 @@ const resolvers = {
         `,
           })
           .from(mediatorGroup)
-          .leftJoin(mediatorGroupRelation, eq(mediatorGroup.id, mediatorGroupRelation.mediator_group_id))
+          .leftJoin(
+            mediatorGroupRelation,
+            eq(mediatorGroup.id, mediatorGroupRelation.mediator_group_id),
+          )
           .groupBy(mediatorGroup.id); // Group by the group ID to count mediators for each group
-
 
         const filters = [];
 
         if (name) {
           filters.push(ilike(mediatorGroup.group_name, '%' + name + '%'));
         }
-        filters.push(eq(mediatorGroup.phone_number, phone_number))
+        filters.push(eq(mediatorGroup.phone_number_id, phone_number_id));
         if (filters.length > 0) {
           query.where(and(...filters));
         }
 
         // Apply sorting
         if (orderBy && order) {
-          const isValidColumn = orderBy in mediatorGroup && typeof mediatorGroup[orderBy as keyof typeof mediatorGroup] === 'object';
+          const isValidColumn =
+            orderBy in mediatorGroup &&
+            typeof mediatorGroup[orderBy as keyof typeof mediatorGroup] ===
+              'object';
           if (isValidColumn) {
-            const sortColumn = mediatorGroup[orderBy as keyof typeof mediatorGroup] as any;
+            const sortColumn = mediatorGroup[
+              orderBy as keyof typeof mediatorGroup
+            ] as any;
             query.orderBy(
-              order.toUpperCase() === 'ASC' ? asc(sortColumn) : desc(sortColumn)
+              order.toUpperCase() === 'ASC'
+                ? asc(sortColumn)
+                : desc(sortColumn),
             );
           } else {
             // Default to created_at if invalid column provided
-            query.orderBy(order.toUpperCase() === 'ASC' ? asc(mediatorGroup.created_at) : desc(mediatorGroup.created_at));
+            query.orderBy(
+              order.toUpperCase() === 'ASC'
+                ? asc(mediatorGroup.created_at)
+                : desc(mediatorGroup.created_at),
+            );
           }
         }
 
@@ -145,7 +171,11 @@ const resolvers = {
         throw new Error(error.message || 'Internal server error.');
       }
     },
-    allGroups: async (_: any, { phone_number }: { phone_number: string }, context: any) => {
+    allGroups: async (
+      _: any,
+      { phone_number_id }: { phone_number_id: string },
+      context: any,
+    ) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
@@ -154,13 +184,16 @@ const resolvers = {
         const groups = await db
           .select()
           .from(mediatorGroup)
-          .where(and(
-            eq(mediatorGroup.client_id, context.user.id),
-            eq(mediatorGroup.status, 'active'),
-            eq(mediatorGroup.phone_number, phone_number)))
+          .where(
+            and(
+              eq(mediatorGroup.client_id, context.user.id),
+              eq(mediatorGroup.status, 'active'),
+              eq(mediatorGroup.phone_number_id, phone_number_id),
+            ),
+          )
           .orderBy(desc(mediatorGroup.created_at));
 
-        return groups.map(group => ({
+        return groups.map((group) => ({
           ...group,
           created_at: group.created_at?.toISOString() || '',
           updated_at: group.updated_at?.toISOString() || '',
@@ -173,8 +206,11 @@ const resolvers = {
   },
 
   Mutation: {
-
-    addGroup: async (_: any, { groupInput }: { groupInput: any }, context: any) => {
+    addGroup: async (
+      _: any,
+      { groupInput }: { groupInput: any },
+      context: any,
+    ) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
@@ -186,10 +222,13 @@ const resolvers = {
           client_id: context.user.id,
           created_at: new Date(),
           updated_at: new Date(),
-          phone_number: groupInput.phone_number
+          phone_number_id: groupInput.phone_number_id,
         };
         console.log('Creating group with data:', groupData);
-        const result = await db.insert(mediatorGroup).values(groupData).returning();
+        const result = await db
+          .insert(mediatorGroup)
+          .values(groupData)
+          .returning();
         if (result) {
           return result[0];
         } else {
@@ -200,13 +239,20 @@ const resolvers = {
         throw new Error('Error: ' + error.message);
       }
     },
-    editGroup: async (_: any, { id, groupInput }: { id: string, groupInput: any }, context: any) => {
+    editGroup: async (
+      _: any,
+      { id, groupInput }: { id: string; groupInput: any },
+      context: any,
+    ) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
       try {
         // Fetch the existing group details
-        const groups = await db.select().from(mediatorGroup).where(eq(mediatorGroup.id, id));
+        const groups = await db
+          .select()
+          .from(mediatorGroup)
+          .where(eq(mediatorGroup.id, id));
         const existingGroup = groups[0];
 
         if (!existingGroup) {
@@ -215,15 +261,23 @@ const resolvers = {
 
         // Prepare the updated group data
         const updatedData = {
-          group_name: String(groupInput.group_name).toLocaleLowerCase() || existingGroup.group_name,
+          group_name:
+            String(groupInput.group_name).toLocaleLowerCase() ||
+            existingGroup.group_name,
           status: groupInput.status || existingGroup.status,
         };
 
         // Update group details in the database
-        await db.update(mediatorGroup).set(updatedData).where(eq(mediatorGroup.id, id));
+        await db
+          .update(mediatorGroup)
+          .set(updatedData)
+          .where(eq(mediatorGroup.id, id));
 
         // Fetch the updated group details
-        const updatedGroups = await db.select().from(mediatorGroup).where(eq(mediatorGroup.id, id));
+        const updatedGroups = await db
+          .select()
+          .from(mediatorGroup)
+          .where(eq(mediatorGroup.id, id));
         const updatedGroup = updatedGroups[0];
 
         if (updatedGroup) {
@@ -236,14 +290,21 @@ const resolvers = {
         throw new Error('Error: ' + error.message);
       }
     },
-    changeGroupStatus: async (_: any, { id, status }: { id: string, status: string }, context: any) => {
+    changeGroupStatus: async (
+      _: any,
+      { id, status }: { id: string; status: string },
+      context: any,
+    ) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
 
       try {
         // Fetch the existing group details
-        const groups = await db.select().from(mediatorGroup).where(eq(mediatorGroup.id, id));
+        const groups = await db
+          .select()
+          .from(mediatorGroup)
+          .where(eq(mediatorGroup.id, id));
         const existingGroup = groups[0];
 
         if (!existingGroup) {
@@ -251,16 +312,24 @@ const resolvers = {
         }
 
         // Update the group's status
-        await db.update(mediatorGroup).set({ status }).where(eq(mediatorGroup.id, id));
+        await db
+          .update(mediatorGroup)
+          .set({ status })
+          .where(eq(mediatorGroup.id, id));
 
         // Fetch the updated group details
-        const updatedGroups = await db.select().from(mediatorGroup).where(eq(mediatorGroup.id, id));
+        const updatedGroups = await db
+          .select()
+          .from(mediatorGroup)
+          .where(eq(mediatorGroup.id, id));
         const updatedGroup = updatedGroups[0];
 
         if (updatedGroup) {
           return updatedGroup;
         } else {
-          throw new Error('Group status update failed. No updated group returned.');
+          throw new Error(
+            'Group status update failed. No updated group returned.',
+          );
         }
       } catch (error: any) {
         console.error('Error updating group status:', error.message);
@@ -274,7 +343,10 @@ const resolvers = {
 
       try {
         // Check if the group exists first
-        const groups = await db.select().from(mediatorGroup).where(eq(mediatorGroup.id, id));
+        const groups = await db
+          .select()
+          .from(mediatorGroup)
+          .where(eq(mediatorGroup.id, id));
         const existingGroup = groups[0];
 
         if (!existingGroup) {
@@ -284,13 +356,17 @@ const resolvers = {
         // Delete the group
         await db.delete(mediatorGroup).where(eq(mediatorGroup.id, id));
 
-        return "Group deleted successfully";
+        return 'Group deleted successfully';
       } catch (error: any) {
         console.error('Error deleting group:', error.message);
         throw new Error('Error: ' + error.message);
       }
     },
-    addMediatorToGroup: async (_: any, { groupID, mediatorIDs }: { groupID: string, mediatorIDs: Array<string> }, context: any) => {
+    addMediatorToGroup: async (
+      _: any,
+      { groupID, mediatorIDs }: { groupID: string; mediatorIDs: Array<string> },
+      context: any,
+    ) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
@@ -306,7 +382,7 @@ const resolvers = {
           created_at: new Date(),
           updated_at: new Date(),
         }));
-        await db.insert(mediatorGroupRelation).values(obj)
+        await db.insert(mediatorGroupRelation).values(obj);
         // Return updated group
         return 'success';
       } catch (error: any) {
@@ -315,26 +391,45 @@ const resolvers = {
       }
     },
 
-    removeMediatorFromGroup: async (_: any, { groupID, mediatorID }: { groupID: string, mediatorID: string }, context: any) => {
+    removeMediatorFromGroup: async (
+      _: any,
+      { groupID, mediatorID }: { groupID: string; mediatorID: string },
+      context: any,
+    ) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
       try {
         // Check group exists
-        const group = await db.select().from(mediatorGroup).where(eq(mediatorGroup.id, groupID));
+        const group = await db
+          .select()
+          .from(mediatorGroup)
+          .where(eq(mediatorGroup.id, groupID));
         if (!group[0]) {
           throw new UserInputError('Group not found');
         }
         // Check interpreter exists
-        const mediatorExists = await db.select().from(interpreter).where(eq(interpreter.id, mediatorID));
+        const mediatorExists = await db
+          .select()
+          .from(interpreter)
+          .where(eq(interpreter.id, mediatorID));
         if (!mediatorExists[0]) {
           throw new UserInputError('Interpreter not found');
         }
         // Remove relation
-        await db.delete(mediatorGroupRelation)
-          .where(and(eq(mediatorGroupRelation.mediator_group_id, groupID), eq(mediatorGroupRelation.interpreter_id, mediatorID)));
+        await db
+          .delete(mediatorGroupRelation)
+          .where(
+            and(
+              eq(mediatorGroupRelation.mediator_group_id, groupID),
+              eq(mediatorGroupRelation.interpreter_id, mediatorID),
+            ),
+          );
         // Return updated group
-        const updatedGroup = await db.select().from(mediatorGroup).where(eq(mediatorGroup.id, groupID));
+        const updatedGroup = await db
+          .select()
+          .from(mediatorGroup)
+          .where(eq(mediatorGroup.id, groupID));
         return updatedGroup[0];
       } catch (error: any) {
         console.error('Error removing interpreter from group:', error.message);

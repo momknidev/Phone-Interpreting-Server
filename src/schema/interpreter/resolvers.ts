@@ -3,7 +3,15 @@ import { and, asc, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import { AuthenticationError, UserInputError } from 'apollo-server';
 import { db } from '../../config/postgres';
 import uuidv4 from '../../utils/uuidv4';
-import { Languages, interpreter, mediatorGroup, mediatorGroupRelation, interpreterSourceLanguages, interpreterTargetLanguages, LanguagesTarget } from '../../models'; // Ensure this exists in your models folder
+import {
+  Languages,
+  interpreter,
+  mediatorGroup,
+  mediatorGroupRelation,
+  interpreterSourceLanguages,
+  interpreterTargetLanguages,
+  LanguagesTarget,
+} from '../../models'; // Ensure this exists in your models folder
 import { alias } from 'drizzle-orm/pg-core';
 import { ReadStream } from 'node:fs';
 import * as xlsx from 'xlsx'; // For Excel file parsing
@@ -21,17 +29,23 @@ const streamToBuffer = (stream: ReadStream) =>
   });
 // Function to check if a time slot format is valid (HH:MM-HH:MM)
 
-
 const resolvers = {
   Upload: require('graphql-upload-ts').GraphQLUpload,
   Query: {
-    mediatorList: async (_: any, { phone_number }: any, context: any): Promise<any> => {
+    mediatorList: async (
+      _: any,
+      { phone_number_id }: any,
+      context: any,
+    ): Promise<any> => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
       try {
         const result = await db.query.interpreter.findMany({
-          where: and(eq(interpreter.client_id, context.user.id), eq(interpreter.phone_number, phone_number)),
+          where: and(
+            eq(interpreter.client_id, context.user.id),
+            eq(interpreter.phone_number_id, phone_number_id),
+          ),
           with: {
             sourceLanguages: {
               with: {
@@ -58,14 +72,20 @@ const resolvers = {
       }
     },
 
-
-    mediatorById: async (_: any, { id, phone_number }: { id: string, phone_number: string }, context: any): Promise<any> => {
+    mediatorById: async (
+      _: any,
+      { id, phone_number_id }: { id: string; phone_number_id: string },
+      context: any,
+    ): Promise<any> => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
       try {
         const result = await db.query.interpreter.findFirst({
-          where: and(eq(interpreter.id, id), eq(interpreter.phone_number, phone_number)),
+          where: and(
+            eq(interpreter.id, id),
+            eq(interpreter.phone_number_id, phone_number_id),
+          ),
           with: {
             sourceLanguages: {
               with: {
@@ -87,11 +107,9 @@ const resolvers = {
         // console.log('Fetched interpreter with languages:', JSON.stringify(result, null, 1));
         if (result) {
           return result;
-
         } else {
-          throw new Error("No Interpreter found");
+          throw new Error('No Interpreter found');
         }
-
       } catch (error: any) {
         console.error('Error fetching interpreter by ID:', error.message);
         throw new Error(error.message || 'Internal server error.');
@@ -108,7 +126,7 @@ const resolvers = {
         name = '',
         targetLanguage = '',
         status,
-        phone_number = ''
+        phone_number_id = '',
       }: {
         offset?: number;
         limit?: number;
@@ -117,9 +135,9 @@ const resolvers = {
         name?: string;
         targetLanguage?: string;
         status?: string;
-        phone_number?: string
+        phone_number_id?: string;
       },
-      context: any
+      context: any,
     ) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
@@ -132,11 +150,16 @@ const resolvers = {
           filters.push(
             or(
               ilike(interpreter.first_name, `%${name}%`),
-              ilike(interpreter.last_name, `%${name}%`)
-            )
+              ilike(interpreter.last_name, `%${name}%`),
+            ),
           );
         }
-        filters.push(and(eq(interpreter.client_id, context.user.id), eq(interpreter.phone_number, phone_number)));
+        filters.push(
+          and(
+            eq(interpreter.client_id, context.user.id),
+            eq(interpreter.phone_number_id, phone_number_id),
+          ),
+        );
 
         if (status) {
           filters.push(ilike(interpreter.status, `%${status}%`));
@@ -152,9 +175,11 @@ const resolvers = {
         // Query with relations
         const mediators = await db.query.interpreter.findMany({
           where: filters.length > 0 ? and(...filters) : undefined,
-          orderBy: order?.toUpperCase() === 'ASC'
-            ? [asc(sortColumn)]
-            : [desc(sortColumn)], limit,
+          orderBy:
+            order?.toUpperCase() === 'ASC'
+              ? [asc(sortColumn)]
+              : [desc(sortColumn)],
+          limit,
           offset,
           with: {
             sourceLanguages: {
@@ -181,16 +206,21 @@ const resolvers = {
           filteredCount: totalCount,
         };
       } catch (error: any) {
-        console.error('Error fetching mediators paginated list:', error.message);
+        console.error(
+          'Error fetching mediators paginated list:',
+          error.message,
+        );
         throw new Error(error.message || 'Internal server error.');
       }
-    }
-
-
+    },
   },
 
   Mutation: {
-    addMediator: async (_: any, { mediatorData }: { mediatorData: any }, context: any) => {
+    addMediator: async (
+      _: any,
+      { mediatorData }: { mediatorData: any },
+      context: any,
+    ) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
@@ -211,33 +241,43 @@ const resolvers = {
           friday_time_slots: mediatorData.friday_time_slots || null,
           saturday_time_slots: mediatorData.saturday_time_slots || null,
           sunday_time_slots: mediatorData.sunday_time_slots || null,
-          availableForEmergencies: mediatorData.availableForEmergencies || false,
+          availableForEmergencies:
+            mediatorData.availableForEmergencies || false,
           availableOnHolidays: mediatorData.availableOnHolidays || false,
-          phone_number: mediatorData.phone_number,
+          phone_number_id: mediatorData.phone_number_id,
           priority: mediatorData.priority || 1,
           created_at: new Date(),
           updated_at: new Date(),
         };
 
-        const result = await db.insert(interpreter).values(mediatorEntry).returning();
-        const mediatorObj = result[0]
+        const result = await db
+          .insert(interpreter)
+          .values(mediatorEntry)
+          .returning();
+        const mediatorObj = result[0];
         // Find groups by name
         console.log('Interpreter created:', mediatorObj);
-        console.log('Interpreter data to associate with groups:', mediatorData.groupIDs);
+        console.log(
+          'Interpreter data to associate with groups:',
+          mediatorData.groupIDs,
+        );
 
         if (mediatorData.groupIDs && mediatorData.groupIDs.length > 0) {
           const groupIds = mediatorData.groupIDs;
-          console.log("Associating interpreter with groups:", groupIds);
+          console.log('Associating interpreter with groups:', groupIds);
 
-          let data = await db.insert(mediatorGroupRelation).values(
-            groupIds.map((groupId: string) => ({
-              interpreter_id: mediatorObj.id,
-              mediator_group_id: groupId,
-              id: uuidv4(),
-              created_at: new Date(),
-              updated_at: new Date(),
-            }))
-          ).returning();
+          let data = await db
+            .insert(mediatorGroupRelation)
+            .values(
+              groupIds.map((groupId: string) => ({
+                interpreter_id: mediatorObj.id,
+                mediator_group_id: groupId,
+                id: uuidv4(),
+                created_at: new Date(),
+                updated_at: new Date(),
+              })),
+            )
+            .returning();
           console.log('Interpreter associated with groups:', data);
         }
         const sourceLanguageData = mediatorData?.sourceLanguages || [];
@@ -255,13 +295,16 @@ const resolvers = {
         }));
         if (languagePairsSource.length > 0) {
           // console.log({ languagePairsSource })
-          await db.insert(interpreterSourceLanguages).values(languagePairsSource)
+          await db
+            .insert(interpreterSourceLanguages)
+            .values(languagePairsSource);
         }
         if (languagePairsTarget.length > 0) {
           // console.log({ languagePairsTarget })
-          await db.insert(interpreterTargetLanguages).values(languagePairsTarget)
+          await db
+            .insert(interpreterTargetLanguages)
+            .values(languagePairsTarget);
         }
-
 
         if (result && result[0]) {
           return result[0];
@@ -274,14 +317,21 @@ const resolvers = {
       }
     },
 
-    updateMediator: async (_: any, { id, mediatorData }: { id: string, mediatorData: any }, context: any) => {
+    updateMediator: async (
+      _: any,
+      { id, mediatorData }: { id: string; mediatorData: any },
+      context: any,
+    ) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
 
       try {
         // Fetch the existing interpreter details
-        const mediators = await db.select().from(interpreter).where(eq(interpreter.id, id));
+        const mediators = await db
+          .select()
+          .from(interpreter)
+          .where(eq(interpreter.id, id));
         const existingMediator = mediators[0];
 
         if (!existingMediator) {
@@ -294,43 +344,100 @@ const resolvers = {
           last_name: mediatorData.last_name || existingMediator.last_name,
           email: mediatorData.email || existingMediator.email,
           phone: mediatorData.phone || existingMediator.phone,
-          iban: mediatorData.iban !== undefined ? mediatorData.iban : existingMediator.iban,
-          status: mediatorData.status !== undefined ? mediatorData.status : existingMediator.status,
-          monday_time_slots: mediatorData.monday_time_slots !== undefined ? mediatorData.monday_time_slots : existingMediator.monday_time_slots,
-          tuesday_time_slots: mediatorData.tuesday_time_slots !== undefined ? mediatorData.tuesday_time_slots : existingMediator.tuesday_time_slots,
-          wednesday_time_slots: mediatorData.wednesday_time_slots !== undefined ? mediatorData.wednesday_time_slots : existingMediator.wednesday_time_slots,
-          thursday_time_slots: mediatorData.thursday_time_slots !== undefined ? mediatorData.thursday_time_slots : existingMediator.thursday_time_slots,
-          friday_time_slots: mediatorData.friday_time_slots !== undefined ? mediatorData.friday_time_slots : existingMediator.friday_time_slots,
-          saturday_time_slots: mediatorData.saturday_time_slots !== undefined ? mediatorData.saturday_time_slots : existingMediator.saturday_time_slots,
-          sunday_time_slots: mediatorData.sunday_time_slots !== undefined ? mediatorData.sunday_time_slots : existingMediator.sunday_time_slots,
-          availableForEmergencies: mediatorData.availableForEmergencies !== undefined ? mediatorData.availableForEmergencies : existingMediator.availableForEmergencies,
-          availableOnHolidays: mediatorData.availableOnHolidays !== undefined ? mediatorData.availableOnHolidays : existingMediator.availableOnHolidays,
-          priority: mediatorData.priority !== undefined ? mediatorData.priority : existingMediator.priority,
+          iban:
+            mediatorData.iban !== undefined
+              ? mediatorData.iban
+              : existingMediator.iban,
+          status:
+            mediatorData.status !== undefined
+              ? mediatorData.status
+              : existingMediator.status,
+          monday_time_slots:
+            mediatorData.monday_time_slots !== undefined
+              ? mediatorData.monday_time_slots
+              : existingMediator.monday_time_slots,
+          tuesday_time_slots:
+            mediatorData.tuesday_time_slots !== undefined
+              ? mediatorData.tuesday_time_slots
+              : existingMediator.tuesday_time_slots,
+          wednesday_time_slots:
+            mediatorData.wednesday_time_slots !== undefined
+              ? mediatorData.wednesday_time_slots
+              : existingMediator.wednesday_time_slots,
+          thursday_time_slots:
+            mediatorData.thursday_time_slots !== undefined
+              ? mediatorData.thursday_time_slots
+              : existingMediator.thursday_time_slots,
+          friday_time_slots:
+            mediatorData.friday_time_slots !== undefined
+              ? mediatorData.friday_time_slots
+              : existingMediator.friday_time_slots,
+          saturday_time_slots:
+            mediatorData.saturday_time_slots !== undefined
+              ? mediatorData.saturday_time_slots
+              : existingMediator.saturday_time_slots,
+          sunday_time_slots:
+            mediatorData.sunday_time_slots !== undefined
+              ? mediatorData.sunday_time_slots
+              : existingMediator.sunday_time_slots,
+          availableForEmergencies:
+            mediatorData.availableForEmergencies !== undefined
+              ? mediatorData.availableForEmergencies
+              : existingMediator.availableForEmergencies,
+          availableOnHolidays:
+            mediatorData.availableOnHolidays !== undefined
+              ? mediatorData.availableOnHolidays
+              : existingMediator.availableOnHolidays,
+          priority:
+            mediatorData.priority !== undefined
+              ? mediatorData.priority
+              : existingMediator.priority,
           updated_at: new Date(),
         };
 
         // Update interpreter details in the database
-        await db.update(interpreter).set(updatedData).where(eq(interpreter.id, id));
+        await db
+          .update(interpreter)
+          .set(updatedData)
+          .where(eq(interpreter.id, id));
 
         // Fetch the updated interpreter details
-        const updatedMediators = await db.select().from(interpreter).where(eq(interpreter.id, id));
+        const updatedMediators = await db
+          .select()
+          .from(interpreter)
+          .where(eq(interpreter.id, id));
         const updatedMediator = updatedMediators[0];
 
         if (mediatorData.groupIDs && mediatorData.groupIDs.length > 0) {
           const groupIds = mediatorData.groupIDs;
-          await db.delete(mediatorGroupRelation).where(eq(mediatorGroupRelation.interpreter_id, updatedMediator.id));
-          let data = await db.insert(mediatorGroupRelation).values(
-            groupIds.map((groupId: string) => ({
-              interpreter_id: updatedMediator.id,
-              mediator_group_id: groupId,
-              id: uuidv4(),
-              updated_at: new Date(),
-            }))
-          ).returning();
+          await db
+            .delete(mediatorGroupRelation)
+            .where(
+              eq(mediatorGroupRelation.interpreter_id, updatedMediator.id),
+            );
+          let data = await db
+            .insert(mediatorGroupRelation)
+            .values(
+              groupIds.map((groupId: string) => ({
+                interpreter_id: updatedMediator.id,
+                mediator_group_id: groupId,
+                id: uuidv4(),
+                updated_at: new Date(),
+              })),
+            )
+            .returning();
           console.log('Interpreter associated with groups:', data);
         }
-        await db.delete(interpreterSourceLanguages).where(eq(interpreterSourceLanguages.interpreter_id, updatedMediator.id));
-        await db.delete(interpreterTargetLanguages).where(eq(interpreterTargetLanguages.interpreter_id, updatedMediator.id));
+        await db
+          .delete(interpreterSourceLanguages)
+          .where(
+            eq(interpreterSourceLanguages.interpreter_id, updatedMediator.id),
+          );
+        await db
+          .delete(interpreterTargetLanguages)
+          .where(
+            eq(interpreterTargetLanguages.interpreter_id, updatedMediator.id),
+          );
 
         const sourceLanguageData = mediatorData?.sourceLanguages || [];
         const targetLanguageData = mediatorData?.targetLanguages || [];
@@ -347,18 +454,22 @@ const resolvers = {
         }));
         console.log('Language Pairs Source:', languagePairsSource);
         if (languagePairsSource.length > 0) {
-          await db.insert(interpreterSourceLanguages).values(languagePairsSource)
+          await db
+            .insert(interpreterSourceLanguages)
+            .values(languagePairsSource);
         }
         if (languagePairsTarget.length > 0) {
-          await db.insert(interpreterTargetLanguages).values(languagePairsTarget)
+          await db
+            .insert(interpreterTargetLanguages)
+            .values(languagePairsTarget);
         }
-
-
 
         if (updatedMediator) {
           return updatedMediator;
         } else {
-          throw new Error('Interpreter update failed. No updated interpreter returned.');
+          throw new Error(
+            'Interpreter update failed. No updated interpreter returned.',
+          );
         }
       } catch (error: any) {
         console.error('Error updating interpreter:', error.message);
@@ -372,8 +483,15 @@ const resolvers = {
       }
 
       try {
-        const mediators = await db.select().from(interpreter).where(
-          and(eq(interpreter.id, id), eq(interpreter.client_id, context.user.id)));
+        const mediators = await db
+          .select()
+          .from(interpreter)
+          .where(
+            and(
+              eq(interpreter.id, id),
+              eq(interpreter.client_id, context.user.id),
+            ),
+          );
 
         if (!mediators.length) {
           throw new UserInputError('Interpreter not found');
@@ -387,14 +505,21 @@ const resolvers = {
       }
     },
 
-    updateMediatorStatus: async (_: any, { id, status }: { id: string, status: string }, context: any) => {
+    updateMediatorStatus: async (
+      _: any,
+      { id, status }: { id: string; status: string },
+      context: any,
+    ) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
 
       try {
         // Fetch the existing interpreter details
-        const mediators = await db.select().from(interpreter).where(eq(interpreter.id, id));
+        const mediators = await db
+          .select()
+          .from(interpreter)
+          .where(eq(interpreter.id, id));
         const existingMediator = mediators[0];
 
         if (!existingMediator) {
@@ -404,38 +529,69 @@ const resolvers = {
         // Convert string status to boolean (assuming 'active'/'inactive' or similar)
 
         // Update the interpreter's status
-        await db.update(interpreter).set({ status }).where(eq(interpreter.id, id));
+        await db
+          .update(interpreter)
+          .set({ status })
+          .where(eq(interpreter.id, id));
 
         // Fetch the updated interpreter details
-        const updatedMediators = await db.select().from(interpreter).where(eq(interpreter.id, id));
+        const updatedMediators = await db
+          .select()
+          .from(interpreter)
+          .where(eq(interpreter.id, id));
         const updatedMediator = updatedMediators[0];
 
         if (updatedMediator) {
           return updatedMediator;
         } else {
-          throw new Error('Interpreter status update failed. No updated interpreter returned.');
+          throw new Error(
+            'Interpreter status update failed. No updated interpreter returned.',
+          );
         }
       } catch (error: any) {
         console.error('Error updating interpreter status:', error.message);
         throw new Error('Error: ' + error.message);
       }
     },
-    uploadMediatorFile: async (_: any, { file, phone_number }: { file: any, phone_number: string }, context: any) => {
+    uploadMediatorFile: async (
+      _: any,
+      { file, phone_number_id }: { file: any; phone_number_id: string },
+      context: any,
+    ) => {
       if (!context?.user) {
         throw new AuthenticationError('Unauthenticated');
       }
-      const languages = await db.select().from(Languages).where(
-        and(eq(Languages.client_id, context.user.id), eq(Languages.phone_number, phone_number))
-      );
-      const targetLanguageList = await db.select().from(LanguagesTarget).where(
-        and(eq(LanguagesTarget.client_id, context.user.id), eq(LanguagesTarget.phone_number, phone_number))
-      );
-      const groups = await db.select().from(mediatorGroup).where(
-        and(eq(mediatorGroup.client_id, context.user.id), eq(mediatorGroup?.phone_number, phone_number))
-      );
+      const languages = await db
+        .select()
+        .from(Languages)
+        .where(
+          and(
+            eq(Languages.client_id, context.user.id),
+            eq(Languages.phone_number_id, phone_number_id),
+          ),
+        );
+      const targetLanguageList = await db
+        .select()
+        .from(LanguagesTarget)
+        .where(
+          and(
+            eq(LanguagesTarget.client_id, context.user.id),
+            eq(LanguagesTarget.phone_number_id, phone_number_id),
+          ),
+        );
+      const groups = await db
+        .select()
+        .from(mediatorGroup)
+        .where(
+          and(
+            eq(mediatorGroup.client_id, context.user.id),
+            eq(mediatorGroup?.phone_number_id, phone_number_id),
+          ),
+        );
       if (!languages.length) {
         throw new UserInputError('No languages found for the user.');
-      } if (!targetLanguageList.length) {
+      }
+      if (!targetLanguageList.length) {
         throw new UserInputError('No target lang found for the user.');
       }
       // Function to convert time string (HH:MM) to Date object for easy comparison
@@ -458,7 +614,9 @@ const resolvers = {
         });
 
         // Sort the time slots by start time
-        parsedSlots.sort((a: { start: number; }, b: { start: number; }) => a.start - b.start);
+        parsedSlots.sort(
+          (a: { start: number }, b: { start: number }) => a.start - b.start,
+        );
 
         // eslint-disable-next-line no-plusplus
         for (let i = 0; i < parsedSlots.length - 1; i++) {
@@ -492,9 +650,12 @@ const resolvers = {
         data.forEach((row: any, index: number) => {
           // Validate required fields (first_name, last_name, phone)
           if (!row.first_name || !row.last_name || !row.phone) {
-            throw new Error(`Row ${index + 1}: Missing required fields (first_name, last_name, phone)`);
+            throw new Error(
+              `Row ${
+                index + 1
+              }: Missing required fields (first_name, last_name, phone)`,
+            );
           }
-
 
           // Validate and check for overlapping time slots
           const timeSlots = [
@@ -510,27 +671,33 @@ const resolvers = {
           timeSlots.forEach((slot) => {
             if (row[slot]) {
               // eslint-disable-next-line no-shadow
-              const timeSlotArray = row[slot].split(',').map((slot: string) => slot.trim()); // Split and trim commas
+              const timeSlotArray = row[slot]
+                .split(',')
+                .map((slot: string) => slot.trim()); // Split and trim commas
               // eslint-disable-next-line no-shadow
               timeSlotArray.forEach((slot: string) => {
                 if (!validateTimeSlot(slot)) {
                   throw new Error(
-                    `Row ${index + 1
-                    }: Invalid time slot format for ${slot}. Must be in HH:MM-HH:MM format.`
+                    `Row ${
+                      index + 1
+                    }: Invalid time slot format for ${slot}. Must be in HH:MM-HH:MM format.`,
                   );
                 }
               });
               if (checkOverlap(timeSlotArray)) {
-                throw new Error(`Row ${index + 1}: Overlapping time slots found for ${slot}.`);
+                throw new Error(
+                  `Row ${index + 1}: Overlapping time slots found for ${slot}.`,
+                );
               }
             }
           });
 
           row.status = row.status || 'active';
-          row.availableForEmergencies = String(row.availableForEmergencies).toLowerCase() === 'true'
-          row.availableOnHolidays = String(row.availableOnHolidays).toLowerCase() === 'true'
+          row.availableForEmergencies =
+            String(row.availableForEmergencies).toLowerCase() === 'true';
+          row.availableOnHolidays =
+            String(row.availableOnHolidays).toLowerCase() === 'true';
           row.priority = row.priority || 1;
-
 
           transformedData.push(row);
         });
@@ -538,11 +705,13 @@ const resolvers = {
         return transformedData;
       }
       try {
-
         // Extract the file stream from the uploaded file
         const { createReadStream, mimetype } = await file;
         const stream = createReadStream();
-        const saveMediatorsToDatabase = async (mediatorData: any[], client_id: string) => {
+        const saveMediatorsToDatabase = async (
+          mediatorData: any[],
+          client_id: string,
+        ) => {
           const mediatorEntries = mediatorData.map((data) => ({
             id: uuidv4(),
             client_id: client_id,
@@ -561,7 +730,7 @@ const resolvers = {
             sunday_time_slots: data.sunday_time_slots || null,
             availableForEmergencies: data.availableForEmergencies || false,
             availableOnHolidays: data.availableOnHolidays || false,
-            phone_number: phone_number,
+            phone_number_id: phone_number_id,
             priority: data.priority || 1,
             created_at: new Date(),
             updated_at: new Date(),
@@ -579,17 +748,19 @@ const resolvers = {
                       (i: any) =>
                         i.first_name === row.first_name &&
                         i.last_name === row.last_name &&
-                        i.phone === row.phone
+                        i.phone === row.phone,
                     );
 
                     if (!interpreter) {
-                      throw new Error(`Interpreter with name ${row.first_name} ${row.last_name} not found.`);
+                      throw new Error(
+                        `Interpreter with name ${row.first_name} ${row.last_name} not found.`,
+                      );
                     }
 
                     let group: any = groups.find(
                       (g: any) =>
                         String(g.group_name).trim().toLocaleLowerCase() ===
-                        String(group_name).trim().toLocaleLowerCase()
+                        String(group_name).trim().toLocaleLowerCase(),
                     );
 
                     if (!group) {
@@ -600,9 +771,14 @@ const resolvers = {
                         created_at: new Date(),
                         updated_at: new Date(),
                         status: 'active',
-                        phone_number: phone_number,
+                        phone_number_id: phone_number_id,
                       };
-                      group = (await db.insert(mediatorGroup).values(newAddedGroup).returning())[0];
+                      group = (
+                        await db
+                          .insert(mediatorGroup)
+                          .values(newAddedGroup)
+                          .returning()
+                      )[0];
                     }
 
                     return {
@@ -612,20 +788,27 @@ const resolvers = {
                       created_at: new Date(),
                       updated_at: new Date(),
                     };
-                  })
+                  }),
                 );
-              })
+              }),
             )
           ).flat();
 
           const sourceLanguageData = mediatorData
             .map((row: any, idx: number) => {
-              const sourceLanguages = String(row.sourceLanguages || '').split(',').map((s: string) => s.trim());
-              const interpreter = mediatorEntries.find((interpreter: any) =>
-                interpreter.first_name === row.first_name && interpreter.last_name === row.last_name && interpreter.phone === row.phone
+              const sourceLanguages = String(row.sourceLanguages || '')
+                .split(',')
+                .map((s: string) => s.trim());
+              const interpreter = mediatorEntries.find(
+                (interpreter: any) =>
+                  interpreter.first_name === row.first_name &&
+                  interpreter.last_name === row.last_name &&
+                  interpreter.phone === row.phone,
               );
               if (!interpreter) {
-                throw new Error(`Interpreter with name ${row.first_name} ${row.last_name} not found.`);
+                throw new Error(
+                  `Interpreter with name ${row.first_name} ${row.last_name} not found.`,
+                );
               }
 
               return sourceLanguages.map((sourceLang: string, i: number) => {
@@ -633,9 +816,17 @@ const resolvers = {
                   id: uuidv4(),
                   interpreter_id: interpreter.id,
                   source_language_id: (() => {
-                    const foundLang = languages.find((lang: any) => String(lang.language_name).toLocaleLowerCase() === String(sourceLang).toLocaleLowerCase());
+                    const foundLang = languages.find(
+                      (lang: any) =>
+                        String(lang.language_name).toLocaleLowerCase() ===
+                        String(sourceLang).toLocaleLowerCase(),
+                    );
                     if (!foundLang) {
-                      throw new Error(`Source language "${sourceLang}" not found in row ${idx + 1}.`);
+                      throw new Error(
+                        `Source language "${sourceLang}" not found in row ${
+                          idx + 1
+                        }.`,
+                      );
                     }
                     return foundLang.id;
                   })(),
@@ -647,21 +838,36 @@ const resolvers = {
             .flat();
           const targetLanguageData = mediatorData
             .map((row: any, idx: number) => {
-              const targetLanguages = String(row.targetLanguages || '').split(',').map((s: string) => s.trim());
-              const interpreter = mediatorEntries.find((interpreter: any) =>
-                interpreter.first_name === row.first_name && interpreter.last_name === row.last_name && interpreter.phone === row.phone
+              const targetLanguages = String(row.targetLanguages || '')
+                .split(',')
+                .map((s: string) => s.trim());
+              const interpreter = mediatorEntries.find(
+                (interpreter: any) =>
+                  interpreter.first_name === row.first_name &&
+                  interpreter.last_name === row.last_name &&
+                  interpreter.phone === row.phone,
               );
               if (!interpreter) {
-                throw new Error(`Interpreter with name ${row.first_name} ${row.last_name} not found.`);
+                throw new Error(
+                  `Interpreter with name ${row.first_name} ${row.last_name} not found.`,
+                );
               }
               return targetLanguages.map((targetLang: string, i: number) => {
                 return {
                   id: uuidv4(),
                   interpreter_id: interpreter.id,
                   target_language_id: (() => {
-                    const foundLang = targetLanguageList.find((lang: any) => String(lang.language_name).toLocaleLowerCase() === String(targetLang).toLocaleLowerCase());
+                    const foundLang = targetLanguageList.find(
+                      (lang: any) =>
+                        String(lang.language_name).toLocaleLowerCase() ===
+                        String(targetLang).toLocaleLowerCase(),
+                    );
                     if (!foundLang) {
-                      throw new Error(`Target language "${targetLang}" not found in row ${idx + 1}.`);
+                      throw new Error(
+                        `Target language "${targetLang}" not found in row ${
+                          idx + 1
+                        }.`,
+                      );
                     }
                     return foundLang.id;
                   })(),
@@ -671,28 +877,46 @@ const resolvers = {
               });
             })
             .flat();
-          const data = await db.insert(interpreter).values(mediatorEntries).returning();
+          const data = await db
+            .insert(interpreter)
+            .values(mediatorEntries)
+            .returning();
 
-          console.log({ data, groupRelationEntries })
+          console.log({ data, groupRelationEntries });
           if (groupRelationEntries.length > 0) {
-            const groupData = await db.insert(mediatorGroupRelation).values(groupRelationEntries).returning();
-            console.log({ groupData })
+            const groupData = await db
+              .insert(mediatorGroupRelation)
+              .values(groupRelationEntries)
+              .returning();
+            console.log({ groupData });
           }
-          console.log({ sourceLanguageData, targetLanguageData })
+          console.log({ sourceLanguageData, targetLanguageData });
           if (sourceLanguageData.length > 0) {
-            await db.insert(interpreterSourceLanguages).values(sourceLanguageData).returning();
+            await db
+              .insert(interpreterSourceLanguages)
+              .values(sourceLanguageData)
+              .returning();
           }
           if (targetLanguageData.length > 0) {
-            await db.insert(interpreterTargetLanguages).values(targetLanguageData).returning();
+            await db
+              .insert(interpreterTargetLanguages)
+              .values(targetLanguageData)
+              .returning();
           }
           return data;
-        }
+        };
 
         let mediatorData: any[] = [];
 
-        if (mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || mimetype === 'application/vnd.ms-excel') {
+        if (
+          mimetype ===
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+          mimetype === 'application/vnd.ms-excel'
+        ) {
           // Parse Excel file
-          const workbook = xlsx.read(await streamToBuffer(stream), { type: 'buffer' });
+          const workbook = xlsx.read(await streamToBuffer(stream), {
+            type: 'buffer',
+          });
           const sheetNames = workbook.SheetNames;
 
           if (sheetNames.length === 0) {
@@ -702,21 +926,20 @@ const resolvers = {
           // Assuming data is in the first sheet
           const sheet = workbook.Sheets[sheetNames[0]];
           const rows = xlsx.utils.sheet_to_json(sheet);
-          console.log({ rows })
+          console.log({ rows });
           // Validate columns in Excel file
           // parser.on('end', async () => {
           if (rows.length === 0) {
-            throw new UserInputError('No valid interpreter data found in the CSV file.');
+            throw new UserInputError(
+              'No valid interpreter data found in the CSV file.',
+            );
           }
           const result = validateAndTransformData(rows);
-
-
 
           await saveMediatorsToDatabase(result, context.user.id);
           // console.log({ mediatorData })
           return 'Interpreters uploaded successfully using excel file.';
           // });
-
         } else if (mimetype === 'text/csv') {
           // Parse CSV file
           const parser = csvParser();
@@ -725,7 +948,9 @@ const resolvers = {
           parser.on('data', (row: any) => {
             // Validate the row against the expected columns
             if (!row.first_name || !row.last_name || !row.phone) {
-              throw new UserInputError('Missing required columns in the CSV file.');
+              throw new UserInputError(
+                'Missing required columns in the CSV file.',
+              );
             }
             // Add the row to the mediatorData array
             mediatorData.push({
@@ -749,9 +974,7 @@ const resolvers = {
             });
           });
 
-
           const result = validateAndTransformData(mediatorData);
-
 
           // Handle errors in CSV parsing
           parser.on('error', (error) => {
@@ -759,26 +982,25 @@ const resolvers = {
             throw new UserInputError('Error parsing the CSV file.');
           });
           if (mediatorData.length === 0) {
-            throw new UserInputError('No valid interpreter data found in the CSV file.');
+            throw new UserInputError(
+              'No valid interpreter data found in the CSV file.',
+            );
           }
 
           await saveMediatorsToDatabase(result, context.user.id);
-          console.log({ mediatorData })
+          console.log({ mediatorData });
           return 'Interpreters uploaded successfully.';
-
         } else {
-          throw new UserInputError('Invalid file type. Only CSV and Excel files are allowed.');
+          throw new UserInputError(
+            'Invalid file type. Only CSV and Excel files are allowed.',
+          );
         }
-
       } catch (error: any) {
         console.error('Error uploading interpreter file:', error.message);
         throw new Error('Error: ' + error.message);
       }
-    }
-
-
-  }
+    },
+  },
 };
 
 export default resolvers;
-

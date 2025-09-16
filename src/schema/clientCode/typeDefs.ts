@@ -16,7 +16,7 @@ export const typeDefs = gql`
     client_code: Int!
     status: String!
     code_label: String!
-    phone_number: String!
+    phone_number_id: ID!
     credits: Int
   }
 
@@ -32,10 +32,10 @@ export const typeDefs = gql`
       order: String
       orderBy: String
       search: String
-      phone_number: String!
+      phone_number_id: ID!
     ): ClientCodesResponse!
     allClientCodes: [ClientCode]!
-    clientCode(id: ID!, phone_number: String!): ClientCode
+    clientCode(id: ID!, phone_number_id: ID!): ClientCode
   }
 
   type Mutation {

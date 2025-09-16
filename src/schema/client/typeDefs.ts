@@ -1,4 +1,4 @@
-import { gql } from "apollo-server";
+import { gql } from 'apollo-server';
 
 export const typeDefs = gql`
   scalar Upload
@@ -8,10 +8,10 @@ export const typeDefs = gql`
 
   type Client {
     id: ID
-    first_name: String     
-    last_name: String   
+    first_name: String
+    last_name: String
     email: String
-    avatar_url: String    
+    avatar_url: String
     phone: String
     role: String
     type: String
@@ -19,10 +19,24 @@ export const typeDefs = gql`
     created_at: String
     updated_at: String
     status: String
-    client_phones: JSON
+  }
+
+  type ClientPhone {
+    id: ID!
+    client_id: ID!
+    phone: String!
+    label: String
+    created_at: String
+    updated_at: String
   }
   # Inputs
-  input clientPhoneInput {
+
+  input addClientPhoneInput {
+    phone: String!
+    label: String
+  }
+
+  input updateClientPhoneInput {
     phone: String
     label: String
   }
@@ -35,7 +49,6 @@ export const typeDefs = gql`
     last_name: String!
     phone: String
     type: String
-    phoneList: [clientPhoneInput]
   }
 
   type ClientPaginatedList {
@@ -54,6 +67,8 @@ export const typeDefs = gql`
       name: String
       type: String
     ): ClientPaginatedList
+    clientPhones(clientId: ID!): [ClientPhone!]!
+    clientPhone(id: ID!): ClientPhone
   }
 
   # ==============> MUTATIONS <================
@@ -65,8 +80,11 @@ export const typeDefs = gql`
       newPassword: String
       oldPassword: String
     ): Client
-    changeStatus(id:ID!, status: String):Client
-    requestNewPhone( description:String):Boolean
+    changeStatus(id: ID!, status: String): Client
+    requestNewPhone(description: String): Boolean
+    addClientPhone(clientId: ID!, input: addClientPhoneInput!): ClientPhone!
+    updateClientPhone(id: ID!, input: updateClientPhoneInput!): ClientPhone!
+    deleteClientPhone(id: ID!): Boolean!
   }
 `;
 

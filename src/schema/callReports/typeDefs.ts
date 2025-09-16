@@ -21,6 +21,7 @@ const typeDefs = gql`
     updated_at: String
     used_credits: Int
     response_time: Int
+    phone_number_id: ID
   }
 
   input CreatePhoneMediationInput {
@@ -34,6 +35,7 @@ const typeDefs = gql`
     call_duration: Float
     amount: Float
     response_time: Int
+    phone_number_id: ID
   }
 
   type PhoneMediationPaginatedList {
@@ -42,14 +44,14 @@ const typeDefs = gql`
   }
   type Query {
     allPhoneMediation: [CallReports]
-    phoneMediationByID(id: ID, phone_number: String): CallReports
+    phoneMediationByID(id: ID, phone_number_id: ID): CallReports
     phoneMediationPaginatedList(
       offset: Int
       limit: Int
       order: String
       orderBy: String
       search: String
-      phone_number: String!
+      phone_number_id: ID!
     ): PhoneMediationPaginatedList
   }
 

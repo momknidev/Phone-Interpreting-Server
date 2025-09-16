@@ -10,7 +10,7 @@ export const typeDefs = gql`
   type CallRoutingSettings {
     id: ID!
     client_id: ID!
-    phone_number: String!
+    phone_number_id: ID!
     enable_code: Boolean
     callingCodePromptText: String
     callingCodePromptFile: String
@@ -60,47 +60,38 @@ export const typeDefs = gql`
   }
 
   input CallRoutingSettingsInput {
-    phone_number: String!
+    phone_number_id: ID!
     fallbackType: String
     fallbackMessage: String
     enable_code: Boolean
-
     callingCodePromptText: String
     callingCodePromptFile: Upload
     callingCodePromptMode: String
-
     callingCodeErrorText: String
     callingCodeErrorFile: Upload
     callingCodeErrorMode: String
-
     askSourceLanguage: Boolean
     askTargetLanguage: Boolean
     sourceLanguageId: ID
     targetLanguageId: ID
-
     sourceLanguagePromptText: String
     sourceLanguagePromptFile: Upload
     sourceLanguagePromptMode: String
-
     sourceLanguageErrorText: String
     sourceLanguageErrorFile: Upload
     sourceLanguageErrorMode: String
-
     targetLanguagePromptText: String
     targetLanguagePromptFile: Upload
     targetLanguagePromptMode: String
-
     targetLanguageErrorText: String
     targetLanguageErrorFile: Upload
     targetLanguageErrorMode: String
-
     digitsTimeOut: Int
     creditErrorText: String
     creditErrorFile: Upload
     creditErrorMode: String
     interpreterCallType: CallAlgorithm
     retryAttempts: Int
-
     inputAttemptsCount: Int
     inputAttemptsMode: String
     inputAttemptsText: String
@@ -120,7 +111,7 @@ export const typeDefs = gql`
   }
 
   type Query {
-    getCallRoutingSettings(phone_number: String!): CallRoutingSettings
+    getCallRoutingSettings(phone_number_id: ID!): CallRoutingSettings
     allCallRoutingSettings: [CallRoutingSettings!]!
   }
 
@@ -128,7 +119,7 @@ export const typeDefs = gql`
     createOrUpdateCallRoutingSettings(
       input: CallRoutingSettingsInput!
     ): CallRoutingSettings!
-    deleteCallRoutingSettings(client_id: ID!, phone_number: String!): Boolean!
+    deleteCallRoutingSettings(client_id: ID!, phone_number_id: ID!): Boolean!
   }
 `;
 

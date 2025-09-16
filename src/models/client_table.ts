@@ -1,4 +1,3 @@
-
 import { relations } from 'drizzle-orm';
 import { pgTable, uuid, varchar, timestamp, text } from 'drizzle-orm/pg-core';
 
@@ -32,18 +31,6 @@ export const clientPhones = pgTable('client_phones', {
     .$onUpdate(() => new Date()),
 });
 
-export const newPhoneNumberRequest = pgTable('new_phone_request', {
-  id: uuid('id').primaryKey(),
-  client_id: uuid('client_id')
-    .notNull()
-    .references(() => Client.id, { onDelete: 'cascade' }),
-  status: varchar('status'),
-  label: varchar('phone_label'),
-  created_at: timestamp('created_at').notNull().defaultNow(),
-  updated_at: timestamp('updated_at')
-    .notNull()
-    .$onUpdate(() => new Date()),
-})
 export const clientRelations = relations(Client, ({ many }) => ({
   client_phones: many(clientPhones),
 }));
