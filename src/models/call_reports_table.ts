@@ -33,6 +33,7 @@ export const CallReports = pgTable('call_reports', {
     .notNull()
     .references(() => clientPhones.id, { onDelete: 'cascade' }),
   caller_phone: varchar('caller_phone').notNull(),
+  called_phone: varchar('called_phone').notNull(),
   client_code: uuid('client_code').references(() => ClientCode.id),
   source_language_id: uuid('source_language_id').references(() => Languages.id),
   target_language_id: uuid('target_language_id').references(

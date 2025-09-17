@@ -16,7 +16,8 @@ export async function createRequest(values: any) {
       call_date: new Date(),
       amount: String(0),
       client_id: values.client_id,
-      phone_number: values.phone_number,
+      phone_number_id: values.phone_number_id,
+      called_phone: values.called_phone,
       caller_phone: values.caller_phone,
       status: 'Cancelled' as 'Cancelled',
     };
@@ -75,7 +76,7 @@ export async function updateRequestInformation(id: string, data: any) {
       .from(interpreter)
       .where(
         and(
-          eq(interpreter.phone_number, data?.phone_number),
+          eq(interpreter.phone_number_id, data?.phone_number_id),
           eq(interpreter.phone, callDetails?.toFormatted),
         ),
       )

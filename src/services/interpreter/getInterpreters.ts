@@ -13,19 +13,19 @@ import { logger } from '../../config/logger';
 
 interface IArgs {
   priority: number;
-  phone_number: string;
+  phone_number_id: string;
   source_language_id: string;
   target_language_id: string;
 }
 
 export const getInterpreters = async ({
   priority,
-  phone_number,
+  phone_number_id,
   source_language_id,
   target_language_id,
 }: IArgs) => {
   logger.info(
-    `getInterpreters called with priority: ${priority}, phone_number: ${phone_number}, source_language_id: ${source_language_id}, target_language_id: ${target_language_id}`,
+    `getInterpreters called with priority: ${priority}, phone_number_id: ${phone_number_id}, source_language_id: ${source_language_id}, target_language_id: ${target_language_id}`,
   );
   if (!source_language_id || !target_language_id) {
     throw new Error('Source and target language codes are required');
@@ -38,7 +38,7 @@ export const getInterpreters = async ({
       {
         message: 'getInterpreters called',
         priority,
-        phone_number,
+        phone_number_id,
         source_language_id,
         target_language_id,
         timeSlotToUse,
@@ -60,7 +60,7 @@ export const getInterpreters = async ({
     .from(interpreter)
     .where(
       and(
-        eq(interpreter.phone_number, phone_number),
+        eq(interpreter.phone_number_id, phone_number_id),
         eq(interpreter.priority, String(priority)),
         exists(
           db

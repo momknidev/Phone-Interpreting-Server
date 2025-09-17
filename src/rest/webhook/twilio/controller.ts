@@ -22,6 +22,7 @@ import {
   CallReports,
   callRoutingSettings,
   Client,
+  clientPhones,
   interpreter,
 } from '../../../models';
 import { eq } from 'drizzle-orm';
@@ -46,6 +47,7 @@ async function cleanupCallRedisData(originCallId: string) {
       `${originCallId}:settings`,
       `${originCallId}:uuid`,
       `${originCallId}:phone_number`,
+      `${originCallId}:phone_number_id`,
       `${originCallId}:caller_phone`,
       `${originCallId}:client_id`,
       `${originCallId}:clientCode`,
@@ -107,7 +109,7 @@ const removeAndCallNewTargets = async ({
   targetLanguageID,
   priority,
   fallbackCalled,
-  phone_number,
+  phone_number_id,
 }: {
   originCallId: string;
   targetCallId: string;
@@ -115,7 +117,7 @@ const removeAndCallNewTargets = async ({
   targetLanguageID: string;
   priority: number;
   fallbackCalled: boolean;
-  phone_number: string;
+  phone_number_id: string;
 }) => {
   // logger.info(
   //   `Handling call status for targetCallId: ${targetCallId}, originCallId: ${originCallId} /removeAndCallNewTargets`,
@@ -199,7 +201,7 @@ const removeAndCallNewTargets = async ({
     // );
 
     const interpreters = await getInterpreters({
-      phone_number,
+      phone_number_id: phone_number_id,
       priority: Number(priority),
       source_language_id: sourceLanguageID,
       target_language_id: targetLanguageID,
@@ -219,7 +221,7 @@ const removeAndCallNewTargets = async ({
               `${TWILIO_WEBHOOK}/machineDetectionResult?originCallId=${originCallId}` +
               `&sourceLanguageID=${sourceLanguageID}&targetLanguageID=${targetLanguageID}&priority=${priority}&fallbackCalled=${fallbackCalled}`,
             to: phone,
-            from: '+39800940366',
+            from: '+13093321185',
             machineDetection: 'Enable',
             machineDetectionTimeout: 10,
             timeLimit: Math.min(
@@ -264,7 +266,7 @@ const removeAndCallNewTargets = async ({
   while (currentPriority <= 5 && interpreters.length === 0) {
     // logger.info(`Checking priority ${currentPriority} for ${originCallId}`);
     interpreters = await getInterpreters({
-      phone_number,
+      phone_number_id: phone_number_id,
       priority: Number(currentPriority),
       source_language_id: sourceLanguageID,
       target_language_id: targetLanguageID,
@@ -372,7 +374,7 @@ const removeAndCallNewTargets = async ({
           `${TWILIO_WEBHOOK}/machineDetectionResult?originCallId=${originCallId}` +
           `&sourceLanguageID=${sourceLanguageID}&targetLanguageID=${targetLanguageID}&priority=${currentPriority}&fallbackCalled=${currentFallbackCalled}`,
         to: phone,
-        from: '+39800940366',
+        from: '+13093321185',
         machineDetection: 'Enable',
         machineDetectionTimeout: 10,
         timeLimit: Math.min(Math.max(Number(credits) * 60 || 3600, 60), 3600),
@@ -398,14 +400,27 @@ export const call = convertMiddlewareToAsync(async (req, res) => {
     From: callerNumber,
     CallSid: originCallId,
   } = req.body;
+  let phoneNumber = await db
+    .select()
+    .from(clientPhones)
+    .where(eq(clientPhones.phone, calledNumber));
+  if (phoneNumber.length === 0) {
+    logger.warn(
+      `Incoming call to unrecognized number: ${calledNumber}, From: ${callerNumber}, CallSid: ${originCallId}`,
+    );
+    twiml.say({ language: 'en-GB' }, 'Incorrect phone Nume');
+  }
+  // Try without country code (assuming country code is +XX and number length > 10)
   // logger.info(
   //   `Incoming call details: To=${calledNumber}, From=${callerNumber}, CallSid=${originCallId}`,
   // );
+  let phone_number_id = phoneNumber[0].id;
+  await redisClient.set(`${originCallId}:phone_number_id`, phone_number_id);
   try {
     const routeSettings = await db
       .select()
       .from(callRoutingSettings)
-      .where(eq(callRoutingSettings.phone_number, calledNumber))
+      .where(eq(callRoutingSettings.phone_number_id, phone_number_id))
       .limit(1);
     if (routeSettings.length === 0) {
       twiml.say(
@@ -439,7 +454,8 @@ export const call = convertMiddlewareToAsync(async (req, res) => {
     ]);
     saveCallStepAsync(uuid, {
       caller_phone: callerNumber,
-      phone_number: calledNumber,
+      called_phone: calledNumber,
+      phone_number_id: phone_number_id,
       client_id: settings.client_id,
     });
 
@@ -534,8 +550,7 @@ export const validateCode = convertMiddlewareToAsync(async (req, res) => {
   const settings = JSON.parse(
     (await redisClient.get(`${originCallId}:settings`)) || '{}',
   );
-  // await redisClient.set(`${originCallId}:phone_number`, calledNumber);
-  const phoneNumber = await redisClient.get(`${originCallId}:phone_number`);
+  const phone_id = await redisClient.get(`${originCallId}:phone_number_id`);
 
   // logger.info(
   //   `requesting code /validateCode ${phoneNumber}, ${clientCode}, ${retriesAmount}, ${errorsAmount}`,
@@ -543,7 +558,7 @@ export const validateCode = convertMiddlewareToAsync(async (req, res) => {
 
   const department = await getCode({
     client_code: clientCode,
-    phone_number: phoneNumber || '',
+    phone_number_id: phone_id || '',
   });
   if (department?.credits <= 0) {
     if (settings.creditErrorMode === 'audio' && settings.creditErrorFile) {
@@ -586,13 +601,15 @@ export const requestSourceLanguage = convertMiddlewareToAsync(
     const settings = JSON.parse(
       (await redisClient.get(`${originCallId}:settings`)) || '{}',
     );
-    const calledNumber = settings.phone_number;
+    const phone_number_id = await redisClient.get(
+      `${originCallId}:phone_number_id`,
+    );
     const uuid = await redisClient.get(`${originCallId}:uuid`);
     const retriesAmount = Number(req.query.retriesAmount ?? 0);
     const errorsAmount = Number(req.query.errorsAmount ?? 0);
 
     const languages = await getSourceLanguageByNumber({
-      phone_number: calledNumber,
+      phone_number_id: phone_number_id || '',
     });
 
     if (!languages || languages.length === 0) {
@@ -697,10 +714,12 @@ export const validateSourceLanguage = convertMiddlewareToAsync(
       (await redisClient.get(`${originCallId}:settings`)) || '{}',
     );
     const uuid = await redisClient.get(`${originCallId}:uuid`);
-    const calledNumber = settings.phone_number;
+    const phone_number_id = await redisClient.get(
+      `${originCallId}:phone_number_id`,
+    );
     const languages = await getSourceLanguage({
       language_code: languageCode,
-      phone_number: calledNumber,
+      phone_number_id: phone_number_id || '',
     });
 
     if (languages.length === 1) {
@@ -738,13 +757,14 @@ export const requestTargetLanguage = convertMiddlewareToAsync(
     const settings = JSON.parse(
       (await redisClient.get(`${originCallId}:settings`)) || '{}',
     );
-    const calledNumber = settings.phone_number;
     const uuid = await redisClient.get(`${originCallId}:uuid`);
     const retriesAmount = Number(req.query.retriesAmount ?? 0);
     const errorsAmount = Number(req.query.errorsAmount ?? 0);
-
+    const phone_number_id = await redisClient.get(
+      `${originCallId}:phone_number_id`,
+    );
     const languages = await getTargetLanguageByNumber({
-      phone_number: calledNumber,
+      phone_number_id: phone_number_id || '',
     });
 
     if (!languages || languages.length === 0) {
@@ -850,12 +870,14 @@ export const validateTargetLanguage = convertMiddlewareToAsync(
     const settings = JSON.parse(
       (await redisClient.get(`${originCallId}:settings`)) || '{}',
     );
-    const calledNumber = settings.phone_number;
+    const phone_number_id = await redisClient.get(
+      `${originCallId}:phone_number_id`,
+    );
     const uuid = await redisClient.get(`${originCallId}:uuid`);
 
     const languages = await getTargetLanguage({
       language_code: languageCode,
-      phone_number: calledNumber,
+      phone_number_id: phone_number_id || '',
     });
 
     if (languages.length === 1) {
@@ -900,7 +922,9 @@ export const callInterpreter = convertMiddlewareToAsync(async (req, res) => {
   const settings = JSON.parse(
     (await redisClient.get(`${originCallId}:settings`)) || '{}',
   );
-  const calledNumber = settings.phone_number;
+  const phone_number_id = await redisClient.get(
+    `${originCallId}:phone_number_id`,
+  );
   // logger.info(`calling interpreter /callInterpreter `);
   const sourceLanguage = await redisClient.get(
     `${originCallId}:sourceLanguage`,
@@ -937,7 +961,7 @@ export const callInterpreter = convertMiddlewareToAsync(async (req, res) => {
       priority,
       source_language_id: sourceLanguage || '',
       target_language_id: targetLanguage || '',
-      phone_number: calledNumber,
+      phone_number_id: phone_number_id || '',
     });
     if (interpreters.length > 0) break;
     priority++;
@@ -1022,7 +1046,7 @@ async function callInterpretersSimultaneously(
           `${TWILIO_WEBHOOK}/machineDetectionResult?originCallId=${originCallId}` +
           `&priority=${priority}&fallbackCalled=${fallbackCalled}&callType=simultaneous`,
         to: phone,
-        from: '+39800940366',
+        from: '+13093321185',
         machineDetection: 'Enable',
         machineDetectionTimeout: 10,
         timeLimit: Math.min(Math.max(Number(credits) * 60 || 3600, 60), 3600),
@@ -1113,10 +1137,12 @@ async function callNextInterpreterInSequence(originCallId: string) {
         const targetLanguage = await redisClient.get(
           `${originCallId}:targetLanguage`,
         );
-        const calledNumber = settings.phone_number;
+        const phone_number_id = await redisClient.get(
+          `${originCallId}:phone_number_id`,
+        );
 
         const interpreters = await getInterpreters({
-          phone_number: calledNumber,
+          phone_number_id: phone_number_id || '',
           priority: currentPriority,
           source_language_id: sourceLanguage || '',
           target_language_id: targetLanguage || '',
@@ -1222,7 +1248,7 @@ async function callNextInterpreterInSequence(originCallId: string) {
       `${TWILIO_WEBHOOK}/machineDetectionResult?originCallId=${originCallId}` +
       `&priority=${priority}&fallbackCalled=${fallbackCalled}&callType=sequential`,
     to: phone,
-    from: '+39800940366',
+    from: '+13093321185',
     machineDetection: 'Enable',
     machineDetectionTimeout: 10,
     timeLimit: Math.min(Math.max(Number(credits) * 60 || 3600, 60), 3600),
@@ -1246,8 +1272,9 @@ export const machineDetectionResult = convertMiddlewareToAsync(
     const settings = JSON.parse(
       (await redisClient.get(`${originCallId}:settings`)) || '{}',
     );
-    const calledNumber = settings.phone_number;
-
+    const phone_number_id = await redisClient.get(
+      `${originCallId}:phone_number_id`,
+    );
     // logger.info(
     //   `Machine detection result: ${AnsweredBy} for call ${targetCallId}, type: ${callType}`,
     // );
@@ -1345,7 +1372,7 @@ export const machineDetectionResult = convertMiddlewareToAsync(
             targetLanguageID: targetLanguage || '',
             priority,
             fallbackCalled,
-            phone_number: calledNumber,
+            phone_number_id: phone_number_id || '',
           });
         }
       }
@@ -1366,7 +1393,9 @@ export const callStatusResult = convertMiddlewareToAsync(async (req, res) => {
   const settings = JSON.parse(
     (await redisClient.get(`${originCallId}:settings`)) || '{}',
   );
-  const calledNumber = settings.phone_number;
+  const phone_number_id = await redisClient.get(
+    `${originCallId}:phone_number_id`,
+  );
   const credits = await redisClient.get(`${originCallId}:credits`);
   const timeLimitInSeconds = Math.min(
     Math.max(Number(credits) * 60 || 3600, 60),
@@ -1456,7 +1485,7 @@ export const callStatusResult = convertMiddlewareToAsync(async (req, res) => {
               `${interpreterData[0].first_name || ''} ${
                 interpreterData[0].last_name || ''
               }`.trim() || 'Dear Interpreter',
-            clientPhone: calledNumber,
+            clientPhone: phone_number_id || '',
             callDuration: CallDuration,
           }) +
           emailFooter;
@@ -1520,7 +1549,7 @@ export const callStatusResult = convertMiddlewareToAsync(async (req, res) => {
           targetLanguageID: targetLanguage || '',
           priority,
           fallbackCalled,
-          phone_number: calledNumber,
+          phone_number_id: phone_number_id || '',
         });
       }
     }
@@ -1539,7 +1568,9 @@ export const conferenceStatusResult = convertMiddlewareToAsync(
     );
     // logger.info(`settings for ${originCallId}: ${JSON.stringify(settings)}`);
     // logger.info(`body : ${JSON.stringify(req.body)}`);
-    const phone_number = settings.phone_number;
+    const phone_number_id = await redisClient.get(
+      `${originCallId}:phone_number_id`,
+    );
     // logger.info(
     //   `Conference event: ${StatusCallbackEvent} for conference ${req?.body?.ConferenceSid}`,
     // );
@@ -1570,7 +1601,7 @@ export const conferenceStatusResult = convertMiddlewareToAsync(
         EndConferenceOnExit,
         originCallId: req.body?.CallSid,
         conferenceSid: req.body?.ConferenceSid,
-        phone_number: phone_number,
+        phone_number_id: phone_number_id || '',
       });
     } catch (error) {
       logger.error(`Failed to create call record: ${error}`);
