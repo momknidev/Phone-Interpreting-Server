@@ -377,7 +377,7 @@ const removeAndCallNewTargets = async ({
         from: '+39800940366',
         machineDetection: 'Enable',
         machineDetectionTimeout: 10,
-        timeLimit: Math.min(Math.max(Number(credits) * 60 || 3600, 60), 3600),
+        timeLimit: Math.min(Number(credits) ? Number(credits) * 60 : 0, 3600),
         statusCallback:
           `${TWILIO_WEBHOOK}/callStatusResult?originCallId=${originCallId}` +
           `&sourceLanguageID=${sourceLanguageID}&targetLanguageID=${targetLanguageID}&priority=${currentPriority}&fallbackCalled=${currentFallbackCalled}`,
@@ -1049,7 +1049,7 @@ async function callInterpretersSimultaneously(
         from: '+39800940366',
         machineDetection: 'Enable',
         machineDetectionTimeout: 10,
-        timeLimit: Math.min(Math.max(Number(credits) * 60 || 3600, 60), 3600),
+        timeLimit: Math.min(Number(credits) ? Number(credits) * 60 : 0, 3600),
         statusCallback:
           `${TWILIO_WEBHOOK}/callStatusResult?originCallId=${originCallId}` +
           `&priority=${priority}&fallbackCalled=${fallbackCalled}&callType=simultaneous`,
@@ -1251,7 +1251,7 @@ async function callNextInterpreterInSequence(originCallId: string) {
     from: '+39800940366',
     machineDetection: 'Enable',
     machineDetectionTimeout: 10,
-    timeLimit: Math.min(Math.max(Number(credits) * 60 || 3600, 60), 3600),
+    timeLimit: Math.min(Number(credits) ? Number(credits) * 60 : 0, 3600),
     statusCallback:
       `${TWILIO_WEBHOOK}/callStatusResult?originCallId=${originCallId}` +
       `&priority=${priority}&fallbackCalled=${fallbackCalled}&callType=sequential`,
