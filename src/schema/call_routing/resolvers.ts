@@ -48,6 +48,7 @@ const resolvers = {
         creditErrorFile,
         fallbackPromptTTS,
         inputAttemptsFile,
+        callTypePromptFile,
         ...rest
       } = input;
 
@@ -62,6 +63,7 @@ const resolvers = {
         targetLanguageErrorFile?: string;
         creditErrorFile?: string;
         inputAttemptsFile?: string;
+        callTypePromptFile?: string;
       } = {};
 
       // Upload files and get URLs
@@ -76,6 +78,7 @@ const resolvers = {
         'creditErrorFile',
         'callingCodePromptFile',
         'inputAttemptsFile',
+        'callTypePromptFile',
       ];
 
       for (const field of fileFields) {
@@ -97,11 +100,33 @@ const resolvers = {
       const baseData = {
         ...rest,
         ...fileUploads,
+        // Sanitize UUID fields - convert empty strings to null
+        sourceLanguageId:
+          rest.sourceLanguageId === '' ? null : rest.sourceLanguageId,
+        targetLanguageId:
+          rest.targetLanguageId === '' ? null : rest.targetLanguageId,
         updatedAt: new Date(),
         client_id: context.user.id,
       };
-      console.log('baseData', baseData);
-      console.log('input', input);
+
+      // Additional validation for UUID fields
+      if (
+        baseData.sourceLanguageId &&
+        typeof baseData.sourceLanguageId === 'string' &&
+        baseData.sourceLanguageId.length > 0 &&
+        baseData.sourceLanguageId.length !== 36
+      ) {
+        throw new UserInputError('Invalid sourceLanguageId format');
+      }
+      if (
+        baseData.targetLanguageId &&
+        typeof baseData.targetLanguageId === 'string' &&
+        baseData.targetLanguageId.length > 0 &&
+        baseData.targetLanguageId.length !== 36
+      ) {
+        throw new UserInputError('Invalid targetLanguageId format');
+      }
+
       const existing = await db
         .select()
         .from(callRoutingSettings)
@@ -125,7 +150,6 @@ const resolvers = {
 
           return updated[0];
         } catch (error) {
-          console.error('Error updating call routing settings:', error);
           throw error;
         }
       } else {
@@ -135,15 +159,12 @@ const resolvers = {
             ...baseData,
             createdAt: new Date(),
           };
-          console.log('Inserting new record:', record);
           let res = await db
             .insert(callRoutingSettings)
             .values(record)
             .returning();
-          console.log('Insert result:', res);
           return record;
         } catch (error) {
-          console.error('Error inserting call routing settings:', error);
           throw error;
         }
       }

@@ -92,6 +92,12 @@ export const callRoutingSettings = pgTable('call_routing_settings', {
   welcomeMessageMode: text('welcome_message_mode'),
 
   language: varchar('language').default('en-GB'),
+  enableCallType: boolean('enable_call_type').default(false),
+  callTypePromptText: text('call_type_prompt_text').default(
+    'Press 1 for Three Way Call or 2 for Interpreter Only Call',
+  ),
+  callTypePromptFile: text('call_type_prompt_file'),
+  callTypePromptMode: text('call_type_prompt_mode'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });

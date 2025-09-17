@@ -55,6 +55,10 @@ export const typeDefs = gql`
     welcomeMessageText: String
     welcomeMessageFile: String
     welcomeMessageMode: String
+    enableCallType: Boolean
+    callTypePromptText: String
+    callTypePromptFile: String
+    callTypePromptMode: String
     createdAt: String
     updatedAt: String
   }
@@ -105,6 +109,11 @@ export const typeDefs = gql`
     welcomeMessageText: String
     welcomeMessageFile: Upload
     welcomeMessageMode: String
+
+    enableCallType: Boolean
+    callTypePromptText: String
+    callTypePromptFile: Upload
+    callTypePromptMode: String
 
     enableFallback: Boolean
     fallbackNumber: String
