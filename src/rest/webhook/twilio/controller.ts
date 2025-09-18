@@ -232,7 +232,7 @@ const removeAndCallNewTargets = async ({
               `${TWILIO_WEBHOOK}/callStatusResult?originCallId=${originCallId}` +
               `&sourceLanguageID=${sourceLanguageID}&targetLanguageID=${targetLanguageID}&priority=${priority}&fallbackCalled=${fallbackCalled}`,
             statusCallbackMethod: 'POST',
-            timeout: 15,
+            timeout: 20,
           }),
         ),
       );
@@ -382,7 +382,7 @@ const removeAndCallNewTargets = async ({
           `${TWILIO_WEBHOOK}/callStatusResult?originCallId=${originCallId}` +
           `&sourceLanguageID=${sourceLanguageID}&targetLanguageID=${targetLanguageID}&priority=${currentPriority}&fallbackCalled=${currentFallbackCalled}`,
         statusCallbackMethod: 'POST',
-        timeout: 15,
+        timeout: 20,
       }),
     ),
   );
@@ -1054,7 +1054,7 @@ async function callInterpretersSimultaneously(
           `${TWILIO_WEBHOOK}/callStatusResult?originCallId=${originCallId}` +
           `&priority=${priority}&fallbackCalled=${fallbackCalled}&callType=simultaneous`,
         statusCallbackMethod: 'POST',
-        timeout: 15,
+        timeout: 20,
       }),
     ),
   );
@@ -1256,7 +1256,7 @@ async function callNextInterpreterInSequence(originCallId: string) {
       `${TWILIO_WEBHOOK}/callStatusResult?originCallId=${originCallId}` +
       `&priority=${priority}&fallbackCalled=${fallbackCalled}&callType=sequential`,
     statusCallbackMethod: 'POST',
-    timeout: 15,
+    timeout: 20,
   });
 
   await redisClient.set(`${originCallId}:currentCall`, call.sid);
