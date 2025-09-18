@@ -56,9 +56,22 @@ export const typeDefs = gql`
     welcomeMessageFile: String
     welcomeMessageMode: String
     enableCallType: Boolean
+    defaultCallType: String
     callTypePromptText: String
     callTypePromptFile: String
     callTypePromptMode: String
+    callTypeErrorText: String
+    callTypeErrorFile: String
+    callTypeErrorMode: String
+    askThirdPartyNumber: Boolean
+    thirdPartyNumberPromptText: String
+    thirdPartyNumberPromptFile: String
+    thirdPartyNumberPromptMode: String
+    thirdPartyNumberErrorText: String
+    thirdPartyNumberErrorFile: String
+    thirdPartyNumberErrorMode: String
+    defaultThirdPartyNumber: String
+    skipThirdPartyNumber: Boolean
     createdAt: String
     updatedAt: String
   }
@@ -111,9 +124,22 @@ export const typeDefs = gql`
     welcomeMessageMode: String
 
     enableCallType: Boolean
+    defaultCallType: String
     callTypePromptText: String
     callTypePromptFile: Upload
     callTypePromptMode: String
+    callTypeErrorText: String
+    callTypeErrorFile: Upload
+    callTypeErrorMode: String
+    askThirdPartyNumber: Boolean
+    thirdPartyNumberPromptText: String
+    thirdPartyNumberPromptFile: Upload
+    thirdPartyNumberPromptMode: String
+    thirdPartyNumberErrorText: String
+    thirdPartyNumberErrorFile: Upload
+    thirdPartyNumberErrorMode: String
+    defaultThirdPartyNumber: String
+    skipThirdPartyNumber: Boolean
 
     enableFallback: Boolean
     fallbackNumber: String

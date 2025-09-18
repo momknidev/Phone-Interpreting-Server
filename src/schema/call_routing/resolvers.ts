@@ -49,6 +49,9 @@ const resolvers = {
         fallbackPromptTTS,
         inputAttemptsFile,
         callTypePromptFile,
+        callTypeErrorFile,
+        thirdPartyNumberPromptFile,
+        thirdPartyNumberErrorFile,
         ...rest
       } = input;
 
@@ -64,6 +67,9 @@ const resolvers = {
         creditErrorFile?: string;
         inputAttemptsFile?: string;
         callTypePromptFile?: string;
+        callTypeErrorFile?: string;
+        thirdPartyNumberPromptFile?: string;
+        thirdPartyNumberErrorFile?: string;
       } = {};
 
       // Upload files and get URLs
@@ -79,6 +85,9 @@ const resolvers = {
         'callingCodePromptFile',
         'inputAttemptsFile',
         'callTypePromptFile',
+        'callTypeErrorFile',
+        'thirdPartyNumberPromptFile',
+        'thirdPartyNumberErrorFile',
       ];
 
       for (const field of fileFields) {
@@ -147,7 +156,9 @@ const resolvers = {
             .where(
               eq(callRoutingSettings.phone_number_id, input.phone_number_id),
             );
-
+          console.log('Input: ', input);
+          console.log('BaseData: ', baseData);
+          console.log('Updated Call Routing Settings: ', updated[0]);
           return updated[0];
         } catch (error) {
           throw error;

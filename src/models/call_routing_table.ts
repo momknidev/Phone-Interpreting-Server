@@ -92,12 +92,29 @@ export const callRoutingSettings = pgTable('call_routing_settings', {
   welcomeMessageMode: text('welcome_message_mode'),
 
   language: varchar('language').default('en-GB'),
+  //  <=============================>
+
   enableCallType: boolean('enable_call_type').default(false),
+  defaultCallType: text('default_call_type').default('1'),
   callTypePromptText: text('call_type_prompt_text').default(
     'Press 1 for Three Way Call or 2 for Interpreter Only Call',
   ),
   callTypePromptFile: text('call_type_prompt_file'),
   callTypePromptMode: text('call_type_prompt_mode'),
+  callTypeErrorText: text('call_type_error_text'),
+  callTypeErrorFile: text('call_type_error_file'),
+  callTypeErrorMode: text('call_type_error_mode'),
+  askThirdPartyNumber: boolean('ask_third_party_number').default(false),
+  thirdPartyNumberPromptText: text('third_party_number_prompt_text'),
+  thirdPartyNumberPromptFile: text('third_party_number_prompt_file'),
+  thirdPartyNumberPromptMode: text('third_party_number_prompt_mode'),
+  thirdPartyNumberErrorText: text('third_party_number_error_text'),
+  thirdPartyNumberErrorFile: text('third_party_number_error_file'),
+  thirdPartyNumberErrorMode: text('third_party_number_error_mode'),
+  defaultThirdPartyNumber: varchar('default_third_party_number'),
+  skipThirdPartyNumber: boolean('skip_third_party_number').default(false),
+  //  <=============================>
+
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
