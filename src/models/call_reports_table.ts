@@ -4,7 +4,6 @@ import {
   varchar,
   timestamp,
   decimal,
-  numeric,
   serial,
   integer,
   pgEnum,
@@ -45,6 +44,7 @@ export const CallReports = pgTable('call_reports', {
   amount: decimal('amount', { precision: 10, scale: 2 }),
   used_credits: integer('used_credits').default(0),
   response_time: integer('response_time'), // Response time in seconds
+  addition_phone: varchar('addition_phone'),
   created_at: timestamp('created_at').notNull().defaultNow(),
   updated_at: timestamp('updated_at').notNull().defaultNow(),
 });
