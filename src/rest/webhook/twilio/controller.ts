@@ -54,8 +54,9 @@ async function cleanupCallRedisData(originCallId: string) {
       `${originCallId}:credits`,
       `${originCallId}:sourceLanguage`,
       `${originCallId}:targetLanguage`,
-      `${originCallId}:queue`,
       `${originCallId}:callType`,
+      `${originCallId}:thirdPartyNumber`,
+      `${originCallId}:queue`,
       `${originCallId}:currentPriority`,
       `${originCallId}:currentCall`,
       `${originCallId}:callStartTime`,
@@ -221,7 +222,7 @@ const removeAndCallNewTargets = async ({
               `${TWILIO_WEBHOOK}/machineDetectionResult?originCallId=${originCallId}` +
               `&sourceLanguageID=${sourceLanguageID}&targetLanguageID=${targetLanguageID}&priority=${priority}&fallbackCalled=${fallbackCalled}`,
             to: phone,
-            from: '+39800940366',
+            from: '+13093321185',
             machineDetection: 'Enable',
             machineDetectionTimeout: 10,
             timeLimit: Math.min(
@@ -374,7 +375,7 @@ const removeAndCallNewTargets = async ({
           `${TWILIO_WEBHOOK}/machineDetectionResult?originCallId=${originCallId}` +
           `&sourceLanguageID=${sourceLanguageID}&targetLanguageID=${targetLanguageID}&priority=${currentPriority}&fallbackCalled=${currentFallbackCalled}`,
         to: phone,
-        from: '+39800940366',
+        from: '+13093321185',
         machineDetection: 'Enable',
         machineDetectionTimeout: 10,
         timeLimit: Math.min(Number(credits) ? Number(credits) * 60 : 0, 3600),
@@ -484,7 +485,22 @@ export const requestCode = convertMiddlewareToAsync(async (req, res) => {
   // logger.info(`requesting code /requestCode `);
 
   if (!settings.enable_code) {
-    twiml.redirect(`./requestSourceLanguage?originCallId=${originCallId}`);
+    // Check if call type selection is enabled
+    if (settings.enableCallType) {
+      twiml.redirect(`./requestCallType?originCallId=${originCallId}`);
+    } else {
+      // Use default call type
+      const defaultCallType = settings.defaultCallType || '2';
+      await redisClient.set(`${originCallId}:callType`, defaultCallType);
+
+      if (defaultCallType === '1') {
+        // Three-way call - check third party number settings
+        twiml.redirect(`./handleThirdPartyNumber?originCallId=${originCallId}`);
+      } else {
+        // Interpreter only call - proceed to language selection
+        twiml.redirect(`./requestSourceLanguage?originCallId=${originCallId}`);
+      }
+    }
     res.type('text/xml').send(twiml.toString());
     return;
   }
@@ -582,7 +598,23 @@ export const validateCode = convertMiddlewareToAsync(async (req, res) => {
     await redisClient.set(`${originCallId}:clientCode`, clientCode);
     await redisClient.set(`${originCallId}:credits`, department.credits);
     saveCallStepAsync(uuid || '', { client_code: department?.id });
-    twiml.redirect(`./requestSourceLanguage?originCallId=${originCallId}`);
+
+    // Check if call type selection is enabled
+    if (settings.enableCallType) {
+      twiml.redirect(`./requestCallType?originCallId=${originCallId}`);
+    } else {
+      // Use default call type
+      const defaultCallType = settings.defaultCallType || '2';
+      await redisClient.set(`${originCallId}:callType`, defaultCallType);
+
+      if (defaultCallType === '1') {
+        // Three-way call - check third party number settings
+        twiml.redirect(`./handleThirdPartyNumber?originCallId=${originCallId}`);
+      } else {
+        // Interpreter only call - proceed to language selection
+        twiml.redirect(`./requestSourceLanguage?originCallId=${originCallId}`);
+      }
+    }
   } else {
     twiml.redirect(
       `./requestCode?originCallId=${originCallId}&retriesAmount=${retriesAmount}&errorsAmount=${
@@ -592,6 +624,250 @@ export const validateCode = convertMiddlewareToAsync(async (req, res) => {
   }
   res.type('text/xml').send(twiml.toString());
 });
+
+// Request call type if enabled, validate call type selection
+export const requestCallType = convertMiddlewareToAsync(async (req, res) => {
+  const twiml = new VoiceResponse();
+  const originCallId = req.query.originCallId as string;
+  const settings = JSON.parse(
+    (await redisClient.get(`${originCallId}:settings`)) || '{}',
+  );
+  const retriesAmount = Number(req.query.retriesAmount ?? 0);
+  const errorsAmount = Number(req.query.errorsAmount ?? 0);
+
+  // Check if maximum attempts exceeded BEFORE setting up gather
+  const maxAttempts = Number(settings.inputAttemptsCount) || 3;
+  if (retriesAmount >= maxAttempts || errorsAmount >= maxAttempts) {
+    logger.info(
+      `Max call type attempts reached for ${originCallId}, hanging up. retriesAmount:${retriesAmount} errorsAmount:${errorsAmount} maxAttempts:${maxAttempts}`,
+    );
+
+    if (settings.inputAttemptsMode === 'audio' && settings.inputAttemptsFile) {
+      twiml.play(settings.inputAttemptsFile);
+    } else {
+      twiml.say(
+        { language: settings.language || 'en-GB' },
+        settings.inputAttemptsText ||
+          'Too many attempts. Please try again later.',
+      );
+    }
+    twiml.hangup();
+    res.type('text/xml').send(twiml.toString());
+
+    // Clean up Redis data when call ends due to max attempts
+    cleanupCallRedisData(originCallId);
+    return;
+  }
+
+  const gather = twiml.gather({
+    timeout: Number(settings.digitsTimeOut) || 5,
+    action: `./validateCallType?originCallId=${originCallId}&retriesAmount=${retriesAmount}&errorsAmount=${errorsAmount}`,
+  });
+
+  let phraseToSay = settings.callTypePromptText;
+  let audioFile = settings.callTypePromptFile;
+
+  if (req.query.actionError) {
+    phraseToSay = settings.callTypeErrorText;
+    audioFile = settings.callTypeErrorFile;
+  }
+
+  if (settings.callTypePromptMode === 'audio' && audioFile) {
+    gather.play(audioFile);
+  } else {
+    gather.say(
+      { language: settings.language || 'en-GB' },
+      phraseToSay ||
+        'Press 1 for Three Way Call or 2 for Interpreter Only Call',
+    );
+  }
+
+  twiml.redirect(
+    `./requestCallType?originCallId=${originCallId}&retriesAmount=${
+      retriesAmount + 1
+    }&errorsAmount=${errorsAmount}`,
+  );
+  res.type('text/xml').send(twiml.toString());
+});
+
+export const validateCallType = convertMiddlewareToAsync(async (req, res) => {
+  const twiml = new VoiceResponse();
+  const originCallId = req.query.originCallId as string;
+  const callTypeInput = req.body.Digits;
+  const retriesAmount = Number(req.query.retriesAmount ?? 0);
+  const errorsAmount = Number(req.query.errorsAmount ?? 0);
+  const settings = JSON.parse(
+    (await redisClient.get(`${originCallId}:settings`)) || '{}',
+  );
+  const uuid = await redisClient.get(`${originCallId}:uuid`);
+
+  if (callTypeInput === '1' || callTypeInput === '2') {
+    await redisClient.set(`${originCallId}:callType`, callTypeInput);
+    saveCallStepAsync(uuid || '', { call_type: callTypeInput });
+
+    if (callTypeInput === '1') {
+      // Three-way call - handle third party number
+      twiml.redirect(`./handleThirdPartyNumber?originCallId=${originCallId}`);
+    } else {
+      // Interpreter only call - proceed to language selection
+      twiml.redirect(`./requestSourceLanguage?originCallId=${originCallId}`);
+    }
+  } else {
+    twiml.redirect(
+      `./requestCallType?originCallId=${originCallId}&retriesAmount=${retriesAmount}&errorsAmount=${
+        errorsAmount + 1
+      }&actionError=true`,
+    );
+  }
+  res.type('text/xml').send(twiml.toString());
+});
+
+// Handle third party number logic based on settings
+export const handleThirdPartyNumber = convertMiddlewareToAsync(
+  async (req, res) => {
+    const twiml = new VoiceResponse();
+    const originCallId = req.query.originCallId as string;
+    const settings = JSON.parse(
+      (await redisClient.get(`${originCallId}:settings`)) || '{}',
+    );
+    const uuid = await redisClient.get(`${originCallId}:uuid`);
+
+    if (settings.askThirdPartyNumber) {
+      // Ask for third party number
+      twiml.redirect(`./requestThirdPartyNumber?originCallId=${originCallId}`);
+    } else {
+      // Use default third party number
+      const defaultNumber = settings.defaultThirdPartyNumber;
+      if (defaultNumber) {
+        await redisClient.set(
+          `${originCallId}:thirdPartyNumber`,
+          defaultNumber,
+        );
+        saveCallStepAsync(uuid || '', { addition_phone: defaultNumber });
+        twiml.redirect(`./requestSourceLanguage?originCallId=${originCallId}`);
+      } else {
+        // No default number configured
+        twiml.say(
+          { language: settings.language || 'en-GB' },
+          'No default third party number configured. Please contact administrator.',
+        );
+        twiml.hangup();
+        res.type('text/xml').send(twiml.toString());
+        cleanupCallRedisData(originCallId);
+        return;
+      }
+    }
+    res.type('text/xml').send(twiml.toString());
+  },
+);
+
+// Request third party number from user
+export const requestThirdPartyNumber = convertMiddlewareToAsync(
+  async (req, res) => {
+    const twiml = new VoiceResponse();
+    const originCallId = req.query.originCallId as string;
+    const settings = JSON.parse(
+      (await redisClient.get(`${originCallId}:settings`)) || '{}',
+    );
+    const retriesAmount = Number(req.query.retriesAmount ?? 0);
+    const errorsAmount = Number(req.query.errorsAmount ?? 0);
+
+    // Check if maximum attempts exceeded BEFORE setting up gather
+    const maxAttempts = Number(settings.inputAttemptsCount) || 3;
+    if (retriesAmount >= maxAttempts || errorsAmount >= maxAttempts) {
+      logger.info(
+        `Max third party number attempts reached for ${originCallId}, hanging up. retriesAmount:${retriesAmount} errorsAmount:${errorsAmount} maxAttempts:${maxAttempts}`,
+      );
+
+      if (
+        settings.inputAttemptsMode === 'audio' &&
+        settings.inputAttemptsFile
+      ) {
+        twiml.play(settings.inputAttemptsFile);
+      } else {
+        twiml.say(
+          { language: settings.language || 'en-GB' },
+          settings.inputAttemptsText ||
+            'Too many attempts. Please try again later.',
+        );
+      }
+      twiml.hangup();
+      res.type('text/xml').send(twiml.toString());
+
+      // Clean up Redis data when call ends due to max attempts
+      cleanupCallRedisData(originCallId);
+      return;
+    }
+
+    const gather = twiml.gather({
+      timeout: Number(settings.digitsTimeOut) || 5,
+      finishOnKey: '#',
+      action: `./validateThirdPartyNumber?originCallId=${originCallId}&retriesAmount=${retriesAmount}&errorsAmount=${errorsAmount}`,
+    });
+
+    let phraseToSay = settings.thirdPartyNumberPromptText;
+    let audioFile = settings.thirdPartyNumberPromptFile;
+
+    if (req.query.actionError) {
+      phraseToSay = settings.thirdPartyNumberErrorText;
+      audioFile = settings.thirdPartyNumberErrorFile;
+    }
+
+    if (settings.thirdPartyNumberPromptMode === 'audio' && audioFile) {
+      gather.play(audioFile);
+    } else {
+      gather.say(
+        { language: settings.language || 'en-GB' },
+        phraseToSay || 'Please enter the third party number followed by hash.',
+      );
+    }
+
+    twiml.redirect(
+      `./requestThirdPartyNumber?originCallId=${originCallId}&retriesAmount=${
+        retriesAmount + 1
+      }&errorsAmount=${errorsAmount}`,
+    );
+    res.type('text/xml').send(twiml.toString());
+  },
+);
+
+export const validateThirdPartyNumber = convertMiddlewareToAsync(
+  async (req, res) => {
+    const twiml = new VoiceResponse();
+    const originCallId = req.query.originCallId as string;
+    const thirdPartyNumber = req.body.Digits;
+    const retriesAmount = Number(req.query.retriesAmount ?? 0);
+    const errorsAmount = Number(req.query.errorsAmount ?? 0);
+    const settings = JSON.parse(
+      (await redisClient.get(`${originCallId}:settings`)) || '{}',
+    );
+    const uuid = await redisClient.get(`${originCallId}:uuid`);
+
+    // Validate phone number format (basic validation)
+    const phoneRegex = /^\+?[1-9]\d{1,14}$/;
+
+    if (thirdPartyNumber && phoneRegex.test(thirdPartyNumber)) {
+      // Format the number if it doesn't start with +
+      const formattedNumber = thirdPartyNumber.startsWith('+')
+        ? thirdPartyNumber
+        : `+${thirdPartyNumber}`;
+
+      await redisClient.set(
+        `${originCallId}:thirdPartyNumber`,
+        formattedNumber,
+      );
+      saveCallStepAsync(uuid || '', { addition_phone: formattedNumber });
+      twiml.redirect(`./requestSourceLanguage?originCallId=${originCallId}`);
+    } else {
+      twiml.redirect(
+        `./requestThirdPartyNumber?originCallId=${originCallId}&retriesAmount=${retriesAmount}&errorsAmount=${
+          errorsAmount + 1
+        }&actionError=true`,
+      );
+    }
+    res.type('text/xml').send(twiml.toString());
+  },
+);
 
 // Request source language, check available languages, select or ask
 export const requestSourceLanguage = convertMiddlewareToAsync(
@@ -925,6 +1201,14 @@ export const callInterpreter = convertMiddlewareToAsync(async (req, res) => {
   const phone_number_id = await redisClient.get(
     `${originCallId}:phone_number_id`,
   );
+  const callType =
+    (await redisClient.get(`${originCallId}:callType`)) ||
+    settings.defaultCallType ||
+    '2';
+  const thirdPartyNumber = await redisClient.get(
+    `${originCallId}:thirdPartyNumber`,
+  );
+
   // logger.info(`calling interpreter /callInterpreter `);
   const sourceLanguage = await redisClient.get(
     `${originCallId}:sourceLanguage`,
@@ -932,9 +1216,12 @@ export const callInterpreter = convertMiddlewareToAsync(async (req, res) => {
   const targetLanguage = await redisClient.get(
     `${originCallId}:targetLanguage`,
   );
-  const callType = settings.interpreterCallType || 'simultaneous';
+  const interpreterCallType = settings.interpreterCallType || 'simultaneous';
   const fallbackEnabled = Boolean(settings?.enableFallback);
   const fallbackNumber = settings?.fallbackNumber;
+
+  // Determine maximum participants based on call type
+  const maxParticipants = callType === '1' ? 3 : 2; // 3 for three-way, 2 for interpreter only
 
   twiml.dial().conference(
     {
@@ -942,7 +1229,7 @@ export const callInterpreter = convertMiddlewareToAsync(async (req, res) => {
       statusCallbackEvent: ['leave'],
       statusCallbackMethod: 'POST',
       endConferenceOnExit: true,
-      maxParticipants: 2,
+      maxParticipants: maxParticipants,
       record: 'record-from-start',
     },
     originCallId,
@@ -950,6 +1237,28 @@ export const callInterpreter = convertMiddlewareToAsync(async (req, res) => {
 
   res.type('text/xml');
   res.send(twiml.toString());
+
+  // If this is a three-way call, initiate call to third party
+  if (callType === '1' && thirdPartyNumber && !settings.skipThirdPartyNumber) {
+    try {
+      await twilioClient.calls.create({
+        url: `${TWILIO_WEBHOOK}/thirdPartyConnected?originCallId=${originCallId}`,
+        to: thirdPartyNumber,
+        from: '+13093321185',
+        statusCallback: `${TWILIO_WEBHOOK}/thirdPartyStatusResult?originCallId=${originCallId}`,
+        statusCallbackMethod: 'POST',
+        timeout: 30,
+      });
+
+      // Save third party call info
+      const uuid = await redisClient.get(`${originCallId}:uuid`);
+      saveCallStepAsync(uuid || '', {
+        addition_phone: thirdPartyNumber,
+      });
+    } catch (error) {
+      logger.error(`Failed to call third party ${thirdPartyNumber}: ${error}`);
+    }
+  }
 
   let priority = 1;
   let interpreters = [];
@@ -1002,10 +1311,10 @@ export const callInterpreter = convertMiddlewareToAsync(async (req, res) => {
   }
 
   // logger.info(
-  //   `Found ${interpreters.length} interpreters for priority ${priority}, callType: ${callType}, fallbackCalled: ${fallbackCalled}`,
+  //   `Found ${interpreters.length} interpreters for priority ${priority}, callType: ${interpreterCallType}, fallbackCalled: ${fallbackCalled}`,
   // );
 
-  if (callType === 'sequential') {
+  if (interpreterCallType === 'sequential') {
     await callInterpretersSequentially(
       interpreters,
       originCallId,
@@ -1046,7 +1355,7 @@ async function callInterpretersSimultaneously(
           `${TWILIO_WEBHOOK}/machineDetectionResult?originCallId=${originCallId}` +
           `&priority=${priority}&fallbackCalled=${fallbackCalled}&callType=simultaneous`,
         to: phone,
-        from: '+39800940366',
+        from: '+13093321185',
         machineDetection: 'Enable',
         machineDetectionTimeout: 10,
         timeLimit: Math.min(Number(credits) ? Number(credits) * 60 : 0, 3600),
@@ -1248,7 +1557,7 @@ async function callNextInterpreterInSequence(originCallId: string) {
       `${TWILIO_WEBHOOK}/machineDetectionResult?originCallId=${originCallId}` +
       `&priority=${priority}&fallbackCalled=${fallbackCalled}&callType=sequential`,
     to: phone,
-    from: '+39800940366',
+    from: '+13093321185',
     machineDetection: 'Enable',
     machineDetectionTimeout: 10,
     timeLimit: Math.min(Number(credits) ? Number(credits) * 60 : 0, 3600),
@@ -1665,3 +1974,46 @@ export const noAnswer = convertMiddlewareToAsync(async (req, res) => {
   // Clean up Redis data when call ends with no answer
   cleanupCallRedisData(originCallId);
 });
+
+// Handle third party connection to conference
+export const thirdPartyConnected = convertMiddlewareToAsync(
+  async (req, res) => {
+    const twiml = new VoiceResponse();
+    const originCallId = req.query.originCallId as string;
+
+    // Connect third party to the conference
+    twiml.dial().conference(originCallId);
+
+    res.type('text/xml');
+    res.send(twiml.toString());
+  },
+);
+
+// Handle third party call status updates
+export const thirdPartyStatusResult = convertMiddlewareToAsync(
+  async (req, res) => {
+    const { CallSid: thirdPartyCallSid, CallStatus, CallDuration } = req.body;
+    const originCallId = String(req.query.originCallId ?? '');
+    const uuid = await redisClient.get(`${originCallId}:uuid`);
+
+    logger.info(
+      `Third party call status: ${CallStatus} for call ${thirdPartyCallSid}, duration: ${CallDuration}`,
+    );
+
+    // Update call record with third party information
+    if (CallStatus === 'completed' && CallDuration) {
+      // No need to save additional fields as the call duration will be handled elsewhere
+      logger.info(
+        `Third party call completed with duration: ${CallDuration} seconds`,
+      );
+    } else if (
+      CallStatus === 'failed' ||
+      CallStatus === 'no-answer' ||
+      CallStatus === 'busy'
+    ) {
+      logger.info(`Third party call failed with status: ${CallStatus}`);
+    }
+
+    res.status(200).send('OK');
+  },
+);
