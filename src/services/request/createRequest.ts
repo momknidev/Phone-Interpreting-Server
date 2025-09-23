@@ -9,7 +9,7 @@ const calculateCredit = (seconds: number) => {
 };
 
 export async function createRequest(values: any) {
-  logger.info(`Creating request with values: ${JSON.stringify(values)}`);
+  // logger.info(`Creating request with values: ${JSON.stringify(values)}`);
   try {
     const newBooking = {
       id: values?.id,
@@ -32,9 +32,9 @@ export async function updateRequest(
   id: string,
   data: Partial<typeof CallReports.$inferInsert>,
 ) {
-  logger.info(
-    `Updating request with ID: ${id} and data: ${JSON.stringify(data)}`,
-  );
+  // logger.info(
+  //   `Updating request with ID: ${id} and data: ${JSON.stringify(data)}`,
+  // );
   try {
     const result = await db
       .update(CallReports)
@@ -49,17 +49,17 @@ export async function updateRequest(
 }
 
 export async function updateRequestInformation(id: string, data: any) {
-  logger.info(
-    `Updating request information with ID: ${id} and data: ${JSON.stringify(
-      data,
-    )}`,
-  );
+  // logger.info(
+  //   `Updating request information with ID: ${id} and data: ${JSON.stringify(
+  //     data,
+  //   )}`,
+  // );
   try {
     if (
       data.EndConferenceOnExit === 'true' ||
       data.EndConferenceOnExit === true
     ) {
-      logger.info('EndConferenceOnExit is true, skipping request creation');
+      // logger.info('EndConferenceOnExit is true, skipping request creation');
       return;
     }
     // const FriendlyName = values?.request?.FriendlyName;
@@ -67,10 +67,10 @@ export async function updateRequestInformation(id: string, data: any) {
     const callDetails = await twilioClient.calls(callSID).fetch();
 
     if (callDetails?.toFormatted === '+393513424163') {
-      logger.info('Call to fallback phone number, skipping request creation');
+      // logger.info('Call to fallback phone number, skipping request creation');
       return;
     }
-    logger.info(`Call details: ${JSON.stringify(callDetails, null, 1)}`);
+    // logger.info(`Call details: ${JSON.stringify(callDetails, null, 1)}`);
     const interpreterResult = await db
       .select()
       .from(interpreter)
@@ -82,10 +82,10 @@ export async function updateRequestInformation(id: string, data: any) {
       )
       .limit(1);
     if (interpreterResult.length === 0) {
-      logger.info('No interpreter found for the given phone number');
+      // logger.info('No interpreter found for the given phone number');
       return;
     }
-    logger.info(`Interpreter found: ${JSON.stringify(interpreterResult[0])}`);
+    // logger.info(`Interpreter found: ${JSON.stringify(interpreterResult[0])}`);
 
     // Get current request to check status and available credits
     const currentRequest = await db
@@ -132,23 +132,23 @@ export async function updateRequestInformation(id: string, data: any) {
       call_duration: String(obj?.expectedDuration ?? 0),
       used_credits: Number(obj?.used_credits ?? 0),
     };
-    logger.info(`New booking data: ${JSON.stringify(newBooking)}`);
-    logger.info(`Updating request with ID: ${id}`);
-    logger.info(`Request update data: ${newBooking.status}`);
+    // logger.info(`New booking data: ${JSON.stringify(newBooking)}`);
+    // logger.info(`Updating request with ID: ${id}`);
+    // logger.info(`Request update data: ${newBooking.status}`);
     const result = await db
       .update(CallReports)
       .set(newBooking)
       .where(eq(CallReports.id, id))
       .returning();
-    logger.info(`Request updated: ${JSON.stringify(result[0])}`);
+    // logger.info(`Request updated: ${JSON.stringify(result[0])}`);
     if (result[0]?.client_code) {
       const clientCode = await db
         .select()
         .from(ClientCode)
         .where(eq(ClientCode.id, result[0]?.client_code));
-      logger.info(`Client code found: ${JSON.stringify(clientCode[0])}`);
-      logger.info(`Used credits: ${obj?.used_credits ?? 0}`);
-      logger.info(`Current credits: ${clientCode[0]?.credits ?? 0}`);
+      // logger.info(`Client code found: ${JSON.stringify(clientCode[0])}`);
+      // logger.info(`Used credits: ${obj?.used_credits ?? 0}`);
+      // logger.info(`Current credits: ${clientCode[0]?.credits ?? 0}`);
       if (clientCode.length > 0) {
         const currentCredits = clientCode[0]?.credits ?? 0;
         const usedCredits = obj?.used_credits ?? 0;
@@ -162,10 +162,10 @@ export async function updateRequestInformation(id: string, data: any) {
           })
           .where(eq(ClientCode.id, result[0]?.client_code))
           .returning();
-        logger.info(`Client code updated: ${JSON.stringify(data[0])}`);
-        logger.info(
-          `Credits calculation: ${currentCredits} - ${usedCredits} = ${newCredits} (capped at 0)`,
-        );
+        // logger.info(`Client code updated: ${JSON.stringify(data[0])}`);
+        // logger.info(
+        //   `Credits calculation: ${currentCredits} - ${usedCredits} = ${newCredits} (capped at 0)`,
+        // );
       }
     }
     return result[0];
