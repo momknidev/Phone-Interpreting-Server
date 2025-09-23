@@ -858,6 +858,13 @@ export const validateThirdPartyNumber = convertMiddlewareToAsync(
         formattedNumber,
       );
       saveCallStepAsync(uuid || '', { addition_phone: formattedNumber });
+
+      // Confirm the entered number back to the user
+      twiml.say(
+        { language: settings.language || 'en-GB' },
+        `${formattedNumber}`,
+      );
+
       twiml.redirect(`./requestSourceLanguage?originCallId=${originCallId}`);
     } else {
       twiml.redirect(
@@ -1384,35 +1391,52 @@ async function callInterpretersForOrigin(
   fallbackNumber: string | undefined,
   phone_number_id: string | null,
 ) {
+  logger.info(
+    `[CALL_INTERPRETERS_FOR_ORIGIN] Starting interpreter search for ${originCallId} with params: sourceLanguage=${sourceLanguage}, targetLanguage=${targetLanguage}, interpreterCallType=${interpreterCallType}, fallbackEnabled=${fallbackEnabled}, fallbackNumber=${fallbackNumber}, phone_number_id=${phone_number_id}`,
+  );
+
   let priority = 1;
   let interpreters = [];
   let fallbackCalled = false;
 
   // Get interpreters for current priority level (1-5)
   do {
+    logger.info(
+      `[CALL_INTERPRETERS_FOR_ORIGIN] Searching for interpreters at priority ${priority} for ${originCallId}`,
+    );
+
     interpreters = await getInterpreters({
       priority,
       source_language_id: sourceLanguage || '',
       target_language_id: targetLanguage || '',
       phone_number_id: phone_number_id || '',
     });
+
+    logger.info(
+      `[CALL_INTERPRETERS_FOR_ORIGIN] Found ${interpreters.length} interpreters at priority ${priority} for ${originCallId}`,
+    );
+
     if (interpreters.length > 0) break;
     priority++;
   } while (priority <= 5);
 
   // After checking all priorities (1-5), check fallback
   if (interpreters.length === 0 && priority > 5) {
+    logger.info(
+      `[CALL_INTERPRETERS_FOR_ORIGIN] No interpreters found in priorities 1-5 for ${originCallId}, checking fallback. fallbackEnabled=${fallbackEnabled}, fallbackNumber=${fallbackNumber}`,
+    );
+
     if (fallbackEnabled && fallbackNumber) {
       fallbackCalled = true;
       interpreters = [{ phone: fallbackNumber }];
-      // logger.info(
-      //   `No interpreters found in priorities 1-5, using fallback number: ${fallbackNumber}`,
-      // );
+      logger.info(
+        `[CALL_INTERPRETERS_FOR_ORIGIN] Using fallback number ${fallbackNumber} for ${originCallId}`,
+      );
     } else {
       // No interpreters and no fallback enabled/available, call noAnswer
-      // logger.info(
-      //   `No interpreters available for ${originCallId} and fallback not available, calling noAnswer`,
-      // );
+      logger.info(
+        `[CALL_INTERPRETERS_FOR_ORIGIN] No interpreters or fallback available for ${originCallId}, calling noAnswer`,
+      );
 
       // Record the start time before going to noAnswer (if not already recorded)
       const existingCallStartTime = await redisClient.get(
@@ -1434,11 +1458,14 @@ async function callInterpretersForOrigin(
     }
   }
 
-  // logger.info(
-  //   `Found ${interpreters.length} interpreters for priority ${priority}, callType: ${interpreterCallType}, fallbackCalled: ${fallbackCalled}`,
-  // );
+  logger.info(
+    `[CALL_INTERPRETERS_FOR_ORIGIN] Found ${interpreters.length} interpreters for priority ${priority}, callType: ${interpreterCallType}, fallbackCalled: ${fallbackCalled} for ${originCallId}`,
+  );
 
   if (interpreterCallType === 'sequential') {
+    logger.info(
+      `[CALL_INTERPRETERS_FOR_ORIGIN] Calling interpreters sequentially for ${originCallId}`,
+    );
     await callInterpretersSequentially(
       interpreters,
       originCallId,
@@ -1446,6 +1473,9 @@ async function callInterpretersForOrigin(
       fallbackCalled,
     );
   } else {
+    logger.info(
+      `[CALL_INTERPRETERS_FOR_ORIGIN] Calling interpreters simultaneously for ${originCallId}`,
+    );
     await callInterpretersSimultaneously(
       interpreters,
       originCallId,
@@ -1461,40 +1491,65 @@ async function callInterpretersSimultaneously(
   priority: number,
   fallbackCalled: boolean,
 ) {
-  // logger.info(`Calling ${interpreters.length} interpreters simultaneously`);
-  const credits = await redisClient.get(`${originCallId}:credits`);
   logger.info(
-    `${typeof Math.min(
-      Math.max(Number(credits) * 60 || 3600, 60),
-      3600,
-    )} seconds: ${Math.min(
-      Math.max(Number(credits) * 60 || 3600, 60),
-      3600,
-    )} seconds`,
-  );
-  const createdCalls = await Promise.all(
-    interpreters.map(({ phone }) =>
-      twilioClient.calls.create({
-        url:
-          `${TWILIO_WEBHOOK}/machineDetectionResult?originCallId=${originCallId}` +
-          `&priority=${priority}&fallbackCalled=${fallbackCalled}&callType=simultaneous`,
-        to: phone,
-        from: '+39800940366',
-        machineDetection: 'Enable',
-        machineDetectionTimeout: 10,
-        timeLimit: Math.min(Number(credits) ? Number(credits) * 60 : 0, 3600),
-        statusCallback:
-          `${TWILIO_WEBHOOK}/callStatusResult?originCallId=${originCallId}` +
-          `&priority=${priority}&fallbackCalled=${fallbackCalled}&callType=simultaneous`,
-        statusCallbackMethod: 'POST',
-        timeout: 20,
-      }),
-    ),
+    `[CALL_INTERPRETERS_SIMULTANEOUSLY] Starting simultaneous calls to ${interpreters.length} interpreters for ${originCallId}`,
   );
 
-  await Promise.all(
-    createdCalls.map(({ sid }) => redisClient.lPush(originCallId, sid)),
+  const credits = await redisClient.get(`${originCallId}:credits`);
+  const timeLimit = Math.min(Math.max(Number(credits) * 60 || 3600, 60), 3600);
+
+  logger.info(
+    `[CALL_INTERPRETERS_SIMULTANEOUSLY] Call time limit: ${timeLimit} seconds for ${originCallId}`,
   );
+
+  try {
+    const createdCalls = await Promise.all(
+      interpreters.map(({ phone }, index) => {
+        logger.info(
+          `[CALL_INTERPRETERS_SIMULTANEOUSLY] Creating call ${index + 1}/${
+            interpreters.length
+          } to ${phone} for ${originCallId}`,
+        );
+
+        return twilioClient.calls.create({
+          url:
+            `${TWILIO_WEBHOOK}/machineDetectionResult?originCallId=${originCallId}` +
+            `&priority=${priority}&fallbackCalled=${fallbackCalled}&callType=simultaneous`,
+          to: phone,
+          from: '+39800940366',
+          machineDetection: 'Enable',
+          machineDetectionTimeout: 10,
+          timeLimit: timeLimit,
+          statusCallback:
+            `${TWILIO_WEBHOOK}/callStatusResult?originCallId=${originCallId}` +
+            `&priority=${priority}&fallbackCalled=${fallbackCalled}&callType=simultaneous`,
+          statusCallbackMethod: 'POST',
+          timeout: 20,
+        });
+      }),
+    );
+
+    logger.info(
+      `[CALL_INTERPRETERS_SIMULTANEOUSLY] Successfully created ${
+        createdCalls.length
+      } calls for ${originCallId}. Call SIDs: ${createdCalls
+        .map((call) => call.sid)
+        .join(', ')}`,
+    );
+
+    await Promise.all(
+      createdCalls.map(({ sid }) => redisClient.lPush(originCallId, sid)),
+    );
+
+    logger.info(
+      `[CALL_INTERPRETERS_SIMULTANEOUSLY] Stored all call SIDs in Redis for ${originCallId}`,
+    );
+  } catch (error) {
+    logger.error(
+      `[CALL_INTERPRETERS_SIMULTANEOUSLY] Error creating interpreter calls for ${originCallId}: ${error}`,
+    );
+    throw error;
+  }
 }
 
 // Helper function for sequential calling
@@ -2183,6 +2238,10 @@ export const thirdPartyStatusResult = convertMiddlewareToAsync(
 
 // Helper function to call interpreters from status callback (used by thirdPartyStatusResult)
 async function callInterpretersFromStatusCallback(originCallId: string) {
+  logger.info(
+    `[CALL_INTERPRETERS_FROM_STATUS] Starting interpreter call process for ${originCallId}`,
+  );
+
   // Retrieve stored parameters from Redis
   const sourceLanguage = await redisClient.get(
     `${originCallId}:sourceLanguage`,
@@ -2202,7 +2261,22 @@ async function callInterpretersFromStatusCallback(originCallId: string) {
     `${originCallId}:phone_number_id`,
   );
 
+  logger.info(
+    `[CALL_INTERPRETERS_FROM_STATUS] Retrieved parameters for ${originCallId}: sourceLanguage=${sourceLanguage}, targetLanguage=${targetLanguage}, interpreterCallType=${interpreterCallType}, fallbackEnabled=${fallbackEnabled}, fallbackNumber=${fallbackNumber}, phone_number_id=${phone_number_id}`,
+  );
+
+  if (!sourceLanguage || !targetLanguage || !phone_number_id) {
+    logger.error(
+      `[CALL_INTERPRETERS_FROM_STATUS] Missing required parameters for ${originCallId}. sourceLanguage=${sourceLanguage}, targetLanguage=${targetLanguage}, phone_number_id=${phone_number_id}`,
+    );
+    return;
+  }
+
   // Call the main interpreter calling function
+  logger.info(
+    `[CALL_INTERPRETERS_FROM_STATUS] Calling callInterpretersForOrigin for ${originCallId}`,
+  );
+
   await callInterpretersForOrigin(
     originCallId,
     sourceLanguage,
