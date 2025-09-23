@@ -24,6 +24,16 @@ twilioRouter.post(
   controller.validateThirdPartyNumber,
 );
 
+twilioRouter.post(
+  '/confirmThirdPartyNumber',
+  controller.confirmThirdPartyNumber,
+);
+
+twilioRouter.post(
+  '/validateThirdPartyConfirmation',
+  controller.validateThirdPartyConfirmation,
+);
+
 twilioRouter.post('/requestSourceLanguage', controller.requestSourceLanguage);
 
 twilioRouter.post('/validateSourceLanguage', controller.validateSourceLanguage);

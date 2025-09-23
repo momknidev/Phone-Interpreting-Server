@@ -857,7 +857,9 @@ export const validateThirdPartyNumber = convertMiddlewareToAsync(
         formattedNumber,
       );
       saveCallStepAsync(uuid || '', { addition_phone: formattedNumber });
-      twiml.redirect(`./requestSourceLanguage?originCallId=${originCallId}`);
+
+      // Redirect to confirmation step to repeat the number back to user
+      twiml.redirect(`./confirmThirdPartyNumber?originCallId=${originCallId}`);
     } else {
       twiml.redirect(
         `./requestThirdPartyNumber?originCallId=${originCallId}&retriesAmount=${retriesAmount}&errorsAmount=${
@@ -865,6 +867,127 @@ export const validateThirdPartyNumber = convertMiddlewareToAsync(
         }&actionError=true`,
       );
     }
+    res.type('text/xml').send(twiml.toString());
+  },
+);
+
+// Confirm third party number by repeating it back to the user
+export const confirmThirdPartyNumber = convertMiddlewareToAsync(
+  async (req, res) => {
+    const twiml = new VoiceResponse();
+    const originCallId = req.query.originCallId as string;
+    const settings = JSON.parse(
+      (await redisClient.get(`${originCallId}:settings`)) || '{}',
+    );
+    const thirdPartyNumber = await redisClient.get(
+      `${originCallId}:thirdPartyNumber`,
+    );
+
+    if (thirdPartyNumber) {
+      // Format the number for speech - handle different phone number formats
+      let formattedForSpeech = thirdPartyNumber;
+
+      // Remove the + sign and handle it separately
+      if (formattedForSpeech.startsWith('+')) {
+        formattedForSpeech = formattedForSpeech.substring(1);
+        // Add spaces between digits for better pronunciation
+        formattedForSpeech = 'plus ' + formattedForSpeech.split('').join(' ');
+      } else {
+        // Just add spaces between digits
+        formattedForSpeech = formattedForSpeech.split('').join(' ');
+      }
+
+      // Use the user's preferred language from settings
+      const language = settings.language || 'en-GB';
+
+      // Create the confirmation message
+      let confirmationMessage = `${formattedForSpeech}`;
+
+      // Check if askForConfirmation is enabled
+      if (settings.askForConfirmation) {
+        // Play the number first
+        twiml.say({ language }, confirmationMessage);
+
+        // Add a short pause
+        twiml.pause({ length: 1 });
+
+        // Ask for confirmation with gather
+        const gather = twiml.gather({
+          timeout: Number(settings.digitsTimeOut) || 5,
+          numDigits: 1,
+          action: `./validateThirdPartyConfirmation?originCallId=${originCallId}`,
+        });
+
+        // Check if there's a custom confirmation prompt
+        if (
+          settings.thirdPartyConfirmationPromptMode === 'audio' &&
+          settings.thirdPartyConfirmationPromptFile
+        ) {
+          gather.play(settings.thirdPartyConfirmationPromptFile);
+        } else {
+          const confirmationPrompt =
+            settings.thirdPartyConfirmationPromptText ||
+            'Press 1 to confirm this number';
+          gather.say({ language }, confirmationPrompt);
+        }
+
+        // Redirect back to confirmation if no input
+        twiml.redirect(
+          `./confirmThirdPartyNumber?originCallId=${originCallId}`,
+        );
+      } else {
+        // Just play the number and proceed directly
+        twiml.say({ language }, confirmationMessage);
+
+        // Add a short pause before proceeding
+        twiml.pause({ length: 1 });
+
+        // Proceed to source language selection
+        twiml.redirect(`./requestSourceLanguage?originCallId=${originCallId}`);
+      }
+    } else {
+      // If no third party number found, redirect back to request it
+      twiml.redirect(`./requestThirdPartyNumber?originCallId=${originCallId}`);
+    }
+
+    res.type('text/xml').send(twiml.toString());
+  },
+);
+
+// Validate third party confirmation (when askForConfirmation is enabled)
+export const validateThirdPartyConfirmation = convertMiddlewareToAsync(
+  async (req, res) => {
+    const twiml = new VoiceResponse();
+    const originCallId = req.query.originCallId as string;
+    const confirmationInput = req.body.Digits;
+    const settings = JSON.parse(
+      (await redisClient.get(`${originCallId}:settings`)) || '{}',
+    );
+
+    if (confirmationInput === '1') {
+      // User confirmed, proceed to source language selection
+      twiml.redirect(`./requestSourceLanguage?originCallId=${originCallId}`);
+    } else {
+      // User didn't confirm or pressed wrong digit, redirect back to request third party number
+      const language = settings.language || 'en-GB';
+
+      // Play error message if configured
+      if (
+        settings.thirdPartyConfirmationErrorMode === 'audio' &&
+        settings.thirdPartyConfirmationErrorFile
+      ) {
+        twiml.play(settings.thirdPartyConfirmationErrorFile);
+      } else {
+        const errorMessage =
+          settings.thirdPartyConfirmationErrorText ||
+          'Number not confirmed. Please enter the third party number again.';
+        twiml.say({ language }, errorMessage);
+      }
+
+      // Redirect back to request third party number
+      twiml.redirect(`./requestThirdPartyNumber?originCallId=${originCallId}`);
+    }
+
     res.type('text/xml').send(twiml.toString());
   },
 );

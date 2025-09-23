@@ -113,6 +113,7 @@ export const callRoutingSettings = pgTable('call_routing_settings', {
   thirdPartyNumberErrorMode: text('third_party_number_error_mode'),
   defaultThirdPartyNumber: varchar('default_third_party_number'),
   skipThirdPartyNumber: boolean('skip_third_party_number').default(false),
+  askForConfirmation: boolean('ask_for_confirmation').default(false),
   //  <=============================>
 
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
