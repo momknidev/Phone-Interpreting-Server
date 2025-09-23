@@ -43,6 +43,16 @@ twilioRouter.post('/noAnswer', controller.noAnswer);
 
 twilioRouter.post('/thirdPartyConnected', controller.thirdPartyConnected);
 
+twilioRouter.post(
+  '/thirdPartyConnectedMandatory',
+  controller.thirdPartyConnectedMandatory,
+);
+
 twilioRouter.post('/thirdPartyStatusResult', controller.thirdPartyStatusResult);
+
+twilioRouter.post(
+  '/thirdPartyStatusResultMandatory',
+  controller.thirdPartyStatusResultMandatory,
+);
 
 export { twilioRouter };
