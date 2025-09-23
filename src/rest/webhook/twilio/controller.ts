@@ -862,7 +862,7 @@ export const validateThirdPartyNumber = convertMiddlewareToAsync(
       // Confirm the entered number back to the user
       twiml.say(
         { language: settings.language || 'en-GB' },
-        `You have entered ${formattedNumber}. Now please select the languages.`,
+        `${formattedNumber}`,
       );
 
       twiml.redirect(`./requestSourceLanguage?originCallId=${originCallId}`);
@@ -1239,18 +1239,15 @@ export const callInterpreter = convertMiddlewareToAsync(async (req, res) => {
       `[CALL_INTERPRETER] Three-way call detected for ${originCallId} with third party: ${thirdPartyNumber}, skipThirdParty: ${skipThirdParty}`,
     );
 
-    // Log retrieved parameters before storing
-    logger.info(
-      `[CALL_INTERPRETER] Retrieved parameters from Redis: sourceLanguage=${sourceLanguage}, targetLanguage=${targetLanguage}, interpreterCallType=${interpreterCallType}, fallbackEnabled=${fallbackEnabled}, fallbackNumber=${fallbackNumber}`,
+    // Store interpreter search parameters in Redis for later use
+    await redisClient.set(
+      `${originCallId}:sourceLanguage`,
+      sourceLanguage || '',
     );
-
-    // Store interpreter search parameters in Redis for later use (but only if they exist)
-    if (sourceLanguage) {
-      await redisClient.set(`${originCallId}:sourceLanguage`, sourceLanguage);
-    }
-    if (targetLanguage) {
-      await redisClient.set(`${originCallId}:targetLanguage`, targetLanguage);
-    }
+    await redisClient.set(
+      `${originCallId}:targetLanguage`,
+      targetLanguage || '',
+    );
     await redisClient.set(
       `${originCallId}:interpreterCallType`,
       interpreterCallType,
@@ -2245,9 +2242,6 @@ async function callInterpretersFromStatusCallback(originCallId: string) {
     `[CALL_INTERPRETERS_FROM_STATUS] Starting interpreter call process for ${originCallId}`,
   );
 
-  // Add a small delay to ensure all Redis operations have completed
-  await new Promise((resolve) => setTimeout(resolve, 100));
-
   // Retrieve stored parameters from Redis
   const sourceLanguage = await redisClient.get(
     `${originCallId}:sourceLanguage`,
@@ -2275,33 +2269,6 @@ async function callInterpretersFromStatusCallback(originCallId: string) {
     logger.error(
       `[CALL_INTERPRETERS_FROM_STATUS] Missing required parameters for ${originCallId}. sourceLanguage=${sourceLanguage}, targetLanguage=${targetLanguage}, phone_number_id=${phone_number_id}`,
     );
-
-    // If parameters are missing, try to fetch them directly (fallback)
-    logger.info(
-      `[CALL_INTERPRETERS_FROM_STATUS] Attempting to retrieve missing parameters directly from Redis for ${originCallId}`,
-    );
-
-    // List all Redis keys for this call to debug
-    const allKeys = [];
-    const keyPatterns = [
-      `${originCallId}:sourceLanguage`,
-      `${originCallId}:targetLanguage`,
-      `${originCallId}:phone_number_id`,
-      `${originCallId}:interpreterCallType`,
-      `${originCallId}:fallbackEnabled`,
-      `${originCallId}:fallbackNumber`,
-    ];
-
-    for (const key of keyPatterns) {
-      const value = await redisClient.get(key);
-      allKeys.push(`${key}=${value}`);
-    }
-
-    logger.error(
-      `[CALL_INTERPRETERS_FROM_STATUS] All Redis keys for ${originCallId}: ${allKeys.join(
-        ', ',
-      )}`,
-    );
     return;
   }
 
@@ -2310,23 +2277,13 @@ async function callInterpretersFromStatusCallback(originCallId: string) {
     `[CALL_INTERPRETERS_FROM_STATUS] Calling callInterpretersForOrigin for ${originCallId}`,
   );
 
-  try {
-    await callInterpretersForOrigin(
-      originCallId,
-      sourceLanguage,
-      targetLanguage,
-      interpreterCallType || 'simultaneous',
-      fallbackEnabled,
-      fallbackNumber || undefined,
-      phone_number_id,
-    );
-
-    logger.info(
-      `[CALL_INTERPRETERS_FROM_STATUS] Successfully completed callInterpretersForOrigin for ${originCallId}`,
-    );
-  } catch (error) {
-    logger.error(
-      `[CALL_INTERPRETERS_FROM_STATUS] Error calling interpreters for ${originCallId}: ${error}`,
-    );
-  }
+  await callInterpretersForOrigin(
+    originCallId,
+    sourceLanguage,
+    targetLanguage,
+    interpreterCallType || 'simultaneous',
+    fallbackEnabled,
+    fallbackNumber || undefined,
+    phone_number_id,
+  );
 }
