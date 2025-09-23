@@ -802,6 +802,7 @@ export const requestThirdPartyNumber = convertMiddlewareToAsync(
     const gather = twiml.gather({
       timeout: Number(settings.digitsTimeOut) || 5,
       finishOnKey: '#',
+      input: ['dtmf'],
       action: `./validateThirdPartyNumber?originCallId=${originCallId}&retriesAmount=${retriesAmount}&errorsAmount=${errorsAmount}`,
     });
 
@@ -1227,6 +1228,10 @@ export const callInterpreter = convertMiddlewareToAsync(async (req, res) => {
 
   // If this is a three-way call and third party number is set
   if (callType === '1' && thirdPartyNumber) {
+    logger.info(
+      `[CALL_INTERPRETER] Three-way call detected for ${originCallId} with third party: ${thirdPartyNumber}, skipThirdParty: ${skipThirdParty}`,
+    );
+
     // Store interpreter search parameters in Redis for later use
     await redisClient.set(
       `${originCallId}:sourceLanguage`,
@@ -1249,9 +1254,19 @@ export const callInterpreter = convertMiddlewareToAsync(async (req, res) => {
       fallbackNumber || '',
     );
 
+    logger.info(
+      `[CALL_INTERPRETER] Stored interpreter parameters for ${originCallId}`,
+    );
+
     if (!skipThirdParty) {
+      logger.info(
+        `[CALL_INTERPRETER] skipThirdParty=false - will call interpreters only after third party connects`,
+      );
       // skipThirdParty = false: Only connect interpreter if third party answers
       try {
+        logger.info(
+          `[CALL_INTERPRETER] Creating third party call to ${thirdPartyNumber}`,
+        );
         await twilioClient.calls.create({
           url: `${TWILIO_WEBHOOK}/thirdPartyConnected?originCallId=${originCallId}`,
           to: thirdPartyNumber,
@@ -1339,6 +1354,9 @@ export const callInterpreter = convertMiddlewareToAsync(async (req, res) => {
   // 2. Three-way call with skipThirdParty = true, OR
   // 3. Three-way call with no third party number
   if (callType !== '1' || skipThirdParty || !thirdPartyNumber) {
+    logger.info(
+      `[CALL_INTERPRETER] Proceeding with immediate interpreter calling for ${originCallId}. Conditions: callType=${callType}, skipThirdParty=${skipThirdParty}, hasThirdPartyNumber=${!!thirdPartyNumber}`,
+    );
     await callInterpretersForOrigin(
       originCallId,
       sourceLanguage,
@@ -1347,6 +1365,10 @@ export const callInterpreter = convertMiddlewareToAsync(async (req, res) => {
       fallbackEnabled,
       fallbackNumber,
       phone_number_id,
+    );
+  } else {
+    logger.info(
+      `[CALL_INTERPRETER] NOT calling interpreters immediately for ${originCallId}. Will wait for third party status callback. Conditions: callType=${callType}, skipThirdParty=${skipThirdParty}, hasThirdPartyNumber=${!!thirdPartyNumber}`,
     );
   }
   // If skipThirdParty = false and we have third party, interpreter calling will be handled by thirdPartyStatusResult
@@ -2100,41 +2122,60 @@ export const thirdPartyStatusResult = convertMiddlewareToAsync(
     const uuid = await redisClient.get(`${originCallId}:uuid`);
 
     logger.info(
-      `Third party call status: ${CallStatus} for call ${thirdPartyCallSid}, duration: ${CallDuration}, skipThirdParty: ${skipThirdParty}`,
+      `[THIRD_PARTY_STATUS] Call ${thirdPartyCallSid} status: ${CallStatus}, duration: ${CallDuration}, originCallId: ${originCallId}, skipThirdParty: ${skipThirdParty}`,
     );
 
     // Update call record with third party information
     if (CallStatus === 'completed' && CallDuration) {
       logger.info(
-        `Third party call completed with duration: ${CallDuration} seconds`,
+        `[THIRD_PARTY_STATUS] Third party call completed with duration: ${CallDuration} seconds`,
       );
     } else if (
       CallStatus === 'failed' ||
       CallStatus === 'no-answer' ||
       CallStatus === 'busy'
     ) {
-      logger.info(`Third party call failed with status: ${CallStatus}`);
+      logger.info(
+        `[THIRD_PARTY_STATUS] Third party call failed with status: ${CallStatus}`,
+      );
     }
 
     // Handle interpreter calling based on skipThirdPartyNumber setting
     if (!skipThirdParty) {
+      logger.info(
+        `[THIRD_PARTY_STATUS] skipThirdParty=false, checking status ${CallStatus} to decide on interpreter calling`,
+      );
       // skipThirdParty = false: Only call interpreter if third party connected successfully
-      if (
-        CallStatus === 'answered' ||
-        CallStatus === 'in-progress' ||
-        CallStatus === 'completed'
-      ) {
+      if (CallStatus === 'answered' || CallStatus === 'in-progress') {
         logger.info(
-          `Third party connected, now calling interpreter for ${originCallId}`,
+          `[THIRD_PARTY_STATUS] Third party connected successfully (${CallStatus}), now calling interpreters for ${originCallId}`,
         );
-        await callInterpretersFromStatusCallback(originCallId);
+
+        // Check if interpreter was already called to avoid duplicate calls
+        const interpreterCalled = await redisClient.get(
+          `${originCallId}:interpreterCalled`,
+        );
+        if (!interpreterCalled) {
+          await redisClient.set(`${originCallId}:interpreterCalled`, 'true');
+          logger.info(
+            `[THIRD_PARTY_STATUS] Calling interpreters for ${originCallId}`,
+          );
+          await callInterpretersFromStatusCallback(originCallId);
+        } else {
+          logger.info(
+            `[THIRD_PARTY_STATUS] Interpreters already called for ${originCallId}, skipping duplicate call`,
+          );
+        }
       } else {
         logger.info(
-          `Third party did not connect (${CallStatus}), not calling interpreter`,
+          `[THIRD_PARTY_STATUS] Third party did not connect (${CallStatus}), NOT calling interpreters for ${originCallId}`,
         );
       }
+    } else {
+      logger.info(
+        `[THIRD_PARTY_STATUS] skipThirdParty=true, interpreters should have been called already from callInterpreter function`,
+      );
     }
-    // If skipThirdParty = true, interpreter was already called from callInterpreter function
 
     res.status(200).send('OK');
   },
