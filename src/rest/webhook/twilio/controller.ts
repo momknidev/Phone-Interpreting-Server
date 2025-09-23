@@ -60,10 +60,6 @@ async function cleanupCallRedisData(originCallId: string) {
       `${originCallId}:currentPriority`,
       `${originCallId}:currentCall`,
       `${originCallId}:callStartTime`,
-      `${originCallId}:interpreterCallType`,
-      `${originCallId}:fallbackEnabled`,
-      `${originCallId}:fallbackNumber`,
-      `${originCallId}:interpreterCalled`,
       originCallId, // Main list of interpreter calls
     ];
 
@@ -1248,21 +1244,25 @@ export const callInterpreter = convertMiddlewareToAsync(async (req, res) => {
       `[CALL_INTERPRETER] Retrieved parameters from Redis: sourceLanguage=${sourceLanguage}, targetLanguage=${targetLanguage}, interpreterCallType=${interpreterCallType}, fallbackEnabled=${fallbackEnabled}, fallbackNumber=${fallbackNumber}`,
     );
 
-    // Store interpreter search parameters in Redis for later use
-    // Store all parameters regardless of whether they exist (use empty string as fallback)
-    await Promise.all([
-      redisClient.set(`${originCallId}:sourceLanguage`, sourceLanguage || ''),
-      redisClient.set(`${originCallId}:targetLanguage`, targetLanguage || ''),
-      redisClient.set(
-        `${originCallId}:interpreterCallType`,
-        interpreterCallType || 'simultaneous',
-      ),
-      redisClient.set(
-        `${originCallId}:fallbackEnabled`,
-        fallbackEnabled ? 'true' : 'false',
-      ),
-      redisClient.set(`${originCallId}:fallbackNumber`, fallbackNumber || ''),
-    ]);
+    // Store interpreter search parameters in Redis for later use (but only if they exist)
+    if (sourceLanguage) {
+      await redisClient.set(`${originCallId}:sourceLanguage`, sourceLanguage);
+    }
+    if (targetLanguage) {
+      await redisClient.set(`${originCallId}:targetLanguage`, targetLanguage);
+    }
+    await redisClient.set(
+      `${originCallId}:interpreterCallType`,
+      interpreterCallType,
+    );
+    await redisClient.set(
+      `${originCallId}:fallbackEnabled`,
+      fallbackEnabled ? 'true' : 'false',
+    );
+    await redisClient.set(
+      `${originCallId}:fallbackNumber`,
+      fallbackNumber || '',
+    );
 
     logger.info(
       `[CALL_INTERPRETER] Stored interpreter parameters for ${originCallId}`,
@@ -2204,15 +2204,9 @@ export const thirdPartyStatusResult = convertMiddlewareToAsync(
         `[THIRD_PARTY_STATUS] skipThirdParty=false, checking status ${CallStatus} to decide on interpreter calling`,
       );
       // skipThirdParty = false: Only call interpreter if third party connected successfully
-      // Include 'ringing' and 'queued' statuses as they indicate the call is progressing
-      if (
-        CallStatus === 'answered' ||
-        CallStatus === 'in-progress' ||
-        CallStatus === 'ringing' ||
-        CallStatus === 'queued'
-      ) {
+      if (CallStatus === 'answered' || CallStatus === 'in-progress') {
         logger.info(
-          `[THIRD_PARTY_STATUS] Third party call is connecting/connected (${CallStatus}), now calling interpreters for ${originCallId}`,
+          `[THIRD_PARTY_STATUS] Third party connected successfully (${CallStatus}), now calling interpreters for ${originCallId}`,
         );
 
         // Check if interpreter was already called to avoid duplicate calls
@@ -2230,27 +2224,10 @@ export const thirdPartyStatusResult = convertMiddlewareToAsync(
             `[THIRD_PARTY_STATUS] Interpreters already called for ${originCallId}, skipping duplicate call`,
           );
         }
-      } else if (
-        CallStatus === 'failed' ||
-        CallStatus === 'no-answer' ||
-        CallStatus === 'busy' ||
-        CallStatus === 'canceled'
-      ) {
+      } else {
         logger.info(
-          `[THIRD_PARTY_STATUS] Third party call failed (${CallStatus}), redirecting origin call to noAnswer for ${originCallId}`,
+          `[THIRD_PARTY_STATUS] Third party did not connect (${CallStatus}), NOT calling interpreters for ${originCallId}`,
         );
-
-        // If third party call failed and we're not skipping third party, end the origin call
-        try {
-          await twilioClient.calls(originCallId).update({
-            url: `${TWILIO_WEBHOOK}/noAnswer?originCallId=${originCallId}`,
-            method: 'POST',
-          });
-        } catch (error) {
-          logger.error(
-            `[THIRD_PARTY_STATUS] Failed to redirect origin call to noAnswer: ${error}`,
-          );
-        }
       }
     } else {
       logger.info(
@@ -2272,15 +2249,21 @@ async function callInterpretersFromStatusCallback(originCallId: string) {
   await new Promise((resolve) => setTimeout(resolve, 100));
 
   // Retrieve stored parameters from Redis
-  let sourceLanguage = await redisClient.get(`${originCallId}:sourceLanguage`);
-  let targetLanguage = await redisClient.get(`${originCallId}:targetLanguage`);
-  let interpreterCallType = await redisClient.get(
+  const sourceLanguage = await redisClient.get(
+    `${originCallId}:sourceLanguage`,
+  );
+  const targetLanguage = await redisClient.get(
+    `${originCallId}:targetLanguage`,
+  );
+  const interpreterCallType = await redisClient.get(
     `${originCallId}:interpreterCallType`,
   );
-  let fallbackEnabled =
+  const fallbackEnabled =
     (await redisClient.get(`${originCallId}:fallbackEnabled`)) === 'true';
-  let fallbackNumber = await redisClient.get(`${originCallId}:fallbackNumber`);
-  let phone_number_id = await redisClient.get(
+  const fallbackNumber = await redisClient.get(
+    `${originCallId}:fallbackNumber`,
+  );
+  const phone_number_id = await redisClient.get(
     `${originCallId}:phone_number_id`,
   );
 
@@ -2288,51 +2271,14 @@ async function callInterpretersFromStatusCallback(originCallId: string) {
     `[CALL_INTERPRETERS_FROM_STATUS] Retrieved parameters for ${originCallId}: sourceLanguage=${sourceLanguage}, targetLanguage=${targetLanguage}, interpreterCallType=${interpreterCallType}, fallbackEnabled=${fallbackEnabled}, fallbackNumber=${fallbackNumber}, phone_number_id=${phone_number_id}`,
   );
 
-  // If some parameters are missing, try to get them from settings as fallback
-  if (
-    !sourceLanguage ||
-    !targetLanguage ||
-    !phone_number_id ||
-    !interpreterCallType
-  ) {
-    logger.info(
-      `[CALL_INTERPRETERS_FROM_STATUS] Some parameters missing for ${originCallId}, retrieving from settings`,
-    );
-
-    const settings = JSON.parse(
-      (await redisClient.get(`${originCallId}:settings`)) || '{}',
-    );
-
-    // Fill in missing parameters from settings or defaults
-    if (!sourceLanguage) {
-      sourceLanguage = await redisClient.get(`${originCallId}:sourceLanguage`);
-    }
-    if (!targetLanguage) {
-      targetLanguage = await redisClient.get(`${originCallId}:targetLanguage`);
-    }
-    if (!phone_number_id) {
-      phone_number_id = await redisClient.get(
-        `${originCallId}:phone_number_id`,
-      );
-    }
-    if (!interpreterCallType) {
-      interpreterCallType = settings.interpreterCallType || 'simultaneous';
-    }
-    if (fallbackEnabled === false && settings.enableFallback !== undefined) {
-      fallbackEnabled = Boolean(settings.enableFallback);
-    }
-    if (!fallbackNumber) {
-      fallbackNumber = settings.fallbackNumber;
-    }
-
-    logger.info(
-      `[CALL_INTERPRETERS_FROM_STATUS] Updated parameters for ${originCallId}: sourceLanguage=${sourceLanguage}, targetLanguage=${targetLanguage}, interpreterCallType=${interpreterCallType}, fallbackEnabled=${fallbackEnabled}, fallbackNumber=${fallbackNumber}, phone_number_id=${phone_number_id}`,
-    );
-  }
-
   if (!sourceLanguage || !targetLanguage || !phone_number_id) {
     logger.error(
-      `[CALL_INTERPRETERS_FROM_STATUS] Still missing required parameters for ${originCallId}. sourceLanguage=${sourceLanguage}, targetLanguage=${targetLanguage}, phone_number_id=${phone_number_id}`,
+      `[CALL_INTERPRETERS_FROM_STATUS] Missing required parameters for ${originCallId}. sourceLanguage=${sourceLanguage}, targetLanguage=${targetLanguage}, phone_number_id=${phone_number_id}`,
+    );
+
+    // If parameters are missing, try to fetch them directly (fallback)
+    logger.info(
+      `[CALL_INTERPRETERS_FROM_STATUS] Attempting to retrieve missing parameters directly from Redis for ${originCallId}`,
     );
 
     // List all Redis keys for this call to debug
@@ -2344,7 +2290,6 @@ async function callInterpretersFromStatusCallback(originCallId: string) {
       `${originCallId}:interpreterCallType`,
       `${originCallId}:fallbackEnabled`,
       `${originCallId}:fallbackNumber`,
-      `${originCallId}:settings`,
     ];
 
     for (const key of keyPatterns) {
@@ -2357,21 +2302,6 @@ async function callInterpretersFromStatusCallback(originCallId: string) {
         ', ',
       )}`,
     );
-
-    // Try to redirect to noAnswer if we can't get the required parameters
-    try {
-      await twilioClient.calls(originCallId).update({
-        url: `${TWILIO_WEBHOOK}/noAnswer?originCallId=${originCallId}`,
-        method: 'POST',
-      });
-      logger.info(
-        `[CALL_INTERPRETERS_FROM_STATUS] Redirected ${originCallId} to noAnswer due to missing parameters`,
-      );
-    } catch (error) {
-      logger.error(
-        `[CALL_INTERPRETERS_FROM_STATUS] Failed to redirect to noAnswer: ${error}`,
-      );
-    }
     return;
   }
 
@@ -2398,20 +2328,5 @@ async function callInterpretersFromStatusCallback(originCallId: string) {
     logger.error(
       `[CALL_INTERPRETERS_FROM_STATUS] Error calling interpreters for ${originCallId}: ${error}`,
     );
-
-    // If interpreter calling fails, try to redirect to noAnswer
-    try {
-      await twilioClient.calls(originCallId).update({
-        url: `${TWILIO_WEBHOOK}/noAnswer?originCallId=${originCallId}`,
-        method: 'POST',
-      });
-      logger.info(
-        `[CALL_INTERPRETERS_FROM_STATUS] Redirected ${originCallId} to noAnswer due to interpreter calling error`,
-      );
-    } catch (redirectError) {
-      logger.error(
-        `[CALL_INTERPRETERS_FROM_STATUS] Failed to redirect to noAnswer after interpreter error: ${redirectError}`,
-      );
-    }
   }
 }
