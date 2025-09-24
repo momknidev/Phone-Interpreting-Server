@@ -72,6 +72,15 @@ export const typeDefs = gql`
     thirdPartyNumberErrorMode: String
     defaultThirdPartyNumber: String
     skipThirdPartyNumber: Boolean
+    askForConfirmation: Boolean
+    thirdPartyConfirmationPromptText: String
+    thirdPartyConfirmationPromptFile: String
+    thirdPartyConfirmationPromptMode: String
+    thirdPartyConfirmationErrorText: String
+    thirdPartyConfirmationErrorFile: String
+    thirdPartyConfirmationErrorMode: String
+    requireCountryCode: Boolean
+    defaultCountryCode: String
     createdAt: String
     updatedAt: String
   }
@@ -140,6 +149,15 @@ export const typeDefs = gql`
     thirdPartyNumberErrorMode: String
     defaultThirdPartyNumber: String
     skipThirdPartyNumber: Boolean
+    askForConfirmation: Boolean
+    thirdPartyConfirmationPromptText: String
+    thirdPartyConfirmationPromptFile: Upload
+    thirdPartyConfirmationPromptMode: String
+    thirdPartyConfirmationErrorText: String
+    thirdPartyConfirmationErrorFile: Upload
+    thirdPartyConfirmationErrorMode: String
+    requireCountryCode: Boolean
+    defaultCountryCode: String
 
     enableFallback: Boolean
     fallbackNumber: String

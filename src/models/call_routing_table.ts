@@ -114,6 +114,20 @@ export const callRoutingSettings = pgTable('call_routing_settings', {
   defaultThirdPartyNumber: varchar('default_third_party_number'),
   skipThirdPartyNumber: boolean('skip_third_party_number').default(false),
   askForConfirmation: boolean('ask_for_confirmation').default(false),
+  thirdPartyConfirmationPromptText: text(
+    'third_party_confirmation_prompt_text',
+  ),
+  thirdPartyConfirmationPromptFile: text(
+    'third_party_confirmation_prompt_file',
+  ),
+  thirdPartyConfirmationPromptMode: text(
+    'third_party_confirmation_prompt_mode',
+  ),
+  thirdPartyConfirmationErrorText: text('third_party_confirmation_error_text'),
+  thirdPartyConfirmationErrorFile: text('third_party_confirmation_error_file'),
+  thirdPartyConfirmationErrorMode: text('third_party_confirmation_error_mode'),
+  requireCountryCode: boolean('require_country_code').default(false),
+  defaultCountryCode: varchar('default_country_code').default('+1'),
   //  <=============================>
 
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),

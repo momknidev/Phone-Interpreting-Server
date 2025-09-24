@@ -52,6 +52,8 @@ const resolvers = {
         callTypeErrorFile,
         thirdPartyNumberPromptFile,
         thirdPartyNumberErrorFile,
+        thirdPartyConfirmationPromptFile,
+        thirdPartyConfirmationErrorFile,
         ...rest
       } = input;
 
@@ -70,6 +72,8 @@ const resolvers = {
         callTypeErrorFile?: string;
         thirdPartyNumberPromptFile?: string;
         thirdPartyNumberErrorFile?: string;
+        thirdPartyConfirmationPromptFile?: string;
+        thirdPartyConfirmationErrorFile?: string;
       } = {};
 
       // Upload files and get URLs
@@ -88,6 +92,8 @@ const resolvers = {
         'callTypeErrorFile',
         'thirdPartyNumberPromptFile',
         'thirdPartyNumberErrorFile',
+        'thirdPartyConfirmationPromptFile',
+        'thirdPartyConfirmationErrorFile',
       ];
 
       for (const field of fileFields) {
