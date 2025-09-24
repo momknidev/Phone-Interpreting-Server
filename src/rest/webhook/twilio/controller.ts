@@ -816,9 +816,19 @@ export const requestThirdPartyNumber = convertMiddlewareToAsync(
     if (settings.thirdPartyNumberPromptMode === 'audio' && audioFile) {
       gather.play(audioFile);
     } else {
+      // Provide different default messages based on country code requirements
+      let defaultPrompt: string;
+      if (settings.requireCountryCode) {
+        defaultPrompt =
+          'Please enter the third party number with country code followed by hash.';
+      } else {
+        const defaultCountryCode = settings.defaultCountryCode || '+39';
+        defaultPrompt = `Please enter the third party number followed by hash. Country code ${defaultCountryCode} will be added automatically if not provided.`;
+      }
+
       gather.say(
         { language: settings.language || 'en-GB' },
-        phraseToSay || 'Please enter the third party number followed by hash.',
+        phraseToSay || defaultPrompt,
       );
     }
 
@@ -843,14 +853,46 @@ export const validateThirdPartyNumber = convertMiddlewareToAsync(
     );
     const uuid = await redisClient.get(`${originCallId}:uuid`);
 
-    // Validate phone number format (basic validation)
-    const phoneRegex = /^\+?[1-9]\d{1,14}$/;
+    // Validate phone number format based on requireCountryCode setting
+    let phoneRegex: RegExp;
+    let isValidNumber: boolean;
 
-    if (thirdPartyNumber && phoneRegex.test(thirdPartyNumber)) {
-      // Format the number if it doesn't start with +
-      const formattedNumber = thirdPartyNumber.startsWith('+')
-        ? thirdPartyNumber
-        : `+${thirdPartyNumber}`;
+    if (settings.requireCountryCode) {
+      // When country code is required, expect either +country or just digits (we'll add +)
+      phoneRegex = /^\+?[1-9]\d{1,14}$/;
+      isValidNumber = thirdPartyNumber && phoneRegex.test(thirdPartyNumber);
+    } else {
+      // When country code is not required, accept local numbers (without +) or international
+      // Local numbers can be 6-15 digits, international can start with +
+      const localPhoneRegex = /^[1-9]\d{5,14}$/; // Local number (6-15 digits, no +)
+      const internationalPhoneRegex = /^\+[1-9]\d{6,14}$/; // International with + (7-15 digits)
+
+      isValidNumber =
+        thirdPartyNumber &&
+        (localPhoneRegex.test(thirdPartyNumber) ||
+          internationalPhoneRegex.test(thirdPartyNumber));
+    }
+
+    if (isValidNumber) {
+      let formattedNumber: string;
+
+      // Handle country code logic based on requireCountryCode setting
+      if (settings.requireCountryCode) {
+        // User must provide country code - just add + if not present
+        formattedNumber = thirdPartyNumber.startsWith('+')
+          ? thirdPartyNumber
+          : `+${thirdPartyNumber}`;
+      } else {
+        // Use defaultCountryCode if user didn't provide country code
+        if (thirdPartyNumber.startsWith('+')) {
+          // User provided country code despite not being required - use as is
+          formattedNumber = thirdPartyNumber;
+        } else {
+          // Append default country code to the number
+          const defaultCountryCode = settings.defaultCountryCode || '+39';
+          formattedNumber = `${defaultCountryCode}${thirdPartyNumber}`;
+        }
+      }
 
       await redisClient.set(
         `${originCallId}:thirdPartyNumber`,
