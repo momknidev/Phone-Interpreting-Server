@@ -18,6 +18,12 @@ export const callAlgorithmEnum = pgEnum('call_algorithm', [
   'sequential',
 ]);
 
+export const sequenceOrderEnum = pgEnum('sequence_order', [
+  'a_to_z',
+  'z_to_a',
+  'random',
+]);
+
 export const callRoutingSettings = pgTable('call_routing_settings', {
   id: uuid('id').notNull().primaryKey(),
   client_id: uuid('client_id').notNull(),
@@ -61,6 +67,7 @@ export const callRoutingSettings = pgTable('call_routing_settings', {
   interpreterCallType: callAlgorithmEnum('interpreter_call_type').default(
     'simultaneous',
   ),
+  sequenceOrder: sequenceOrderEnum('sequence_order').default('random'),
   retryAttempts: integer('retry_attempts').default(0),
   inputAttemptsCount: integer('input_attempts').default(3),
   inputAttemptsMode: text('input_attempts_mode').default('text'),

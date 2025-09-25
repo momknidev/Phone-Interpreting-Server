@@ -1546,15 +1546,47 @@ async function callInterpretersSequentially(
 ) {
   // logger.info(`Calling ${interpreters.length} interpreters sequentially`);
 
-  // Randomly shuffle interpreters array
-  const shuffledInterpreters = [...interpreters].sort(
-    () => Math.random() - 0.5,
+  // Get sequence order from settings
+  const settings = JSON.parse(
+    (await redisClient.get(`${originCallId}:settings`)) || '{}',
   );
+  const sequenceOrder = settings.sequenceOrder || 'a_to_z';
+
+  // Sort interpreters based on sequence order
+  let sortedInterpreters = [...interpreters];
+
+  switch (sequenceOrder) {
+    case 'a_to_z':
+      // Sort by priority ascending (1, 2, 3, 4, 5), then by name A-Z
+      sortedInterpreters = sortedInterpreters.sort((a, b) => {
+        if (a.priority !== b.priority) {
+          return a.priority - b.priority;
+        }
+        return (a.first_name || '').localeCompare(b.first_name || '');
+      });
+      break;
+
+    case 'z_to_a':
+      // Sort by priority descending (5, 4, 3, 2, 1), then by name Z-A
+      sortedInterpreters = sortedInterpreters.sort((a, b) => {
+        if (a.priority !== b.priority) {
+          return b.priority - a.priority;
+        }
+        return (b.first_name || '').localeCompare(a.first_name || '');
+      });
+      break;
+
+    case 'random':
+    default:
+      // Randomly shuffle interpreters array
+      sortedInterpreters = sortedInterpreters.sort(() => Math.random() - 0.5);
+      break;
+  }
 
   // Store all interpreters in Redis queue for sequential processing
   await redisClient.del(`${originCallId}:queue`);
 
-  for (const interpreter of shuffledInterpreters) {
+  for (const interpreter of sortedInterpreters) {
     await redisClient.rPush(
       `${originCallId}:queue`,
       JSON.stringify({

@@ -7,6 +7,12 @@ export const typeDefs = gql`
     sequential
   }
 
+  enum SequenceOrder {
+    a_to_z
+    z_to_a
+    random
+  }
+
   type CallRoutingSettings {
     id: ID!
     client_id: ID!
@@ -37,6 +43,7 @@ export const typeDefs = gql`
     targetLanguagePromptFile: String
     targetLanguagePromptMode: String
     interpreterCallType: CallAlgorithm
+    sequenceOrder: SequenceOrder
     retryAttempts: Int
     inputAttemptsCount: Int
     inputAttemptsMode: String
@@ -120,6 +127,7 @@ export const typeDefs = gql`
     creditErrorFile: Upload
     creditErrorMode: String
     interpreterCallType: CallAlgorithm
+    sequenceOrder: SequenceOrder
     retryAttempts: Int
     inputAttemptsCount: Int
     inputAttemptsMode: String
