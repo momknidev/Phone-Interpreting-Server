@@ -79,6 +79,9 @@ export const typeDefs = gql`
     thirdPartyConfirmationErrorText: String
     thirdPartyConfirmationErrorFile: String
     thirdPartyConfirmationErrorMode: String
+    promptForConfirmationText: String
+    promptForConfirmationFile: String
+    promptForConfirmationMode: String
     requireCountryCode: Boolean
     defaultCountryCode: String
     createdAt: String
@@ -156,6 +159,9 @@ export const typeDefs = gql`
     thirdPartyConfirmationErrorText: String
     thirdPartyConfirmationErrorFile: Upload
     thirdPartyConfirmationErrorMode: String
+    promptForConfirmationText: String
+    promptForConfirmationFile: Upload
+    promptForConfirmationMode: String
     requireCountryCode: Boolean
     defaultCountryCode: String
 

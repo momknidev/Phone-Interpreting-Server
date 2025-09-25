@@ -126,6 +126,11 @@ export const callRoutingSettings = pgTable('call_routing_settings', {
   thirdPartyConfirmationErrorFile: text('third_party_confirmation_error_file'),
   thirdPartyConfirmationErrorMode: text('third_party_confirmation_error_mode'),
   askForConfirmation: boolean('ask_for_confirmation').default(false),
+  promptForConfirmationText: text('prompt_for_confirmation_text').default(
+    'Per favore conferma il numero inserito',
+  ),
+  promptForConfirmationFile: text('prompt_for_confirmation_file'),
+  promptForConfirmationMode: text('prompt_for_confirmation_mode'),
   requireCountryCode: boolean('require_country_code').default(false),
   defaultCountryCode: varchar('default_country_code').default('+39'),
   //  <=============================>

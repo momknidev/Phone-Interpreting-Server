@@ -960,16 +960,16 @@ export const confirmThirdPartyNumber = convertMiddlewareToAsync(
           action: `./validateThirdPartyConfirmation?originCallId=${originCallId}`,
         });
 
-        // Check if there's a custom confirmation prompt
+        // Check if there's a custom promptForConfirmation configured
         if (
-          settings.thirdPartyConfirmationPromptMode === 'audio' &&
-          settings.thirdPartyConfirmationPromptFile
+          settings.promptForConfirmationMode === 'audio' &&
+          settings.promptForConfirmationFile
         ) {
-          gather.play(settings.thirdPartyConfirmationPromptFile);
+          gather.play(settings.promptForConfirmationFile);
         } else {
           const confirmationPrompt =
-            settings.thirdPartyConfirmationPromptText ||
-            'Press 1 to confirm this number';
+            settings.promptForConfirmationText ||
+            'Press 1 to confirm this number, or press 0 to enter a different number';
           gather.say({ language }, confirmationPrompt);
         }
 
@@ -1009,8 +1009,11 @@ export const validateThirdPartyConfirmation = convertMiddlewareToAsync(
     if (confirmationInput === '1') {
       // User confirmed, proceed to source language selection
       twiml.redirect(`./requestSourceLanguage?originCallId=${originCallId}`);
+    } else if (confirmationInput === '0') {
+      // User wants to enter a different number, redirect back to request third party number
+      twiml.redirect(`./requestThirdPartyNumber?originCallId=${originCallId}`);
     } else {
-      // User didn't confirm or pressed wrong digit, redirect back to request third party number
+      // User pressed wrong digit, redirect back to confirmation
       const language = settings.language || 'en-GB';
 
       // Play error message if configured
@@ -1022,12 +1025,12 @@ export const validateThirdPartyConfirmation = convertMiddlewareToAsync(
       } else {
         const errorMessage =
           settings.thirdPartyConfirmationErrorText ||
-          'Number not confirmed. Please enter the third party number again.';
+          'Invalid input. Please press 1 to confirm or 0 to enter a different number.';
         twiml.say({ language }, errorMessage);
       }
 
-      // Redirect back to request third party number
-      twiml.redirect(`./requestThirdPartyNumber?originCallId=${originCallId}`);
+      // Redirect back to confirmation
+      twiml.redirect(`./confirmThirdPartyNumber?originCallId=${originCallId}`);
     }
 
     res.type('text/xml').send(twiml.toString());
