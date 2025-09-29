@@ -42,6 +42,28 @@ const typeDefs = gql`
     filteredCount: Int
     callReports: [CallReports]
   }
+  type CallStatistics {
+    completed: Int!
+    notCompleted: Int!
+    inProgress: Int!
+    total: Int!
+  }
+
+  type MonthlyCallData {
+    month: String!
+    totalCalls: Int!
+    completed: Int!
+    notCompleted: Int!
+  }
+
+  type GeneralStatistics {
+    callsLastMonth: Int!
+    medianCallsPerMonth: Float!
+    totalCalls: Int!
+    averageResponseTime: Float!
+    averageCallDuration: Float!
+  }
+
   type Query {
     allPhoneMediation: [CallReports]
     phoneMediationByID(id: ID, phone_number_id: ID): CallReports
@@ -53,6 +75,15 @@ const typeDefs = gql`
       search: String
       phone_number_id: ID!
     ): PhoneMediationPaginatedList
+    getCallStatistics(year: String!, phone_number_id: ID!): CallStatistics!
+    getMonthlyCallStatistics(
+      year: String!
+      phone_number_id: ID!
+    ): [MonthlyCallData!]!
+    getGeneralCallStatistics(
+      year: String!
+      phone_number_id: ID!
+    ): GeneralStatistics!
   }
 
   type Mutation {

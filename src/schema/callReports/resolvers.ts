@@ -151,6 +151,209 @@ const resolvers = {
       }
     },
 
+    getCallStatistics: async (
+      _: any,
+      { year, phone_number_id }: { year: string; phone_number_id: string },
+      context: any,
+    ) => {
+      if (!context?.user) throw new AuthenticationError('Unauthenticated');
+      try {
+        const startDate = new Date(`${year}-01-01`);
+        const endDate = new Date(`${year}-12-31`);
+
+        // Get all calls for the year with their status
+        const calls = await db
+          .select({
+            status: CallReports.status,
+          })
+          .from(CallReports)
+          .where(
+            and(
+              eq(CallReports.phone_number_id, phone_number_id),
+              sql`call_date >= ${startDate.toISOString()}::timestamp`,
+              sql`call_date <= ${endDate.toISOString()}::timestamp`,
+            ),
+          );
+
+        // Process results using JavaScript
+        const stats = calls.reduce(
+          (acc, call) => {
+            acc.total++;
+            if (!call.status) {
+              acc.inProgress++;
+            } else if (call.status === 'Completed') {
+              acc.completed++;
+            } else {
+              acc.notCompleted++;
+            }
+            return acc;
+          },
+          { completed: 0, notCompleted: 0, inProgress: 0, total: 0 },
+        );
+        logger.info('Stats: ', JSON.stringify(stats, null, 1));
+        return stats;
+      } catch (error: any) {
+        logger.error('Error in getCallStatistics:', error);
+        throw new Error('Failed to fetch call statistics');
+      }
+    },
+
+    getMonthlyCallStatistics: async (
+      _: any,
+      { year, phone_number_id }: { year: string; phone_number_id: string },
+      context: any,
+    ) => {
+      if (!context?.user) throw new AuthenticationError('Unauthenticated');
+      try {
+        const startDate = new Date(`${year}-01-01`);
+        const endDate = new Date(`${year}-12-31`);
+
+        // Get monthly data from database
+        const monthlyData = await db
+          .select({
+            month: sql<string>`to_char(call_date, 'Mon')`,
+            monthNum: sql<number>`extract(month from call_date)`,
+            status: CallReports.status,
+          })
+          .from(CallReports)
+          .where(
+            and(
+              eq(CallReports.phone_number_id, phone_number_id),
+              sql`call_date >= ${startDate.toISOString()}::timestamp`,
+              sql`call_date <= ${endDate.toISOString()}::timestamp`,
+            ),
+          );
+
+        // Process data using JavaScript
+        const monthsMap = new Map();
+        const months = [
+          'Jan',
+          'Feb',
+          'Mar',
+          'Apr',
+          'May',
+          'Jun',
+          'Jul',
+          'Aug',
+          'Sep',
+          'Oct',
+          'Nov',
+          'Dec',
+        ];
+
+        // Initialize all months
+        months.forEach((month) => {
+          monthsMap.set(month, {
+            month,
+            totalCalls: 0,
+            completed: 0,
+            notCompleted: 0,
+          });
+        });
+
+        // Fill in actual data
+        monthlyData.forEach((call) => {
+          const monthData = monthsMap.get(call.month);
+          monthData.totalCalls++;
+          if (call.status === 'Completed') {
+            monthData.completed++;
+          } else {
+            monthData.notCompleted++;
+          }
+        });
+
+        return Array.from(monthsMap.values());
+      } catch (error: any) {
+        logger.error('Error in getMonthlyCallStatistics:', error);
+        throw new Error('Failed to fetch monthly call statistics');
+      }
+    },
+
+    getGeneralCallStatistics: async (
+      _: any,
+      { year, phone_number_id }: { year: string; phone_number_id: string },
+      context: any,
+    ) => {
+      if (!context?.user) throw new AuthenticationError('Unauthenticated');
+      try {
+        const startDate = new Date(`${year}-01-01`);
+        const endDate = new Date(`${year}-12-31`);
+        const today = new Date();
+        const lastMonthStart = new Date(
+          today.getFullYear(),
+          today.getMonth() - 1,
+          1,
+        );
+        const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+
+        // Get last month's calls
+        const lastMonthCalls = await db
+          .select({
+            count: sql<number>`count(*)`,
+          })
+          .from(CallReports)
+          .where(
+            and(
+              eq(CallReports.phone_number_id, phone_number_id),
+              sql`call_date >= ${lastMonthStart.toISOString()}::timestamp`,
+              sql`call_date <= ${lastMonthEnd.toISOString()}::timestamp`,
+            ),
+          );
+
+        // Get monthly counts for median calculation
+        const monthlyCallCounts = await db
+          .select({
+            month: sql<string>`date_trunc('month', call_date)`,
+            count: sql<number>`count(*)`,
+          })
+          .from(CallReports)
+          .where(
+            and(
+              eq(CallReports.phone_number_id, phone_number_id),
+              sql`call_date >= ${startDate.toISOString()}::timestamp`,
+              sql`call_date <= ${endDate.toISOString()}::timestamp`,
+            ),
+          )
+          .groupBy(sql`date_trunc('month', call_date)`);
+
+        // Calculate median using JavaScript
+        const counts = monthlyCallCounts
+          .map((m) => m.count)
+          .sort((a, b) => a - b);
+        const median =
+          counts.length % 2 === 0
+            ? (counts[counts.length / 2 - 1] + counts[counts.length / 2]) / 2
+            : counts[Math.floor(counts.length / 2)] || 0;
+
+        // Get general statistics
+        const stats = await db
+          .select({
+            totalCalls: sql<number>`count(*)`,
+            avgResponseTime: sql<number>`avg(response_time)`,
+            avgDuration: sql<number>`avg(call_duration)`,
+          })
+          .from(CallReports)
+          .where(
+            and(
+              eq(CallReports.phone_number_id, phone_number_id),
+              sql`call_date >= ${startDate.toISOString()}::timestamp`,
+              sql`call_date <= ${endDate.toISOString()}::timestamp`,
+            ),
+          );
+
+        return {
+          callsLastMonth: Number(lastMonthCalls[0]?.count || 0),
+          medianCallsPerMonth: Number(median || 0),
+          totalCalls: Number(stats[0]?.totalCalls || 0),
+          averageResponseTime: Number(stats[0]?.avgResponseTime || 0),
+          averageCallDuration: Number(stats[0]?.avgDuration || 0),
+        };
+      } catch (error: any) {
+        logger.error('Error in getGeneralCallStatistics:', error);
+        throw new Error('Failed to fetch general call statistics');
+      }
+    },
+
     phoneMediationByID: async (
       _: any,
       { id, phone_number_id }: { id?: string; phone_number_id?: string },
