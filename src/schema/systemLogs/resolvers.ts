@@ -1,5 +1,5 @@
 import { and, desc, eq, ilike, sql } from 'drizzle-orm';
-import { systemLogs } from '../../models/system_logs';
+import { systemLogs } from '../../models/system_logs_table';
 import { db } from '../../config/postgres';
 
 export const systemLogsResolvers = {

@@ -16,6 +16,7 @@ import {
   emailHeader,
   newPhoneRequest,
 } from '../../mail_templates';
+import { createSystemLog, getClientInfo } from '../../utils/systemLogger';
 
 interface ClientDetails {
   email: string;
@@ -411,8 +412,30 @@ const resolvers = {
           });
           await db.insert(callRoutingSettings).values(settings);
         }
-        if (result) {
-          console.log(JSON.stringify(result));
+        if (result && result[0]) {
+          // Log the creation
+          const clientInfo = getClientInfo(context);
+          await createSystemLog({
+            action: 'CREATE',
+            client_id: context.user.id,
+            phone_number_id: result[0].phone || '',
+            ip: clientInfo.ip,
+            browser: clientInfo.browser,
+            changes: {
+              id: result[0].id,
+              email: { new: result[0].email },
+              first_name: result[0].first_name
+                ? { new: result[0].first_name }
+                : undefined,
+              last_name: result[0].last_name
+                ? { new: result[0].last_name }
+                : undefined,
+              phone: result[0].phone ? { new: result[0].phone } : undefined,
+              type: result[0].type ? { new: result[0].type } : undefined,
+              role: result[0].role ? { new: result[0].role } : undefined,
+            },
+            description: `Created new client ${result[0].email}`,
+          });
           return result[0];
         } else {
           throw new Error('ClientUser creation failed. No result returned.');
@@ -549,6 +572,58 @@ const resolvers = {
         }
 
         if (updatedUser) {
+          // Log the update
+          const clientInfo = getClientInfo(context);
+          const changes: {
+            id: string;
+            email?: { old: string; new: string };
+            first_name?: { old: string | null; new: string | null };
+            last_name?: { old: string | null; new: string | null };
+            phone?: { old: string | null; new: string | null };
+            type?: { old: string | null; new: string | null };
+            role?: { old: string | null; new: string | null };
+          } = {
+            id: updatedUser.id,
+            ...(updatedUser.email !== existingUser.email
+              ? { email: { old: existingUser.email, new: updatedUser.email } }
+              : {}),
+            ...(updatedUser.first_name !== existingUser.first_name
+              ? {
+                  first_name: {
+                    old: existingUser.first_name,
+                    new: updatedUser.first_name,
+                  },
+                }
+              : {}),
+            ...(updatedUser.last_name !== existingUser.last_name
+              ? {
+                  last_name: {
+                    old: existingUser.last_name,
+                    new: updatedUser.last_name,
+                  },
+                }
+              : {}),
+            ...(updatedUser.phone !== existingUser.phone
+              ? { phone: { old: existingUser.phone, new: updatedUser.phone } }
+              : {}),
+            ...(updatedUser.type !== existingUser.type
+              ? { type: { old: existingUser.type, new: updatedUser.type } }
+              : {}),
+            ...(updatedUser.role !== existingUser.role
+              ? { role: { old: existingUser.role, new: updatedUser.role } }
+              : {}),
+          };
+
+          await createSystemLog({
+            action: 'UPDATE',
+            client_id: context.user.id,
+            phone_number_id: updatedUser.phone || '',
+            ip: clientInfo.ip,
+            browser: clientInfo.browser,
+            changes,
+            description: `Updated client ${updatedUser.email}`,
+          });
+
           const token = generateToken(updatedUser);
           return { ...updatedUser, token };
         } else {

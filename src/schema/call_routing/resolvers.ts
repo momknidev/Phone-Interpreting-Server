@@ -2,9 +2,11 @@ import { eq } from 'drizzle-orm';
 import { db } from '../../config/postgres';
 import { AuthenticationError, UserInputError } from 'apollo-server';
 import uuidv4 from '../../utils/uuidv4';
-import { callRoutingSettings } from '../../models';
+import { callRoutingSettings, clientPhones } from '../../models';
+import { createSystemLog, getClientInfo } from '../../utils/systemLogger';
 // import { uploadObjectToS3 } from '../../utils/s3Uploader';
 import { uploadObjectToS3 } from '../../utils/uploadObjectToS3';
+import { logger } from '../../config/logger';
 
 const bucketName = process.env.AWS_S3_BUCKET_NAME;
 const resolvers = {
@@ -165,9 +167,44 @@ const resolvers = {
             .where(
               eq(callRoutingSettings.phone_number_id, input.phone_number_id),
             );
-          console.log('Input: ', input);
-          console.log('BaseData: ', baseData);
-          console.log('Updated Call Routing Settings: ', updated[0]);
+
+          // Create system log for update
+          const clientInfo = getClientInfo(context);
+          const previous = existing[0] as Record<string, any>;
+          const current = updated[0] as Record<string, any>;
+          const changes: Record<string, any> = { id: current.id };
+
+          Object.keys(current).forEach((key) => {
+            if (
+              key !== 'updatedAt' &&
+              key !== 'createdAt' && // Optionally skip fields like updatedAt
+              previous[key] !== current[key]
+            ) {
+              changes[key] = {
+                old: previous[key],
+                new: current[key],
+              };
+            }
+          });
+
+          // Remove id if it's the only field (no actual changes)
+          if (Object.keys(changes).length === 1) delete changes.id;
+          const existingPhone = await db.query.clientPhones.findFirst({
+            where: eq(clientPhones.id, input.phone_number_id),
+          });
+
+          await createSystemLog({
+            action: 'UPDATE',
+            client_id: context.user.id,
+            phone_number_id: input.phone_number_id,
+            ip: clientInfo.ip,
+            browser: clientInfo.browser,
+            changes,
+            description: `Updated call routing settings for phone number ${
+              existingPhone?.phone ?? input.phone_number_id
+            }`,
+          });
+
           return updated[0];
         } catch (error) {
           throw error;
@@ -179,11 +216,26 @@ const resolvers = {
             ...baseData,
             createdAt: new Date(),
           };
-          let res = await db
+          const [inserted] = await db
             .insert(callRoutingSettings)
             .values(record)
             .returning();
-          return record;
+
+          // Create system log for creation
+          const clientInfo = getClientInfo(context);
+          await createSystemLog({
+            action: 'CREATE',
+            client_id: context.user.id,
+            phone_number_id: input.phone_number_id,
+            ip: clientInfo.ip,
+            browser: clientInfo.browser,
+            changes: {
+              created: inserted,
+            },
+            description: `Created new call routing settings for phone number ${input.phone_number_id}`,
+          });
+
+          return inserted;
         } catch (error) {
           throw error;
         }
@@ -206,6 +258,20 @@ const resolvers = {
         .where(eq(callRoutingSettings.client_id, client_id));
 
       if (!existing.length) throw new UserInputError('Settings not found');
+
+      // Create system log for deletion
+      const clientInfo = getClientInfo(context);
+      await createSystemLog({
+        action: 'DELETE',
+        client_id,
+        phone_number_id,
+        ip: clientInfo.ip,
+        browser: clientInfo.browser,
+        changes: {
+          deleted: existing[0],
+        },
+        description: `Deleted call routing settings for client ${client_id} and phone number ${phone_number_id}`,
+      });
 
       await db
         .delete(callRoutingSettings)

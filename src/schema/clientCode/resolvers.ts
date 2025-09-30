@@ -4,6 +4,7 @@ import { db } from '../../config/postgres';
 import uuidv4 from '../../utils/uuidv4';
 import { ClientCode } from '../../models'; // Assuming ClientCode model exists
 import { logger } from '../../config/logger';
+import { createSystemLog, getClientInfo } from '../../utils/systemLogger';
 
 const resolvers = {
   Query: {
@@ -178,13 +179,31 @@ const resolvers = {
           updated_at: new Date(),
         };
 
-        const result = await db
+        const [created] = await db
           .insert(ClientCode)
           .values(userCodeData)
           .returning();
 
-        if (result && result[0]) {
-          return result[0];
+        if (created) {
+          // Log the creation with new values
+          const clientInfo = getClientInfo(context);
+          await createSystemLog({
+            action: 'CREATE',
+            client_id: context.user.id,
+            phone_number_id: input.phone_number_id,
+            ip: clientInfo.ip,
+            browser: clientInfo.browser,
+            changes: {
+              id: created.id,
+              client_code: { new: created.client_code },
+              code_label: { new: created.code_label },
+              status: { new: created.status },
+              credits: { new: created.credits },
+            },
+            description: `Created new client code ${input.client_code} with label ${input.code_label}`,
+          });
+
+          return created;
         } else {
           throw new Error('ClientCode creation failed.');
         }
@@ -255,6 +274,49 @@ const resolvers = {
           .from(ClientCode)
           .where(eq(ClientCode.id, id));
 
+        // Log the update with specific field changes
+        const clientInfo = getClientInfo(context);
+        const changes = {
+          id: updatedUserCode[0].id,
+          client_code:
+            userCode[0].client_code !== updatedUserCode[0].client_code
+              ? {
+                  old: userCode[0].client_code,
+                  new: updatedUserCode[0].client_code,
+                }
+              : undefined,
+          code_label:
+            userCode[0].code_label !== updatedUserCode[0].code_label
+              ? {
+                  old: userCode[0].code_label,
+                  new: updatedUserCode[0].code_label,
+                }
+              : undefined,
+          status:
+            userCode[0].status !== updatedUserCode[0].status
+              ? { old: userCode[0].status, new: updatedUserCode[0].status }
+              : undefined,
+          credits:
+            userCode[0].credits !== updatedUserCode[0].credits
+              ? { old: userCode[0].credits, new: updatedUserCode[0].credits }
+              : undefined,
+        };
+
+        // Remove undefined fields
+        (Object.keys(changes) as (keyof typeof changes)[]).forEach(
+          (key) => changes[key] === undefined && delete changes[key],
+        );
+
+        await createSystemLog({
+          action: 'UPDATE',
+          client_id: context.user.id,
+          phone_number_id: updatedUserCode[0].phone_number_id,
+          ip: clientInfo.ip,
+          browser: clientInfo.browser,
+          changes,
+          description: `Updated client code ${updatedUserCode[0].client_code}`,
+        });
+
         return updatedUserCode[0];
       } catch (error: any) {
         console.error('Error updating ClientCode:', error.message);
@@ -281,6 +343,20 @@ const resolvers = {
         if (!userCode.length) {
           throw new UserInputError('ClientCode not found');
         }
+
+        // Log the deletion
+        const clientInfo = getClientInfo(context);
+        await createSystemLog({
+          action: 'DELETE',
+          client_id: context.user.id,
+          phone_number_id: userCode[0].phone_number_id,
+          ip: clientInfo.ip,
+          browser: clientInfo.browser,
+          changes: {
+            id: userCode[0].id,
+          },
+          description: `Deleted client code ${userCode[0].client_code}`,
+        });
 
         await db.delete(ClientCode).where(eq(ClientCode.id, id));
         return true;
@@ -331,6 +407,21 @@ const resolvers = {
           .select()
           .from(ClientCode)
           .where(eq(ClientCode.id, id));
+
+        // Log the status change
+        const clientInfo = getClientInfo(context);
+        await createSystemLog({
+          action: 'UPDATE',
+          client_id: context.user.id,
+          phone_number_id: userCode[0].phone_number_id,
+          ip: clientInfo.ip,
+          browser: clientInfo.browser,
+          changes: {
+            id: updatedUserCode[0].id,
+            status: { old: userCode[0].status, new: status },
+          },
+          description: `Changed client code ${userCode[0].client_code} status to ${status}`,
+        });
 
         return updatedUserCode[0];
       } catch (error: any) {

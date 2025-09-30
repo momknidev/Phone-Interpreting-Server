@@ -3,6 +3,8 @@ import { AuthenticationError, UserInputError } from 'apollo-server';
 import { db } from '../../config/postgres';
 import uuidv4 from '../../utils/uuidv4';
 import { Languages, LanguagesTarget } from '../../models'; // Assuming Languages model exists in models folder
+import { createSystemLog, getClientInfo } from '../../utils/systemLogger';
+import { logger } from '../../config/logger';
 
 const resolvers = {
   Query: {
@@ -26,6 +28,7 @@ const resolvers = {
       context: any,
     ) => {
       try {
+        // logger.info(`"Context",${JSON.stringify(context)}\n`);
         let query = db.select().from(Languages);
         const filters = [];
         filters.push(eq(Languages.client_id, context?.user?.id));
@@ -224,14 +227,30 @@ const resolvers = {
           phone_number_id: input.phone_number_id,
         };
 
-        console.log('Creating Languages with data:', languageData);
-        const result = await db
+        const [created] = await db
           .insert(Languages)
           .values(languageData)
           .returning();
 
-        if (result && result[0]) {
-          return result[0];
+        if (created) {
+          // Log source language creation
+          const clientInfo = getClientInfo(context);
+          await createSystemLog({
+            action: 'CREATE',
+            client_id: context.user.id,
+            phone_number_id: input.phone_number_id,
+            ip: clientInfo.ip,
+            browser: clientInfo.browser,
+            changes: {
+              id: created.id,
+              language_code: { new: created.language_code },
+              language_name: { new: created.language_name },
+              client_id: { new: created.client_id },
+              phone_number_id: { new: created.phone_number_id },
+            },
+            description: `Created new source language ${input.language_name} (${input.language_code})`,
+          });
+          return created;
         } else {
           throw new Error('Language creation failed. No result returned.');
         }
@@ -287,7 +306,41 @@ const resolvers = {
           .where(eq(Languages.id, id));
         const updatedLanguage = updatedLanguages[0];
 
+        // Log the update with specific field changes
+        const clientInfo = getClientInfo(context);
+        const changes = {
+          id: updatedLanguage?.id,
+          language_code:
+            existingLanguage.language_code !== updatedLanguage?.language_code
+              ? {
+                  old: existingLanguage.language_code,
+                  new: updatedLanguage?.language_code,
+                }
+              : undefined,
+          language_name:
+            existingLanguage.language_name !== updatedLanguage?.language_name
+              ? {
+                  old: existingLanguage.language_name,
+                  new: updatedLanguage?.language_name,
+                }
+              : undefined,
+        };
+
+        // Remove undefined fields
+        (Object.keys(changes) as (keyof typeof changes)[]).forEach(
+          (key) => changes[key] === undefined && delete changes[key],
+        );
+
         if (updatedLanguage) {
+          await createSystemLog({
+            action: 'UPDATE',
+            client_id: context.user.id,
+            phone_number_id: existingLanguage.phone_number_id,
+            ip: clientInfo.ip,
+            browser: clientInfo.browser,
+            changes,
+            description: `Updated source language ${updatedLanguage.language_name} (${updatedLanguage.language_code})`,
+          });
           return updatedLanguage;
         } else {
           throw new Error(
@@ -321,6 +374,20 @@ const resolvers = {
         if (!languages[0]) {
           throw new UserInputError('Language not found');
         }
+
+        // Log source language deletion
+        const clientInfo = getClientInfo(context);
+        await createSystemLog({
+          action: 'DELETE',
+          client_id: context.user.id,
+          phone_number_id: languages[0].phone_number_id,
+          ip: clientInfo.ip,
+          browser: clientInfo.browser,
+          changes: {
+            deleted: languages[0],
+          },
+          description: `Deleted source language ${languages[0].language_name} (${languages[0].language_code})`,
+        });
 
         // Delete the Languages
         await db.delete(Languages).where(eq(Languages.id, id));
@@ -361,13 +428,30 @@ const resolvers = {
         };
 
         console.log('Creating Languages with data:', languageData);
-        const result = await db
+        const [created] = await db
           .insert(LanguagesTarget)
           .values(languageData)
           .returning();
 
-        if (result && result[0]) {
-          return result[0];
+        if (created) {
+          // Log target language creation
+          const clientInfo = getClientInfo(context);
+          await createSystemLog({
+            action: 'CREATE',
+            client_id: context.user.id,
+            phone_number_id: input.phone_number_id,
+            ip: clientInfo.ip,
+            browser: clientInfo.browser,
+            changes: {
+              id: created.id,
+              language_code: { new: created.language_code },
+              language_name: { new: created.language_name },
+              client_id: { new: created.client_id },
+              phone_number_id: { new: created.phone_number_id },
+            },
+            description: `Created new target language ${input.language_name} (${input.language_code})`,
+          });
+          return created;
         } else {
           throw new Error('Language creation failed. No result returned.');
         }
@@ -422,14 +506,48 @@ const resolvers = {
           .set(updatedData)
           .where(eq(LanguagesTarget.id, id));
 
-        // Fetch the updated sourceLanguages details
+        // Fetch the updated target language details
         const updatedLanguages = await db
           .select()
           .from(LanguagesTarget)
           .where(eq(LanguagesTarget.id, id));
         const updatedLanguage = updatedLanguages[0];
 
+        // Log the update with specific field changes
+        const clientInfo = getClientInfo(context);
+        const changes = {
+          id: updatedLanguage?.id,
+          language_code:
+            existingLanguage.language_code !== updatedLanguage?.language_code
+              ? {
+                  old: existingLanguage.language_code,
+                  new: updatedLanguage?.language_code,
+                }
+              : undefined,
+          language_name:
+            existingLanguage.language_name !== updatedLanguage?.language_name
+              ? {
+                  old: existingLanguage.language_name,
+                  new: updatedLanguage?.language_name,
+                }
+              : undefined,
+        };
+
+        // Remove undefined fields
+        (Object.keys(changes) as (keyof typeof changes)[]).forEach(
+          (key) => changes[key] === undefined && delete changes[key],
+        );
+
         if (updatedLanguage) {
+          await createSystemLog({
+            action: 'UPDATE',
+            client_id: context.user.id,
+            phone_number_id: existingLanguage.phone_number_id,
+            ip: clientInfo.ip,
+            browser: clientInfo.browser,
+            changes,
+            description: `Updated target language ${updatedLanguage.language_name} (${updatedLanguage.language_code})`,
+          });
           return updatedLanguage;
         } else {
           throw new Error(
@@ -465,6 +583,20 @@ const resolvers = {
         if (!languages[0]) {
           throw new UserInputError('Language not found');
         }
+
+        // Log target language deletion
+        const clientInfo = getClientInfo(context);
+        await createSystemLog({
+          action: 'DELETE',
+          client_id: context.user.id,
+          phone_number_id: languages[0].phone_number_id,
+          ip: clientInfo.ip,
+          browser: clientInfo.browser,
+          changes: {
+            deleted: languages[0],
+          },
+          description: `Deleted target language ${languages[0].language_name} (${languages[0].language_code})`,
+        });
 
         // Delete the sourceLanguages
         await db.delete(LanguagesTarget).where(eq(LanguagesTarget.id, id));
@@ -538,6 +670,21 @@ const resolvers = {
           }
         }
 
+        // Log the sync operation
+        const clientInfo = getClientInfo(context);
+        await createSystemLog({
+          action: 'UPDATE',
+          client_id: context.user.id,
+          phone_number_id,
+          ip: clientInfo.ip,
+          browser: clientInfo.browser,
+          changes: {
+            sourceLanguages,
+            syncType: 'source_to_target',
+          },
+          description: `Synced ${sourceLanguages.length} languages from source to target languages`,
+        });
+
         return 'Languages successfully synced from source to target.';
       } catch (error: any) {
         console.error('Error syncing languages:', error.message);
@@ -606,6 +753,21 @@ const resolvers = {
             });
           }
         }
+
+        // Log the sync operation
+        const clientInfo = getClientInfo(context);
+        await createSystemLog({
+          action: 'UPDATE',
+          client_id: context.user.id,
+          phone_number_id,
+          ip: clientInfo.ip,
+          browser: clientInfo.browser,
+          changes: {
+            targetLanguages,
+            syncType: 'target_to_source',
+          },
+          description: `Synced ${targetLanguages.length} languages from target to source languages`,
+        });
 
         return 'Languages successfully synced from target to source.';
       } catch (error: any) {

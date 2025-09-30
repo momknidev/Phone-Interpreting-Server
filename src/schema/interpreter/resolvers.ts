@@ -17,6 +17,7 @@ import { ReadStream } from 'node:fs';
 import * as xlsx from 'xlsx'; // For Excel file parsing
 import csvParser from 'csv-parser';
 import { logger } from '../../config/logger';
+import { createSystemLog, getClientInfo } from '../../utils/systemLogger';
 const streamToBuffer = (stream: ReadStream) =>
   new Promise<Buffer>((resolve, reject) => {
     const chunks: Buffer[] = [];
@@ -301,13 +302,39 @@ const resolvers = {
         }
         if (languagePairsTarget.length > 0) {
           // console.log({ languagePairsTarget })
-          await db
+          const [created] = await db
             .insert(interpreterTargetLanguages)
-            .values(languagePairsTarget);
-        }
+            .values(languagePairsTarget)
+            .returning();
 
-        if (result && result[0]) {
-          return result[0];
+          if (created) {
+            // Log the creation with new values
+            const clientInfo = getClientInfo(context);
+            await createSystemLog({
+              action: 'CREATE',
+              client_id: context.user.id,
+              phone_number_id: mediatorData.phone_number_id,
+              ip: clientInfo.ip,
+              browser: clientInfo.browser,
+              changes: {
+                id: created.id,
+                first_name: { new: mediatorEntry.first_name },
+                last_name: { new: mediatorEntry.last_name },
+                email: { new: mediatorEntry.email },
+                phone: { new: mediatorEntry.phone },
+                groups: { new: mediatorData.groupIDs || [] },
+                sourceLanguages: { new: mediatorData.sourceLanguages || [] },
+                targetLanguages: { new: mediatorData.targetLanguages || [] },
+                status: { new: mediatorEntry.status },
+                priority: { new: mediatorEntry.priority },
+              },
+              description: `Created new interpreter ${mediatorEntry.first_name} ${mediatorEntry.last_name}`,
+            });
+
+            return mediatorEntry;
+          } else {
+            throw new Error('Interpreter creation failed. No result returned.');
+          }
         } else {
           throw new Error('Interpreter creation failed. No result returned.');
         }
@@ -337,6 +364,16 @@ const resolvers = {
         if (!existingMediator) {
           throw new UserInputError('Interpreter not found');
         }
+
+        // Fetch existing sourceLanguages and targetLanguages IDs
+        const existingSourceLanguages = await db
+          .select({ id: interpreterSourceLanguages.source_language_id })
+          .from(interpreterSourceLanguages)
+          .where(eq(interpreterSourceLanguages.interpreter_id, id));
+        const existingTargetLanguages = await db
+          .select({ id: interpreterTargetLanguages.target_language_id })
+          .from(interpreterTargetLanguages)
+          .where(eq(interpreterTargetLanguages.interpreter_id, id));
 
         // Prepare the updated interpreter data
         const updatedData = {
@@ -465,6 +502,165 @@ const resolvers = {
         }
 
         if (updatedMediator) {
+          // Log the update with specific field changes
+          const clientInfo = getClientInfo(context);
+          const changes = {
+            id: updatedMediator.id,
+            first_name:
+              existingMediator.first_name !== updatedMediator.first_name
+                ? {
+                    old: existingMediator.first_name,
+                    new: updatedMediator.first_name,
+                  }
+                : undefined,
+            last_name:
+              existingMediator.last_name !== updatedMediator.last_name
+                ? {
+                    old: existingMediator.last_name,
+                    new: updatedMediator.last_name,
+                  }
+                : undefined,
+            email:
+              existingMediator.email !== updatedMediator.email
+                ? {
+                    old: existingMediator.email,
+                    new: updatedMediator.email,
+                  }
+                : undefined,
+            phone:
+              existingMediator.phone !== updatedMediator.phone
+                ? {
+                    old: existingMediator.phone,
+                    new: updatedMediator.phone,
+                  }
+                : undefined,
+            iban:
+              existingMediator.iban !== updatedMediator.iban
+                ? {
+                    old: existingMediator.iban,
+                    new: updatedMediator.iban,
+                  }
+                : undefined,
+            status:
+              existingMediator.status !== updatedMediator.status
+                ? {
+                    old: existingMediator.status,
+                    new: updatedMediator.status,
+                  }
+                : undefined,
+            priority:
+              existingMediator.priority !== updatedMediator.priority
+                ? {
+                    old: existingMediator.priority,
+                    new: updatedMediator.priority,
+                  }
+                : undefined,
+            availableForEmergencies:
+              existingMediator.availableForEmergencies !==
+              updatedMediator.availableForEmergencies
+                ? {
+                    old: existingMediator.availableForEmergencies,
+                    new: updatedMediator.availableForEmergencies,
+                  }
+                : undefined,
+            availableOnHolidays:
+              existingMediator.availableOnHolidays !==
+              updatedMediator.availableOnHolidays
+                ? {
+                    old: existingMediator.availableOnHolidays,
+                    new: updatedMediator.availableOnHolidays,
+                  }
+                : undefined,
+            monday_time_slots:
+              existingMediator.monday_time_slots !==
+              updatedMediator.monday_time_slots
+                ? {
+                    old: existingMediator.monday_time_slots,
+                    new: updatedMediator.monday_time_slots,
+                  }
+                : undefined,
+            tuesday_time_slots:
+              existingMediator.tuesday_time_slots !==
+              updatedMediator.tuesday_time_slots
+                ? {
+                    old: existingMediator.tuesday_time_slots,
+                    new: updatedMediator.tuesday_time_slots,
+                  }
+                : undefined,
+            wednesday_time_slots:
+              existingMediator.wednesday_time_slots !==
+              updatedMediator.wednesday_time_slots
+                ? {
+                    old: existingMediator.wednesday_time_slots,
+                    new: updatedMediator.wednesday_time_slots,
+                  }
+                : undefined,
+            thursday_time_slots:
+              existingMediator.thursday_time_slots !==
+              updatedMediator.thursday_time_slots
+                ? {
+                    old: existingMediator.thursday_time_slots,
+                    new: updatedMediator.thursday_time_slots,
+                  }
+                : undefined,
+            friday_time_slots:
+              existingMediator.friday_time_slots !==
+              updatedMediator.friday_time_slots
+                ? {
+                    old: existingMediator.friday_time_slots,
+                    new: updatedMediator.friday_time_slots,
+                  }
+                : undefined,
+            saturday_time_slots:
+              existingMediator.saturday_time_slots !==
+              updatedMediator.saturday_time_slots
+                ? {
+                    old: existingMediator.saturday_time_slots,
+                    new: updatedMediator.saturday_time_slots,
+                  }
+                : undefined,
+            sunday_time_slots:
+              existingMediator.sunday_time_slots !==
+              updatedMediator.sunday_time_slots
+                ? {
+                    old: existingMediator.sunday_time_slots,
+                    new: updatedMediator.sunday_time_slots,
+                  }
+                : undefined,
+            sourceLanguages: mediatorData.sourceLanguages
+              ? {
+                  old: existingSourceLanguages.map((l: any) => l.id),
+                  new: mediatorData.sourceLanguages,
+                }
+              : undefined,
+            targetLanguages: mediatorData.targetLanguages
+              ? {
+                  old: existingTargetLanguages.map((l: any) => l.id),
+                  new: mediatorData.targetLanguages,
+                }
+              : undefined,
+            groups: mediatorData.groupIDs
+              ? {
+                  old: undefined, // You can fetch previous group IDs if needed
+                  new: mediatorData.groupIDs,
+                }
+              : undefined,
+          };
+
+          // Remove undefined fields
+          (Object.keys(changes) as (keyof typeof changes)[]).forEach(
+            (key) => changes[key] === undefined && delete changes[key],
+          );
+
+          await createSystemLog({
+            action: 'UPDATE',
+            client_id: context.user.id,
+            phone_number_id: updatedMediator.phone_number_id,
+            ip: clientInfo.ip,
+            browser: clientInfo.browser,
+            changes,
+            description: `Updated interpreter ${updatedMediator.first_name} ${updatedMediator.last_name}`,
+          });
           return updatedMediator;
         } else {
           throw new Error(
@@ -496,6 +692,17 @@ const resolvers = {
         if (!mediators.length) {
           throw new UserInputError('Interpreter not found');
         }
+
+        // Log the deletion
+        const clientInfo = getClientInfo(context);
+        await createSystemLog({
+          action: 'DELETE',
+          client_id: context.user.id,
+          phone_number_id: mediators[0].phone_number_id,
+          ip: clientInfo.ip,
+          browser: clientInfo.browser,
+          description: `Deleted interpreter ${mediators[0].first_name} ${mediators[0].last_name}`,
+        });
 
         await db.delete(interpreter).where(eq(interpreter.id, id));
         return true;
@@ -542,6 +749,20 @@ const resolvers = {
         const updatedMediator = updatedMediators[0];
 
         if (updatedMediator) {
+          // Log the status update
+          const clientInfo = getClientInfo(context);
+          await createSystemLog({
+            action: 'UPDATE',
+            client_id: context.user.id,
+            phone_number_id: updatedMediator.phone_number_id,
+            ip: clientInfo.ip,
+            browser: clientInfo.browser,
+            changes: {
+              id: updatedMediator.id,
+              status: { old: existingMediator.status, new: status },
+            },
+            description: `Updated interpreter ${updatedMediator.first_name} ${updatedMediator.last_name} status to ${status}`,
+          });
           return updatedMediator;
         } else {
           throw new Error(
@@ -936,8 +1157,32 @@ const resolvers = {
           }
           const result = validateAndTransformData(rows);
 
-          await saveMediatorsToDatabase(result, context.user.id);
-          // console.log({ mediatorData })
+          const savedMediators = await saveMediatorsToDatabase(
+            result,
+            context.user.id,
+          );
+
+          // Log the bulk upload
+          const clientInfo = getClientInfo(context);
+          await createSystemLog({
+            action: 'CREATE',
+            client_id: context.user.id,
+            phone_number_id,
+            ip: clientInfo.ip,
+            browser: clientInfo.browser,
+            changes: {
+              id: uuidv4(),
+              uploadType: { new: 'excel' },
+              interpreters: {
+                new: savedMediators.map((m) => ({
+                  id: m.id,
+                  name: `${m.first_name} ${m.last_name}`,
+                })),
+              },
+            },
+            description: `Bulk uploaded ${savedMediators.length} interpreters via Excel file`,
+          });
+
           return 'Interpreters uploaded successfully using excel file.';
           // });
         } else if (mimetype === 'text/csv') {
@@ -987,8 +1232,32 @@ const resolvers = {
             );
           }
 
-          await saveMediatorsToDatabase(result, context.user.id);
-          console.log({ mediatorData });
+          const savedMediators = await saveMediatorsToDatabase(
+            result,
+            context.user.id,
+          );
+
+          // Log the bulk upload
+          const clientInfo = getClientInfo(context);
+          await createSystemLog({
+            action: 'CREATE',
+            client_id: context.user.id,
+            phone_number_id,
+            ip: clientInfo.ip,
+            browser: clientInfo.browser,
+            changes: {
+              id: uuidv4(),
+              uploadType: { new: 'csv' },
+              interpreters: {
+                new: savedMediators.map((m) => ({
+                  id: m.id,
+                  name: `${m.first_name} ${m.last_name}`,
+                })),
+              },
+            },
+            description: `Bulk uploaded ${savedMediators.length} interpreters via CSV file`,
+          });
+
           return 'Interpreters uploaded successfully.';
         } else {
           throw new UserInputError(
