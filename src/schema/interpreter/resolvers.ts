@@ -504,6 +504,31 @@ const resolvers = {
         if (updatedMediator) {
           // Log the update with specific field changes
           const clientInfo = getClientInfo(context);
+          // Compare arrays for changes in sourceLanguages, targetLanguages, and groups
+          function arrayChanged(oldArr: any[], newArr: any[]): boolean {
+            if (!Array.isArray(oldArr) || !Array.isArray(newArr)) return false;
+            if (oldArr.length !== newArr.length) return true;
+            const oldSet = new Set(oldArr.map(String));
+            const newSet = new Set(newArr.map(String));
+            if (oldSet.size !== newSet.size) return true;
+            for (const id of oldSet) {
+              if (!newSet.has(id)) return true;
+            }
+            return false;
+          }
+
+          // Fetch previous group IDs for comparison if groupIDs provided
+          let previousGroupIds: string[] | undefined = undefined;
+          if (mediatorData.groupIDs) {
+            const prevGroups = await db
+              .select({ id: mediatorGroupRelation.mediator_group_id })
+              .from(mediatorGroupRelation)
+              .where(
+                eq(mediatorGroupRelation.interpreter_id, updatedMediator.id),
+              );
+            previousGroupIds = prevGroups.map((g: any) => g.id);
+          }
+
           const changes = {
             id: updatedMediator.id,
             first_name:
@@ -627,24 +652,37 @@ const resolvers = {
                     new: updatedMediator.sunday_time_slots,
                   }
                 : undefined,
-            sourceLanguages: mediatorData.sourceLanguages
-              ? {
-                  old: existingSourceLanguages.map((l: any) => l.id),
-                  new: mediatorData.sourceLanguages,
-                }
-              : undefined,
-            targetLanguages: mediatorData.targetLanguages
-              ? {
-                  old: existingTargetLanguages.map((l: any) => l.id),
-                  new: mediatorData.targetLanguages,
-                }
-              : undefined,
-            groups: mediatorData.groupIDs
-              ? {
-                  old: undefined, // You can fetch previous group IDs if needed
-                  new: mediatorData.groupIDs,
-                }
-              : undefined,
+            sourceLanguages:
+              mediatorData.sourceLanguages &&
+              arrayChanged(
+                existingSourceLanguages.map((l: any) => l.id),
+                mediatorData.sourceLanguages,
+              )
+                ? {
+                    old: existingSourceLanguages.map((l: any) => l.id),
+                    new: mediatorData.sourceLanguages,
+                  }
+                : undefined,
+            targetLanguages:
+              mediatorData.targetLanguages &&
+              arrayChanged(
+                existingTargetLanguages.map((l: any) => l.id),
+                mediatorData.targetLanguages,
+              )
+                ? {
+                    old: existingTargetLanguages.map((l: any) => l.id),
+                    new: mediatorData.targetLanguages,
+                  }
+                : undefined,
+            groups:
+              mediatorData.groupIDs &&
+              previousGroupIds &&
+              arrayChanged(previousGroupIds, mediatorData.groupIDs)
+                ? {
+                    old: previousGroupIds,
+                    new: mediatorData.groupIDs,
+                  }
+                : undefined,
           };
 
           // Remove undefined fields
